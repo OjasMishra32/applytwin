@@ -527,28 +527,50 @@ def pending_jobs():
     return out
 
 
-def import_history(csv_path):
-    """Mark jobs you already applied to elsewhere (a CSV with company,title,url,status columns, e.g. a spreadsheet tracker)
-    so your twin never applies twice. Matches by ATS job id in the URL, then by company + title."""
+HISTORY_COLS = {   # column names used by Simplify, Huntr, Teal, Notion, Google Sheets and hand-made trackers
+    'company': ('company', 'company name', 'employer', 'organization', 'firm'),
+    'title': ('title', 'job title', 'position', 'job position', 'role', 'job', 'job name'),
+    'url': ('url', 'link', 'job url', 'job link', 'posting', 'posting url', 'application link', 'apply link'),
+    'status': ('status', 'stage', 'list', 'application status', 'state', 'outcome'),
+}
+
+
+def import_history(csv_path=None, text=None):
+    """Mark jobs you already applied to elsewhere so your twin never applies twice. Reads a CSV export from any tracker
+    (Simplify, Huntr, Teal, Notion, a Google Sheet, or company,title,url,status columns); matches by the posting's job id
+    in the URL, then by company + role."""
     import csv
+    import io
+    rows = list(csv.reader(io.StringIO(text) if text is not None else open(csv_path, newline='')))
+    if not rows:
+        return {"matched": 0, "known_applications": 0}
+    head = [h.strip().lower() for h in rows[0]]
+    idx = {k: next((i for i, h in enumerate(head) if h in names), None) for k, names in HISTORY_COLS.items()}
+    if idx['company'] is None or idx['title'] is None:   # no header: company,title,url,status
+        idx, body = {'company': 0, 'title': 1, 'url': 2, 'status': 3}, rows
+    else:
+        body = rows[1:]
+    cell = lambda r, k: r[idx[k]].strip() if idx[k] is not None and idx[k] < len(r) else ''
     ids, names = {}, {}
-    with open(csv_path, newline='') as f:
-        for row in csv.reader(f):
-            if len(row) < 4 or row[0].lower() == 'company':
-                continue
-            company, title, url, status = row[0], row[1], row[2], row[3]
-            if not status.strip():
-                continue
-            st = 'applied' if status.lower().startswith('applied') else 'skipped'  # anything you already touched stays out of the queue
-            for m in re.findall(r'(?:token=|/jobs/|/)([0-9a-f]{8}-[0-9a-f-]{27}|\d{5,})', url or ''):
-                ids[m] = st
-            names[(company.lower().strip(), title.lower().strip())] = st
+    for r in body:
+        company, title, url, status = cell(r, 'company'), cell(r, 'title'), cell(r, 'url'), cell(r, 'status')
+        if not company or not title:
+            continue
+        if idx['status'] is not None and not status:
+            continue   # a saved-but-not-applied row
+        st = 'skipped' if re.search(r'saved|wishlist|bookmark|interested|to apply', status, re.I) and not re.search(r'appl', status, re.I) else \
+             'applied' if not status or re.search(r'appl|interview|offer|reject|oa|assessment|screen', status, re.I) else 'skipped'
+        if st == 'skipped' and re.search(r'saved|wishlist|bookmark|to apply', status, re.I):
+            continue   # never applied: leave it in the queue
+        for m in re.findall(r'(?:token=|/jobs/|/)([0-9a-f]{8}-[0-9a-f-]{27}|\d{5,})', url or ''):
+            ids[m] = st
+        names[role_key(company, title)] = st
     n = 0
     for j in store.rows('select id, company, title, url, apply_url from jobs where status="new"'):
         st = None
         for m in re.findall(r'(?:token=|/jobs/|/)([0-9a-f]{8}-[0-9a-f-]{27}|\d{5,})', (j['apply_url'] or '') + ' ' + (j['url'] or '')):
             st = st or ids.get(m)
-        st = st or names.get((j['company'].lower().strip(), j['title'].lower().strip()))
+        st = st or names.get(role_key(j['company'], j['title']))
         if st:
             store.execute('update jobs set status=? where id=?', (st, j['id']))
             n += 1

@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'motion/react'
 import { toast } from 'sonner'
 import { api, fileUrl } from '../lib/api'
 import { useApp, Page } from '../App'
-import { Avatar, Title, burst, spring } from '../components/ui'
+import { Avatar, Button, Title, burst, spring } from '../components/ui'
+import { Upload } from 'lucide-react'
 
 const COLS = [['Needs User', 'Needs you', '#ff9f0a'], ['Applied', 'Applied', '#0a84ff'], ['Interview', 'Interview', '#bf5af2'], ['Offer', 'Offer', '#30d158'], ['Rejected', 'Rejected', '#7d869f']]
 
@@ -22,7 +23,14 @@ export default function Board() {
   }
   return (
     <div className="relative"><Page wide>
-      <Title sub="Drag a card when you hear back. Interviews and offers teach your twin what works for you.">
+      <Title sub="Drag a card when you hear back. Interviews and offers teach your twin what works for you."
+        right={<label className="cursor-pointer"><input type="file" accept=".csv,text/csv" className="hidden" onChange={async e => {
+          const f = e.target.files?.[0]; if (!f) return
+          try {
+            const r = await api('/api/history', { text: await f.text() }); load()
+            toast.success(`Found ${r.known_applications.toLocaleString()} applications`, { description: `${r.matched.toLocaleString()} matched jobs in your queue, so your twin won't apply to them again.` })
+          } catch (err) { toast.error(err.message) } e.target.value = '' }} />
+          <span className="inline-flex h-10 items-center gap-1.5 rounded-full bg-white/[.08] px-5 text-[14px] font-medium text-ink hover:bg-white/[.13]"><Upload className="size-4" />Import your tracker</span></label>}>
         Applications</Title>
       <div className="grid gap-4 overflow-x-auto pb-4 md:grid-cols-5">
         {COLS.map(([st, label, color]) => {

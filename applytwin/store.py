@@ -102,10 +102,17 @@ def answers():
 
 
 def companies():
-    user = path('companies.json')
-    src = user if os.path.exists(user) else os.path.join(APP, 'data', 'companies.json')
-    with open(src) as f:
-        return json.load(f)
+    """Built-in boards + your own additions + boards discovered from job trackers (all merged, so updates reach everyone)."""
+    with open(os.path.join(APP, 'data', 'companies.json')) as f:
+        out = json.load(f)
+    for extra in (path('companies.json'), path('discovered.json')):
+        if os.path.exists(extra):
+            try:
+                for k, v in json.load(open(extra)).items():
+                    out[k] = list(dict.fromkeys(out.get(k, []) + v))
+            except (ValueError, OSError):
+                pass
+    return out
 
 
 SCHEMA = """
