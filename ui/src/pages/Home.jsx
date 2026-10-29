@@ -6,7 +6,6 @@ import { ago } from '../lib/utils'
 import { useApp } from '../App'
 import { Sky } from '../components/Sky'
 import { Hero3D } from '../components/Hero3D'
-import { LogoWall, Story } from '../components/Story'
 import { Avatar, Button, Fit, GlideList, LightRing, Magnetic, NumberTicker, Odometer, Reveal, Stagger, Words, item, soft } from '../components/ui'
 import { useScroll, useTransform } from 'motion/react'
 
@@ -29,7 +28,7 @@ export default function Home() {
 
   return (
     <div className="relative">
-      <Sky height={900} />
+      <Sky height={760} />
       <div className="relative mx-auto grid max-w-[1240px] items-center gap-2 px-6 pt-28 md:grid-cols-[1.1fr_1fr]">
         <motion.div className="text-white" style={{ y: heroY, opacity: heroO }}>
           <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={soft} className="flex flex-wrap items-center gap-3 text-[17px] font-medium text-white/80">
@@ -44,26 +43,20 @@ export default function Home() {
             {(stats.matched || 0).toLocaleString()} open roles fit you right now. It writes the ideal resume for each one and applies through your own Claude or Codex. Free, forever.
           </motion.p>
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.22 }} className="mt-8 flex flex-wrap gap-3">
-            <Magnetic><Button size="lg" variant="dark" className="bg-white text-[#0b1020] shadow-[0_12px_40px_rgb(76_141_255/.45)] hover:bg-white" onClick={() => go('agents')} arrow>Start applying</Button></Magnetic>
+            <Magnetic><Button size="lg" variant="dark" className="bg-white text-[#0b1020] hover:bg-white/90" onClick={() => go('agents')} arrow>Start applying</Button></Magnetic>
             <Button size="lg" variant="glass" onClick={startScan} loading={scanning}>{scanning ? 'Scanning' : 'Find new jobs'}</Button>
           </motion.div>
         </motion.div>
         <motion.div style={{ y: artY, scale: artS }}><Hero3D name={profile.name || 'Your Name'} /></motion.div>
       </div>
 
-      <Reveal className="relative mt-10">
-        <div className="mx-auto max-w-[1240px] px-6 text-center text-[15px] text-muted">
-          <span className="font-semibold text-white">{(stats.matched || 0).toLocaleString()} roles</span> open right now at companies like
-        </div>
-        <LogoWall companies={[...new Set(jobs.map(j => j.company))].slice(0, 42)} />
-      </Reveal>
-      <Story />
-      <div className="relative mx-auto mt-4 max-w-[1240px] px-6 pb-24">
-        <Reveal><div className="card grid grid-cols-2 divide-white/[.06] md:grid-cols-4 md:divide-x">
-          {[['Fit you now', stats.matched, 'text-signal'], ['Applied today', stats.applied_today, 'text-ink'], ['This week', stats.applied_7d, 'text-ink'],
-            ['Left today', next?.remaining_today ?? 0, 'text-ink']].map(([l, v, c]) => (
-            <div key={l} className="px-7 py-6"><div className="text-[13px] text-muted">{l}</div>
-              <div className={`mt-2 text-[44px] font-semibold leading-none tracking-[-0.04em] ${c}`}><Odometer value={v || 0} /></div></div>))}
+      <div className="relative mx-auto mt-16 max-w-[1240px] px-6 pb-24">
+        <Reveal><div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          {[['Fit you now', stats.matched, '#0a84ff'], ['Applied today', stats.applied_today, '#30d158'], ['This week', stats.applied_7d, '#bf5af2'],
+            ['Left today', next?.remaining_today ?? 0, '#7d869f']].map(([l, v, c]) => (
+            <div key={l} className="card px-5 py-4">
+              <div className="text-[34px] font-semibold leading-none tracking-[-0.04em] text-white"><Odometer value={v || 0} /></div>
+              <div className="mt-2 flex items-center gap-1.5 text-[13px] text-muted"><span className="size-2 rounded-full" style={{ background: c }} />{l}</div></div>))}
         </div></Reveal>
 
         <div className={`mt-8 grid gap-8 ${todo.length ? 'md:grid-cols-[1.7fr_1fr]' : ''}`}>
@@ -107,17 +100,6 @@ export default function Home() {
             </div>
           </section></Reveal>)}
 
-        <Reveal className="relative mt-28 overflow-hidden rounded-[32px] border border-white/10 px-8 py-24 text-center">
-          <div className="absolute inset-0 -z-0" style={{ background: 'radial-gradient(60% 80% at 50% 110%, rgb(76 141 255 / .55), transparent 70%), radial-gradient(40% 60% at 20% 0%, rgb(124 92 255 / .25), transparent 70%), #060b22' }} />
-          <div className="relative">
-            <div className="text-[clamp(64px,11vw,168px)] font-bold leading-[0.85] tracking-[-0.06em] text-white">Get <span className="serif-i text-aurora">hired.</span></div>
-            <p className="mx-auto mt-6 max-w-[520px] text-[18px] text-muted">{(stats.matched || 0).toLocaleString()} roles are waiting. Your twin can start on them right now.</p>
-            <p className="mx-auto mt-3 text-[14px] font-medium text-white/70">100% free. Open source. Your data stays on your computer.</p>
-            <div className="mt-10 flex justify-center"><Magnetic strength={0.35}><LightRing speed={3} thickness={2}>
-              <button onClick={() => go('agents')} className="rounded-full bg-white px-9 py-4 text-[18px] font-semibold text-[#0b1020] shadow-[0_20px_60px_rgb(76_141_255/.5)]">Let my twin apply</button>
-            </LightRing></Magnetic></div>
-          </div>
-        </Reveal>
       </div>
     </div>
   )

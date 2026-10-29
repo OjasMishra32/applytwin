@@ -29,7 +29,7 @@ GET = {
     r'/api/jobs/([\w-]+)/ats': lambda m, qs, b: api.ats_report(job_id=m.group(1)),
     r'/api/templates': lambda m, qs, b: api.templates(),
     r'/api/answers': lambda m, qs, b: api.get_answers(),
-    r'/api/applications': lambda m, qs, b: api.applications(),
+    r'/api/applications': lambda m, qs, b: api.applications(history=_q(qs, 'history') == '1'),
     r'/api/scan': lambda m, qs, b: api.scan_status(),
     r'/api/dump': lambda m, qs, b: {"text": api.get_dump()},
     r'/api/ats': lambda m, qs, b: api.ats_report(),

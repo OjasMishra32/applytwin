@@ -16,7 +16,6 @@ export default function Jobs({ arg }) {
   const [list, setList] = useState(null)
   const [add, setAdd] = useState(false)
   const t = useRef()
-  const ph = useTyping(['Search anything…', 'quant trading intern', 'Stripe', 'machine learning, New York', 'robotics', 'remote software engineer'])
   const load = () => api(`/api/jobs?q=${encodeURIComponent(q)}&status=${status}&order=${order}&limit=200${status === 'new' ? '' : '&min=0'}`).then(setList)
   useEffect(() => { clearTimeout(t.current); t.current = setTimeout(load, 180) }, [q, status, order, scan?.running])
 
@@ -24,14 +23,14 @@ export default function Jobs({ arg }) {
     <div className="relative">
       
       <Page>
-        <Title n="02" sub="Every match from every source, scored against you." right={<>
+        <Title sub="Every match from every source, scored against you." right={<>
           <Button variant="white" onClick={() => setAdd(true)}><Plus className="size-4" />Add a job</Button>
           <Button onClick={startScan} loading={scan?.running}>{scan?.running ? 'Scanning' : 'Scan now'}</Button></>}>
           Jobs
         </Title>
         <div className="card mb-4 flex flex-wrap items-center gap-3 p-2.5">
           <div className="relative min-w-[240px] flex-1"><Search className="absolute left-3.5 top-2.5 size-4 text-faint" />
-            <input value={q} onChange={e => setQ(e.target.value)} placeholder={ph} className="h-9 w-full rounded-[10px] bg-mist pl-10 pr-4 text-[14px] outline-none focus:bg-white focus:ring-4 focus:ring-signal/20" /></div>
+            <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search roles, companies or places" className="h-9 w-full rounded-[10px] bg-white/[.06] pl-10 pr-4 text-[14px] text-white outline-none placeholder:text-faint focus:ring-2 focus:ring-signal" /></div>
           <Segmented id="st" value={status} onChange={setStatus} options={[['new', 'New'], ['applied', 'Applied'], ['skipped', 'Skipped'], ['all', 'All']]} />
           <Segmented id="ord" value={order} onChange={setOrder} options={[['fit', 'Best fit'], ['new', 'Newest']]} />
         </div>
@@ -194,21 +193,4 @@ function AddJob({ open, setOpen }) {
       </Dialog.Portal>
     </Dialog.Root>
   )
-}
-
-function useTyping(words) {
-  const [s, setS] = useState(words[0])
-  useEffect(() => {
-    let w = 0, i = 0, del = false, t
-    const step = () => {
-      const cur = words[w]
-      if (!del) { i++; if (i > cur.length) { del = true; t = setTimeout(step, 1600); return } }
-      else { i--; if (i === 0) { del = false; w = (w + 1) % words.length } }
-      setS(cur.slice(0, i) + (i ? '▍' : ''))
-      t = setTimeout(step, del ? 28 : 65)
-    }
-    t = setTimeout(step, 1200)
-    return () => clearTimeout(t)
-  }, [])
-  return s
 }

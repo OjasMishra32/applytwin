@@ -10,7 +10,7 @@ export function Chips({ value = [], onChange, placeholder, suggestions = [] }) {
   const addv = x => { x = x.trim(); if (x && !value.includes(x)) onChange([...value, x]); setT('') }
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-1.5 rounded-[14px] bg-mist px-2 py-1.5 focus-within:bg-white focus-within:ring-4 focus-within:ring-signal/20">
+      <div className="flex flex-wrap items-center gap-1.5 rounded-[14px] bg-mist px-2 py-1.5 focus-within:bg-white/[.08] focus-within:ring-2 focus-within:ring-signal">
         {value.map(v => <span key={v} className="inline-flex items-center gap-1 rounded-full bg-signal/10 py-1 pl-3 pr-1.5 text-[13px] font-medium text-signal-ink">{v}
           <button onClick={() => onChange(value.filter(x => x !== v))} className="grid size-4 place-items-center rounded-full hover:bg-signal/20"><X className="size-3" /></button></span>)}
         <input value={t} onChange={e => setT(e.target.value)} placeholder={value.length ? '' : placeholder} onKeyDown={e => {
@@ -51,7 +51,7 @@ export default function Settings() {
   const Sel = (k, opts) => <select className="uline" value={p.eeo[k]} onChange={e => se(k, e.target.value)}>{opts.map(o => <option key={o}>{o}</option>)}</select>
   return (
     <div className="relative"><Page>
-      <Title n="07" sub="Who you are, what you want, and how far your twin may go on its own." right={<Button onClick={save} arrow>Save</Button>}>
+      <Title sub="Who you are, what you want, and how far your twin may go on its own." right={<Button onClick={save} arrow>Save</Button>}>
         Settings</Title>
       <div className="mx-auto max-w-[860px]">
         <Group title="Your twin's permissions">
@@ -77,6 +77,9 @@ export default function Settings() {
         </Group>
         <Group title="School">
           {[['school', 'School'], ['degree', 'Degree'], ['major', 'Major'], ['minor', 'Minor'], ['gpa', 'GPA'], ['grad_month', 'Graduation month'], ['grad_year', 'Graduation year'], ['earliest_start', 'Earliest start']].map(([k, l]) => <Row key={k} label={l}>{T(k, l)}</Row>)}
+          <Row label="Class standing now" hint="Your twin answers year-in-school questions with this, and knows a sophomore is a rising junior next summer.">
+            <select className="uline" value={p.class_standing || ''} onChange={e => set('class_standing', e.target.value)}>
+              {['', 'Freshman', 'Sophomore', 'Junior', 'Senior', 'Graduate'].map(o => <option key={o} value={o}>{o || 'Not set'}</option>)}</select></Row>
         </Group>
         <Group title="Work authorization">
           <Row label="Authorized to work in the US"><div className="flex justify-end"><Switch checked={p.work_authorized_us} onChange={v => set('work_authorized_us', v)} /></div></Row>

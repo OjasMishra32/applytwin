@@ -242,8 +242,15 @@ def log_application(job_id, status='Applied', notes='', resume_path=''):
     return out
 
 
-def applications(limit=500):
-    return store.rows('select * from applications order by at desc limit ?', (limit,))
+def applications(limit=500, history=False):
+    rows = store.rows('select * from applications order by at desc limit ?', (limit,))
+    if history:   # roles applied to before ApplyTwin (imported from a tracker), so the board shows the whole search
+        logged = {r['job_id'] for r in store.rows('select job_id from applications')}
+        rows += [{"id": 'h' + j['id'], "job_id": j['id'], "company": j['company'], "title": j['title'], "url": j['url'], "status": 'Applied',
+                  "resume_path": '', "notes": 'From your history', "at": j['found_at']}
+                 for j in store.rows("select id, company, title, url, found_at from jobs where status='applied' order by found_at desc")
+                 if j['id'] not in logged]
+    return rows
 
 
 def stats():

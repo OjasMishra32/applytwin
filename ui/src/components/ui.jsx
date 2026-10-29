@@ -10,9 +10,9 @@ export const soft = { type: 'spring', stiffness: 220, damping: 28 }
 
 export function Button({ variant = 'ink', size = 'md', className, children, arrow, loading, ...p }) {
   const v = {
-    ink: 'bg-signal text-white shadow-[0_8px_30px_rgb(76_141_255/.35)] hover:bg-[#5d9aff]', signal: 'bg-signal text-white shadow-[0_8px_30px_rgb(76_141_255/.35)] hover:bg-[#5d9aff]', sky: 'bg-signal text-white shadow-[0_8px_30px_rgb(76_141_255/.35)] hover:bg-[#5d9aff]',
+    ink: 'bg-signal text-white hover:bg-[#2b95ff]', signal: 'bg-signal text-white hover:bg-[#2b95ff]', sky: 'bg-signal text-white hover:bg-[#2b95ff]',
     dark: 'bg-white text-[#0b1020] hover:bg-white/90',
-    white: 'bg-white/[.08] text-ink ring-1 ring-white/15 backdrop-blur-md hover:bg-white/[.14]',
+    white: 'bg-white/[.08] text-ink hover:bg-white/[.13]',
     glass: 'bg-white/20 text-white backdrop-blur-md hover:bg-white/30',
     ghost: 'text-signal-ink hover:bg-signal/[.06]',
     danger: 'text-bad hover:bg-bad/[.06]',
@@ -171,8 +171,8 @@ export function Title({ children, sub, right }) {
     <div className="mb-8 flex flex-wrap items-end justify-between gap-6">
       <div>
         <motion.h1 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={soft}
-          className="font-display text-[56px] font-bold leading-[1.02] tracking-[-0.04em] text-white">{typeof children === 'string' ? <Scramble text={children} /> : children}</motion.h1>
-        {sub && <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.15 }} className="mt-2 max-w-xl text-[17px] leading-snug text-white/75">{sub}</motion.p>}
+          className="text-[44px] font-bold leading-[1.05] tracking-[-0.035em] text-white">{children}</motion.h1>
+        {sub && <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }} className="mt-2 max-w-xl text-[16px] leading-snug text-muted">{sub}</motion.p>}
       </div>
       <div className="flex items-center gap-2">{right}</div>
     </div>
@@ -223,78 +223,38 @@ export function Words({ text, className, delay = 0, stagger = 0.06 }) {
 }
 
 /* Leans toward the cursor a little. */
-export function Magnetic({ children, strength = 0.25, className }) {
-  const ref = useRef(null)
-  const x = useSpring(0, { stiffness: 250, damping: 18 }), y = useSpring(0, { stiffness: 250, damping: 18 })
-  return (
-    <motion.div ref={ref} className={cn('inline-block', className)} style={{ x, y }}
-      onMouseMove={e => { const r = ref.current.getBoundingClientRect(); x.set((e.clientX - r.left - r.width / 2) * strength); y.set((e.clientY - r.top - r.height / 2) * strength) }}
-      onMouseLeave={() => { x.set(0); y.set(0) }}>{children}</motion.div>
-  )
+export function Magnetic({ children, className }) {
+  return <div className={cn('inline-block', className)}>{children}</div>
 }
 
 /* A list whose hover highlight glides from row to row. rows: [{key, onClick, content}] */
-export function GlideList({ rows, className, id = 'glide' }) {
-  const [hover, setHover] = useState(null)
+export function GlideList({ rows, className }) {
   return (
-    <div className={cn('relative', className)} onMouseLeave={() => setHover(null)}>
+    <div className={cn('relative', className)}>
       {rows.map((r, i) => (
-        <motion.button key={r.key} onClick={r.onClick} onMouseEnter={() => setHover(r.key)} variants={item}
-          className="group relative flex w-full items-center gap-4 px-5 py-3.5 text-left">
-          {hover === r.key && <motion.span layoutId={id} transition={{ type: 'spring', stiffness: 500, damping: 40 }}
-            className="absolute inset-x-2 inset-y-1 rounded-[14px] bg-gradient-to-r from-signal/[.18] to-signal/[.04] ring-1 ring-signal/25" />}
+        <motion.button key={r.key} onClick={r.onClick} variants={item}
+          className="group relative flex w-full items-center gap-4 px-5 py-3 text-left transition-colors hover:bg-white/[.035]">
           {i > 0 && <span className="absolute inset-x-5 top-0 h-px bg-white/[.06]" />}
-          <span className="relative flex w-full items-center gap-4 [&_.logo]:transition-transform [&_.logo]:duration-300 group-hover:[&_.logo]:scale-110 group-hover:[&_.logo]:-rotate-3">{r.content}</span>
+          <span className="relative flex w-full items-center gap-4">{r.content}</span>
         </motion.button>))}
     </div>
   )
 }
 
 /* A soft light that follows the cursor inside any panel (pure CSS vars, no re-render). */
-export function Glow({ children, className, color = '76 141 255', size = 420, as: As = 'div', ...p }) {
-  const ref = useRef(null)
-  return (
-    <As ref={ref} onMouseMove={e => { const r = ref.current.getBoundingClientRect(); ref.current.style.setProperty('--gx', `${e.clientX - r.left}px`); ref.current.style.setProperty('--gy', `${e.clientY - r.top}px`) }}
-      className={cn('group/glow relative', className)} {...p}>
-      <span className="pointer-events-none absolute inset-0 rounded-[inherit] opacity-0 transition-opacity duration-300 group-hover/glow:opacity-100"
-        style={{ background: `radial-gradient(${size}px circle at var(--gx) var(--gy), rgb(${color} / .14), transparent 60%)` }} />
-      <span className="pointer-events-none absolute inset-0 rounded-[inherit] opacity-0 transition-opacity duration-300 group-hover/glow:opacity-100"
-        style={{ padding: 1, background: `radial-gradient(${size * 0.7}px circle at var(--gx) var(--gy), rgb(${color} / .7), transparent 60%)`,
-          WebkitMask: 'linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)', WebkitMaskComposite: 'xor', maskComposite: 'exclude' }} />
-      {children}
-    </As>
-  )
+export function Glow({ children, className, as: As = 'div', color, size, ...p }) {
+  return <As className={cn('relative', className)} {...p}>{children}</As>
 }
 
 /* A rotating ring of light around anything (CTAs, drop zones). */
-export function LightRing({ children, className, radius = 9999, speed = 4, thickness = 1.5 }) {
-  return (
-    <div className={cn('relative isolate', className)} style={{ borderRadius: radius, padding: thickness }}>
-      <motion.div className="absolute inset-0 -z-10 overflow-hidden" style={{ borderRadius: radius }}>
-        <motion.div className="absolute left-1/2 top-1/2 aspect-square w-[200%] -translate-x-1/2 -translate-y-1/2"
-          style={{ background: 'conic-gradient(from 0deg, transparent 0deg, #4c8dff 60deg, #a5f3fc 100deg, #c4b5fd 140deg, transparent 200deg, transparent 360deg)' }}
-          animate={{ rotate: 360 }} transition={{ duration: speed, repeat: Infinity, ease: 'linear' }} />
-      </motion.div>
-      {children}
-    </div>
-  )
+export function LightRing({ children, className }) {
+  return <div className={className}>{children}</div>
 }
 
 /* Small fit gauge that sweeps in. */
-export function Gauge({ v, size = 38 }) {
-  const n = Math.round(v), r = size / 2 - 3.5, c = 2 * Math.PI * r
-  const id = 'g' + n
-  return (
-    <div className="relative grid shrink-0 place-items-center" style={{ width: size, height: size }}>
-      <svg width={size} height={size} className="-rotate-90">
-        <defs><linearGradient id={id} x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor={n >= 90 ? '#a5f3fc' : '#8ab4ff'} /><stop offset="1" stopColor={n >= 90 ? '#4c8dff' : '#5b6b9a'} /></linearGradient></defs>
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgb(255 255 255 / .08)" strokeWidth="3" />
-        <motion.circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={`url(#${id})`} strokeWidth="3" strokeLinecap="round" strokeDasharray={c}
-          initial={{ strokeDashoffset: c }} whileInView={{ strokeDashoffset: c * (1 - n / 100) }} viewport={{ once: true }} transition={{ duration: 1, ease: [0.2, 0.8, 0.2, 1] }} />
-      </svg>
-      <span className={cn('absolute text-[11.5px] font-semibold tabular-nums', n >= 90 ? 'text-white' : 'text-muted')}>{n}</span>
-    </div>
-  )
+export function Gauge({ v }) {
+  const n = Math.round(v)
+  return <span className={cn('w-10 shrink-0 text-right text-[13px] font-medium tabular-nums', n >= 85 ? 'text-white' : 'text-muted')}>{n}%</span>
 }
 
 /* Celebration burst. */

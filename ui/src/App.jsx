@@ -43,13 +43,6 @@ export default function App() {
   useEffect(() => { if (state && (!location.hash || location.hash === '#home') && !(state.vault?.experience?.length || state.vault?.projects?.length)) location.hash = 'welcome' }, [state])
   const loadJobs = useCallback(() => api('/api/jobs?limit=200').then(setJobs), [])
   useEffect(() => { refresh(); loadJobs() }, [refresh, loadJobs])
-  useEffect(() => {
-    let raf = 0, ev = null
-    const run = () => { raf = 0; const c = ev.target.closest?.('.card'); if (!c) return; const r = c.getBoundingClientRect()
-      c.style.setProperty('--gx', `${ev.clientX - r.left}px`); c.style.setProperty('--gy', `${ev.clientY - r.top}px`) }
-    const f = e => { ev = e; if (!raf) raf = requestAnimationFrame(run) }
-    window.addEventListener('pointermove', f, { passive: true }); return () => window.removeEventListener('pointermove', f)
-  }, [])
   useEffect(() => { const f = () => { setRoute(parse()); window.scrollTo({ top: 0 }) }; window.addEventListener('hashchange', f); return () => window.removeEventListener('hashchange', f) }, [])
   const go = (page, arg) => { location.hash = arg ? `${page}/${arg}` : page }
 
@@ -80,7 +73,7 @@ export default function App() {
       <motion.main key={route.page} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.25, ease: 'easeOut' }} className="relative min-h-full">
         <Page arg={route.arg} />
       </motion.main>
-      <Toaster position="bottom-center" toastOptions={{ style: { borderRadius: 18, fontFamily: 'Geist', boxShadow: '0 20px 50px rgb(15 23 42 / .18)' } }} />
+      <Toaster theme="dark" position="bottom-center" toastOptions={{ style: { borderRadius: 16, background: '#1c2033', border: '1px solid rgb(255 255 255 / .08)', color: '#fff' } }} />
     </Ctx.Provider>
   )
 }

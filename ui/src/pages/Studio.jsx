@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { ArrowDown, ArrowUp, Check, CheckCircle2, FileDown, Palette, PenLine, Plus, ScanSearch, Trash2, AlertTriangle, Sparkles, Upload } from 'lucide-react'
 import { api, fileUrl } from '../lib/api'
 import { useApp, Page } from '../App'
-import { Badge, Button, Drop, Hand, Ring, Segmented, Title, spring } from '../components/ui'
+import { Badge, Button, Drop, Ring, Segmented, Title, spring } from '../components/ui'
 import { Paper } from './Jobs'
 
 const md = s => (s || '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
@@ -46,7 +46,7 @@ export default function Studio({ arg }) {
     <div className="relative">
       
       <Page wide>
-        <Title n="03" sub="Put everything here, even what won't fit. Your twin picks the best of it for every job."
+        <Title sub="Put everything here, even what won't fit. Your twin picks the best of it for every job."
           right={<>
             <span className="mr-2 flex items-center gap-1.5 text-[13px] text-white/85">{saved ? <><CheckCircle2 className="size-4" />Saved</> : 'Saving…'}</span>
             <Button variant="white" onClick={() => setImporting(true)}><Upload className="size-4" />Import</Button>
@@ -64,7 +64,7 @@ export default function Studio({ arg }) {
                 <div className="card p-5"><div className="flex items-center gap-4"><Ring value={rep?.score ?? 0} size={70} />
                   <div><div className="font-display text-[22px] font-semibold tracking-[-0.035em] leading-tight">Resume score</div><div className="text-[12.5px] text-muted">{fails.length ? `${fails.length} things to fix` : 'Looking sharp'}</div></div></div>
                   <button onClick={() => setMode('check')} className="mt-3 text-[13px] font-medium text-signal-ink hover:underline">See the checks →</button></div>
-                <div className="card p-5"><Hand>how it works</Hand>
+                <div className="card p-5"><div className="text-[15px] font-semibold text-white">How it works</div>
                   <ul className="mt-2 space-y-2 text-[13px] leading-relaxed text-muted">
                     <li>Click any line to edit it. <b className="text-fg">**bold**</b> works.</li>
                     <li>Add every version of a bullet you like: different angles help.</li>
@@ -102,7 +102,7 @@ function Doc({ v, set, save }) {
   const bul = (sec, i, j, op) => { const nv = structuredClone(v); const a = nv[sec][i].bullets ??= []
     if (op === 'add') a.splice(j + 1, 0, ''); else if (op === 'del') a.splice(j, 1); else if (a[j + op] !== undefined) [a[j], a[j + op]] = [a[j + op], a[j]]; save(nv) }
   return (
-    <div className="relative mx-auto w-full max-w-[860px] rounded-[10px] bg-white px-[7%] py-12 text-[15px] leading-[1.45] text-[#16161a] shadow-[0_50px_120px_rgb(0_0_0/.55),0_0_100px_rgb(76_141_255/.18)] [--color-ink:#16161a] [--color-fg:#16161a] [--color-muted:#5d5f6b] [--color-faint:#9b9daa] [--color-line-2:rgb(0_0_0/.14)] [--color-signal-ink:#1d4ed8]" style={{ fontFamily: 'Charter, "Iowan Old Style", Georgia, serif' }}>
+    <div className="relative mx-auto w-full max-w-[860px] rounded-[10px] bg-white px-[7%] py-12 text-[15px] leading-[1.45] text-[#16161a] shadow-[0_30px_80px_rgb(0_0_0/.45)] [--color-ink:#16161a] [--color-fg:#16161a] [--color-muted:#5d5f6b] [--color-faint:#9b9daa] [--color-line-2:rgb(0_0_0/.14)] [--color-signal-ink:#1d4ed8]" style={{ fontFamily: 'Charter, "Iowan Old Style", Georgia, serif' }}>
       <div className="text-center">
         <E value={b.name} ph="Your Name" onChange={x => set(['basics', 'name'], x)} className="block text-[42px] leading-none" />
         <div className="mt-3 flex flex-wrap justify-center gap-x-1 font-sans text-[13px] text-muted">
@@ -200,7 +200,6 @@ function Import({ open, setOpen, onDone }) {
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-black/25 backdrop-blur-[2px]" />
         <Dialog.Content aria-describedby={undefined} className="fixed left-1/2 top-1/2 z-50 w-[min(640px,92vw)] -translate-x-1/2 -translate-y-1/2 rounded-[18px] bg-[#0b1124] ring-1 ring-white/10 p-8 shadow-[0_40px_100px_rgb(0_0_0/.28)] outline-none">
-          <Hand>start here</Hand>
           <Dialog.Title className="font-display text-[40px] font-semibold tracking-[-0.035em] leading-tight text-ink">Bring everything you've got.</Dialog.Title>
           <p className="mb-6 mt-1 text-[14.5px] text-muted">Old resumes, your LinkedIn, project notes. Your twin pulls it all into one vault and never invents anything.</p>
           {busy ? <div className="grid place-items-center py-14"><motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1.1, ease: 'linear' }}><Sparkles className="size-8 text-signal" /></motion.div>
