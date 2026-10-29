@@ -168,7 +168,10 @@ def main():
               'via plugin' if via_plugin else 'copied')
 
     code, out = cli('doctor')
-    check('doctor after setup: only sign-in left', 'Resume imported' in out and 'connected to' in out)
+    if shutil.which('claude') or shutil.which('codex'):
+        check('doctor after setup: agents connected', 'Resume imported' in out and 'connected to' in out)
+    else:   # a machine with neither agent: doctor must say how to install one
+        check('doctor without agents explains the install', 'npm install -g' in out)
 
     bad = [n for n, ok in results if not ok]
     print(f'\n{len(results) - len(bad)}/{len(results)} passed' + (f"  failed: {', '.join(bad)}" if bad else ''))
