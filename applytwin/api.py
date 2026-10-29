@@ -238,8 +238,7 @@ def log_application(job_id, status='Applied', notes='', resume_path=''):
     out = store.log_application(job_id, status, notes, resume_path)
     from . import cloud
     if cloud.status()['signed_in']:
-        j = (store.rows('select * from jobs where id=?', (job_id,)) or [{}])[0]
-        threading.Thread(target=lambda: cloud._safe(cloud.record_application, j, status, notes, resume_path), daemon=True).start()
+        threading.Thread(target=lambda: cloud._safe(cloud.push_applications), daemon=True).start()
     return out
 
 

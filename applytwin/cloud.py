@@ -21,6 +21,7 @@ ANON = os.environ.get('APPLYTWIN_SUPABASE_ANON_KEY',
                       'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFkdmt0d25lZGxnbmhzd3B4b2tnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1NzkzMTUsImV4cCI6MjA5NzE1NTMxNX0.kPKEMNuqvvzGWKHRSnCtq4vkiYQTicX0wDSiwyYj7LE')
 BUCKET = 'applytwin'
 _lock = threading.Lock()
+_sync_lock = threading.Lock()   # one application upload at a time (token() takes _lock itself)
 
 
 def _req(method, path, token=None, body=None, headers=None, raw=None, timeout=30):
@@ -62,7 +63,7 @@ def set_session(access_token, refresh_token, expires_in=3600):
                      "avatar": meta.get('avatar_url') or meta.get('picture')}}
     _save(sess)
     first = pull()
-    threading.Thread(target=push, daemon=True).start()
+    threading.Thread(target=lambda: (_safe(push), _safe(push_applications)), daemon=True).start()
     return {"signed_in": True, "user": sess['user'], "restored": first}
 
 
@@ -145,26 +146,50 @@ def upload(local_path, key):
     return obj
 
 
-def record_application(job, status, notes='', resume_path=''):
-    t = token()
-    if not t:
-        return
-    obj = None
-    if resume_path and os.path.exists(resume_path):
-        try:
-            obj = upload(resume_path, f"resumes/{job.get('id', 'job')}/{os.path.basename(resume_path)}")
-        except Exception:
+def _iso(t):
+    return time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(t or time.time()))
+
+
+def push_applications():
+    """Upload every application not yet in your account (with the resume it sent), then your imported history once.
+    Tracks a local watermark so nothing is uploaded twice."""
+    with _sync_lock:
+        t = token()
+        s = _session()
+        if not t or not s:
+            return {"skipped": "not signed in"}
+        wm = s.get('synced_app_id', 0)
+        rows = store.rows('select a.*, j.ats, j.apply_url from applications a left join jobs j on j.id = a.job_id where a.id > ? order by a.id', (wm,))
+        out = []
+        for r in rows:
             obj = None
-    _req('POST', '/rest/v1/applytwin_applications', t, [{"job_key": job.get('id'), "company": job.get('company'), "title": job.get('title'),
-                                                         "url": job.get('apply_url') or job.get('url'), "ats": job.get('ats'),
-                                                         "status": status, "notes": notes, "resume_path": obj}],
-         {'Prefer': 'return=minimal'})
+            if r['resume_path'] and os.path.exists(r['resume_path']):
+                try:
+                    obj = upload(r['resume_path'], f"resumes/{r['job_id']}/{os.path.basename(r['resume_path'])}")
+                except Exception:
+                    obj = None
+            out.append({"job_key": r['job_id'], "company": r['company'], "title": r['title'], "url": r['apply_url'] or r['url'],
+                        "ats": r['ats'], "status": r['status'], "notes": r['notes'], "resume_path": obj, "created_at": _iso(r['at'])})
+        if not s.get('synced_history'):   # roles you applied to before ApplyTwin (imported from your tracker)
+            logged = {r['job_id'] for r in store.rows('select job_id from applications')}
+            for j in store.rows("select id, company, title, url, apply_url, ats, found_at from jobs where status='applied'"):
+                if j['id'] not in logged:
+                    out.append({"job_key": j['id'], "company": j['company'], "title": j['title'], "url": j['apply_url'] or j['url'],
+                                "ats": j['ats'], "status": "Applied", "notes": "From your history", "resume_path": None, "created_at": _iso(j['found_at'])})
+        for i in range(0, len(out), 200):
+            _req('POST', '/rest/v1/applytwin_applications', t, out[i:i + 200], {'Prefer': 'return=minimal'}, timeout=60)
+        s = _session()
+        s['synced_app_id'] = max([wm] + [r['id'] for r in rows])
+        s['synced_history'] = True
+        s['last_sync'] = time.time()
+        _save(s)
+        return {"uploaded": len(out)}
 
 
 def sync_soon():
     """Fire-and-forget push after local changes."""
     if _session():
-        threading.Thread(target=lambda: _safe(push), daemon=True).start()
+        threading.Thread(target=lambda: (_safe(push), _safe(push_applications)), daemon=True).start()
 
 
 def _safe(fn, *a):
