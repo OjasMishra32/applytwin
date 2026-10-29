@@ -612,6 +612,24 @@
   "pg.wd5/1000|Procter & Gamble",
   "nike.wd1/nke|Nike",
   "unilever.wd3/Unilever_Experienced_Professionals|Unilever",
-  "target.wd5/targetcareers|Target"
+  "target.wd5/targetcareers|Target",
+  "boeing.wd1/EXTERNAL_CAREERS|Boeing",
+  "chevron.wd5/jobs|Chevron",
+  "shell.wd3/ShellCareers|Shell",
+  "conocophillips.wd1/External|ConocoPhillips",
+  "warnerbros.wd5/global|Warner Bros. Discovery",
+  "homedepot.wd5/CareerDepot|The Home Depot",
+  "gsk.wd5/GSKCareers|GSK",
+  "novartis.wd3/Novartis_Careers|Novartis",
+  "amgen.wd1/Careers|Amgen",
+  "gilead.wd1/gileadcareers|Gilead",
+  "regeneron.wd1/Careers|Regeneron",
+  "thermofisher.wd5/ThermoFisherCareers|Thermo Fisher",
+  "danaher.wd1/DanaherJobs|Danaher",
+  "abbott.wd5/abbottcareers|Abbott",
+  "baxter.wd1/baxter|Baxter",
+  "cat.wd5/CaterpillarCareers|Caterpillar",
+  "3m.wd1/Search|3M",
+  "fedex.wd1/FXE-LAC_External_Career_Site|FedEx"
  ]
 }

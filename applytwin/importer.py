@@ -355,8 +355,9 @@ def import_resume(name='', data=None, text=None):
     if patch:
         api.update_profile(patch)
     low = txt.lower()
-    roles = sorted(((sum(low.count(x) for x in syn), r) for r, syn in match.ROLE_SYNONYMS.items()), reverse=True)
-    suggest = [r for n, r in roles if n >= 2][:4]
+    # whole-word hits only ('ai' must not count inside 'maintain'); a role needs real evidence, not one passing mention
+    roles = sorted(((sum(len(re.findall(r'\b' + re.escape(x), low)) for x in syn), r) for r, syn in match.ROLE_SYNONYMS.items()), reverse=True)
+    suggest = [r for n, r in roles if n >= 2][:4] or [r for n, r in roles[:1] if n]
     counts = {k: len(vault.get(k, [])) for k in ('experience', 'projects', 'education', 'skills', 'awards', 'research')}
     found = ', '.join(f'{n} {k}' for k, n in counts.items() if n)
     return {"structured": True, "ai": structured, "vault": vault, "counts": counts, "name": b.get('name', ''), "suggest_roles": suggest,

@@ -78,6 +78,55 @@ SKILLS
 SolidWorks, ANSYS, GD&T, MATLAB, 3D printing
 """, good=('Mechanical Engineering Intern - Summer 2027', 'Design and test mechanical components in SolidWorks. GD&T, FEA with ANSYS.'),
         bad=('Marketing Intern', 'Run social media.'), field='hardware', template='compact'),
+    'legal': dict(roles=['legal'], resume="""Priya Nair
+priya.nair@example.edu | (555) 220-7781 | Washington, DC
+EDUCATION
+Georgetown University, B.A. in Government, Expected May 2028. GPA 3.85
+EXPERIENCE
+Legal Intern, DC Tenant Rights Clinic, Washington, DC. June 2026 - August 2026
+- Researched 30+ housing court cases and drafted memos summarizing precedent for supervising attorneys
+- Interviewed 45 tenants in English and Spanish and prepared intake files
+Vice President, Pre-Law Society. 2025 - Present
+SKILLS
+Legal research, Westlaw, LexisNexis, writing, Spanish
+""", good=('Legal Intern - Summer 2027', 'Support attorneys with legal research and writing. Westlaw experience preferred.'),
+        bad=('Software Engineer Intern', 'Write Go services.'), field='legal', template='harvard'),
+    'biology': dict(roles=['molecular biology'], resume="""Leo Martins
+leo.martins@example.edu | (555) 880-3345 | Madison, WI
+EDUCATION
+University of Wisconsin-Madison, B.S. in Biology, Expected May 2028. GPA 3.7
+RESEARCH
+Undergraduate Researcher, Chen Lab, Department of Biochemistry. September 2025 - Present
+- Ran PCR, gel electrophoresis and Western blots to study protein folding in yeast
+- Presented a poster on chaperone proteins at the 2026 undergraduate research symposium
+SKILLS
+PCR, cell culture, Western blot, microscopy, R, GraphPad Prism
+""", good=('Research Intern, Molecular Biology - Summer 2027', 'Join our lab running PCR, cell culture and protein assays.'),
+        bad=('Sales Intern', 'Call prospects.'), field='science', template='harvard'),
+    'journalism': dict(roles=['journalism'], resume="""Grace Kim
+grace.kim@example.edu | (555) 341-6620 | Evanston, IL | gracekim.news
+EDUCATION
+Northwestern University, B.S. in Journalism, Expected May 2028
+EXPERIENCE
+Staff Reporter, The Daily Northwestern, Evanston, IL. September 2025 - Present
+- Reported and wrote 42 news stories on city government, two picked up by the Chicago Tribune
+- Produced a 6-episode podcast on local elections with 3,500 total listens
+SKILLS
+AP style, interviewing, WordPress, Adobe Premiere, Audition
+""", good=('Editorial Intern, Newsroom - Summer 2027', 'Report and write stories for our newsroom. Clips required. AP style.'),
+        bad=('Audit Intern', 'Assist audits.'), field='media', template='modern'),
+    'architecture': dict(roles=['architecture'], resume="""Diego Alvarez
+diego.alvarez@example.edu | (555) 610-2290 | Austin, TX | diegoalvarez.studio
+EDUCATION
+University of Texas at Austin, Bachelor of Architecture, Expected May 2029
+EXPERIENCE
+Architecture Intern, Hill Country Design Group, Austin, TX. June 2026 - August 2026
+- Modeled a 24,000 sq ft mixed-use building in Revit and Rhino for schematic design
+- Produced construction document sheets and renderings for 3 client presentations
+SKILLS
+Revit, Rhino, AutoCAD, Enscape, hand drafting, model making
+""", good=('Architectural Design Intern, Summer 2027', 'Support project teams with Revit modeling, drawings and renderings. Portfolio required.'),
+        bad=('Data Scientist Intern', 'Build models in Python.'), field='built', template='compact'),
 }
 
 RUNNER = r'''
@@ -95,7 +144,8 @@ ids = [j['id'] for j in q['jobs']]
 job = store.rows('select * from jobs where id=?', (g['id'],))[0]
 t = api.tailor_apply(g['id'], None, None, 'heuristic')
 ans = api.answer_questions(['Are you legally authorized to work in the United States?', 'What is your expected graduation date?'])
-print(json.dumps({"vault": len(store.resume().get('experience', [])), "good_in": g['id'] in ids, "bad_in": b['id'] in ids,
+v = store.resume()
+print(json.dumps({"vault": sum(len(v.get(k, [])) for k in ('experience', 'research', 'projects', 'leadership')), "good_in": g['id'] in ids, "bad_in": b['id'] in ids,
                   "field": learn.field_for(job), "style": t.get('style'), "pages": t.get('pages'), "pdf": bool(t.get('pdf')),
                   "answers": [a.get('answer') for a in ans]}))
 '''
@@ -120,7 +170,7 @@ def main():
         except Exception:
             check(f'{who}: runs', False, (r.stderr or r.stdout)[-300:])
             continue
-        check(f'{who}: resume imported', d['vault'] >= 1, f"{d['vault']} roles")
+        check(f'{who}: resume imported', d['vault'] >= 1, f"{d['vault']} entries")
         check(f'{who}: relevant job queued', d['good_in'])
         check(f'{who}: unrelated job kept out', not d['bad_in'])
         check(f'{who}: field rules', d['field'] == spec['field'], d['field'])

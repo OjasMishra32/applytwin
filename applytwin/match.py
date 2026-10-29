@@ -58,7 +58,51 @@ ROLE_SYNONYMS = {
     'legal': ['legal', 'law', 'paralegal', 'compliance'],
     'hr': ['human resources', 'people ops', 'recruit', 'talent'],
     'mechanical': ['mechanical', 'manufactur', 'aerospace', 'civil', 'structural', 'chemical', 'industrial'],
+    'civil': ['civil', 'structural', 'transportation', 'geotech', 'construction', 'water resources', 'infrastructure'],
+    'architecture': ['architect', 'interior design', 'urban design', 'landscape', 'urban planning', 'planner'],
+    'environmental': ['environment', 'sustainab', 'climate', 'energy', 'ecolog', 'conservation', 'renewable', 'esg'],
+    'biology': ['biolog', 'biotech', 'life science', 'molecular', 'genetic', 'microbio', 'immunolog', 'neuroscien', 'cell', 'lab'],
+    'chemistry': ['chemist', 'chemical', 'formulation', 'analytical', 'materials scien'],
+    'pharma': ['pharm', 'clinical research', 'regulatory', 'drug', 'medical affairs', 'clinical trial'],
+    'public health': ['public health', 'epidemiolog', 'health policy', 'global health', 'community health'],
+    'psychology': ['psycholog', 'behavioral', 'mental health', 'counsel', 'social work', 'therap'],
+    'economics': ['econom', 'policy analy', 'research analyst', 'pricing'],
+    'statistics': ['statistic', 'biostatistic', 'actuar', 'data analy', 'quantitative analy'],
+    'journalism': ['journalis', 'reporter', 'editorial', 'newsroom', 'editor', 'producer', 'broadcast'],
+    'media': ['media', 'film', 'video', 'production', 'entertainment', 'studio', 'podcast', 'broadcast', 'animation', 'music'],
+    'communications': ['communications', 'public relations', 'pr ', 'corporate affairs', 'internal comms', 'media relations'],
+    'supply chain': ['supply chain', 'logistics', 'procurement', 'sourcing', 'planning', 'inventory', 'distribution'],
+    'hospitality': ['hospitality', 'hotel', 'event', 'guest', 'culinary', 'tourism', 'restaurant'],
+    'retail': ['retail', 'merchandis', 'buyer', 'store', 'e-commerce', 'ecommerce', 'category'],
+    'fashion': ['fashion', 'apparel', 'merchandis', 'textile', 'styling'],
+    'sports': ['sport', 'athletic', 'fitness', 'coaching'],
+    'government': ['government', 'public sector', 'federal', 'municipal', 'legislat', 'congress', 'civic', 'public service'],
+    'nonprofit': ['nonprofit', 'non-profit', 'foundation', 'philanthrop', 'fundrais', 'development', 'ngo', 'community'],
+    'cybersecurity': ['security', 'cyber', 'soc ', 'threat', 'grc', 'penetration', 'infosec'],
+    'aerospace': ['aerospace', 'aircraft', 'propulsion', 'flight', 'avionics', 'space', 'satellite'],
+    'agriculture': ['agricultur', 'agronom', 'food science', 'crop', 'animal science', 'farm'],
 }
+
+
+def role_terms(role):
+    """Search terms for any role a user types, known or not. Unknown roles match on word stems, so 'marine biology'
+    finds 'Marine Biologist' and 'environmental science' finds 'Environmental Sciences Intern'."""
+    r = role.lower().strip()
+    if r in ROLE_SYNONYMS:
+        return ROLE_SYNONYMS[r], []
+    words = [w for w in re.findall(r'[a-z0-9+#&]+', r) if w not in ('and', 'of', 'the', 'for', 'in')]
+    stems = [w if len(w) <= 4 else w[:max(4, len(w) - 3)] for w in words]
+    return [r], stems
+
+
+def role_hit(role, title, desc=''):
+    syns, stems = role_terms(role)
+    if any(re.search(r'\b' + re.escape(x), title) for x in syns):
+        return True
+    if stems and all(re.search(r'\b' + re.escape(x), title) for x in stems):
+        return True
+    # part of it in the title and the whole phrase in the posting (a 'Marine Intern' that's about marine biology)
+    return bool(stems) and any(re.search(r'\b' + re.escape(x), title) for x in stems) and role.lower() in desc[:2000].lower()
 
 
 def _grad_ok(text, year, month):
@@ -120,8 +164,7 @@ def fit(job, prof, vault_terms=None):
     roles = s.get('roles') or []
     hit = []
     for r in roles:
-        syns = ROLE_SYNONYMS.get(r.lower(), [r.lower()])
-        if any(re.search(r'\b' + re.escape(x), t) for x in syns):
+        if role_hit(r, t, job.get('description') or ''):
             hit.append(r)
     if roles and not hit:
         return 0, 'role does not match'

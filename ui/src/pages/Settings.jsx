@@ -8,6 +8,8 @@ import { Button, Segmented, Slider, Switch, Title } from '../components/ui'
 export function Chips({ value = [], onChange, placeholder, suggestions = [] }) {
   const [t, setT] = useState('')
   const addv = x => { x = x.trim(); if (x && !value.includes(x)) onChange([...value, x]); setT('') }
+  // a dozen at a time; typing narrows them, and anything you type works even if it's not listed
+  const shown = suggestions.filter(s => !value.includes(s) && (!t || s.includes(t.toLowerCase()))).slice(0, t ? 8 : 12)
   return (
     <div>
       <div className="flex flex-wrap items-center gap-1.5 rounded-[14px] bg-mist px-2 py-1.5 focus-within:bg-white/[.08] focus-within:ring-2 focus-within:ring-signal">
@@ -17,15 +19,17 @@ export function Chips({ value = [], onChange, placeholder, suggestions = [] }) {
           if ((e.key === 'Enter' || e.key === ',') && t.trim()) { e.preventDefault(); addv(t) } if (e.key === 'Backspace' && !t && value.length) onChange(value.slice(0, -1)) }}
           className="h-8 min-w-[140px] flex-1 bg-transparent px-1.5 text-[14px] outline-none placeholder:text-faint" />
       </div>
-      {suggestions.filter(s => !value.includes(s)).length > 0 && <div className="mt-2 flex flex-wrap gap-1.5">{suggestions.filter(s => !value.includes(s)).map(s =>
+      {shown.length > 0 && <div className="mt-2 flex flex-wrap gap-1.5">{shown.map(s =>
         <button key={s} onClick={() => addv(s)} className="rounded-full bg-white/[.04] px-3 py-1 text-[12.5px] text-muted transition hover:bg-signal/10 hover:text-signal-ink">+ {s}</button>)}</div>}
     </div>
   )
 }
 
-export const ROLE_SUGGEST = ['software engineer', 'machine learning', 'data science', 'quant', 'hardware', 'robotics', 'product', 'design', 'finance',
-  'investment banking', 'accounting', 'sales and trading', 'actuarial', 'real estate',
-  'consulting', 'marketing', 'healthcare', 'research', 'policy', 'security', 'mechanical', 'operations', 'education']
+export const ROLE_SUGGEST = ['software engineer', 'finance', 'investment banking', 'data science', 'machine learning', 'quant', 'consulting',
+  'accounting', 'product', 'design', 'marketing', 'healthcare', 'mechanical', 'hardware', 'robotics', 'sales and trading', 'research', 'biology',
+  'chemistry', 'pharma', 'public health', 'psychology', 'economics', 'statistics', 'actuarial', 'real estate', 'legal', 'policy', 'government',
+  'nonprofit', 'education', 'journalism', 'media', 'communications', 'writing', 'sales', 'operations', 'supply chain', 'hr', 'civil',
+  'architecture', 'environmental', 'aerospace', 'cybersecurity', 'security', 'hospitality', 'retail', 'fashion', 'sports', 'agriculture']
 
 function Group({ title, children }) {
   return <div className="mb-8"><div className="mb-2 px-4 text-[13px] text-muted">{title}</div><div className="card divide-y divide-line overflow-hidden">{children}</div></div>
