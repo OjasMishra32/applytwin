@@ -1,0 +1,17 @@
+{
+ "name": "applytwin",
+ "owner": {
+  "name": "ApplyTwin"
+ },
+ "plugins": [
+  {
+   "name": "applytwin",
+   "source": "./",
+   "description": "Job search autopilot: scrape, tailor, apply."
+  }
+ ],
+ "description": "ApplyTwin: job-search autopilot (scrape, tailor, apply).",
+ "metadata": {
+  "description": "ApplyTwin: job-search autopilot (scrape, tailor, apply)."
+ }
+}

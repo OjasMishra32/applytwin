@@ -1,0 +1,8 @@
+*.pyc
+.DS_Store
+.applytwin/
+.env*
+.vercel/
+__pycache__/
+site/
+ui/node_modules/
