@@ -13,3 +13,4 @@ jobs:
           python-version: '3.12'
       - run: python3 tests/smoke.py
       - run: python3 tests/e2e_fresh.py
+      - run: python3 tests/e2e_careers.py

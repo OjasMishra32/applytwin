@@ -37,7 +37,7 @@ export default function Home() {
           </motion.div>
           <motion.h1 initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ ...soft, delay: 0.05 }}
             className="mt-3 text-[76px] font-bold leading-[0.95] tracking-[-0.045em]">
-            <Words text="You apply once." className="text-glint" /><br /><Words text="Your twin" delay={0.25} className="serif-i text-aurora text-[90px]" /><Words text="does the rest." delay={0.4} />
+            <Words text="You apply once." /><br /><Words text="Your twin" delay={0.25} className="serif-i text-[#9cc8ff] text-[90px]" /><Words text="does the rest." delay={0.4} />
           </motion.h1>
           <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.15 }} className="mt-6 max-w-[470px] text-[19px] leading-[1.45] text-white/80">
             {(stats.matched || 0).toLocaleString()} open roles fit you right now. It writes the ideal resume for each one and applies through your own Claude or Codex. Free, forever.

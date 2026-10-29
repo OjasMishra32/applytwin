@@ -4,5 +4,5 @@
 .env*
 .vercel/
 __pycache__/
-site/
+/site/
 ui/node_modules/

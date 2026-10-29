@@ -29,7 +29,9 @@ FIELD_RULES = {
     'hardware': {"match": r'hardware|electrical|embedded|firmware|fpga|asic|robot|mechatronic|controls|mechanical|aerospace|manufactur',
                  "template": "compact", "order": ["education", "experience", "projects", "skills", "research", "awards", "leadership"],
                  "emphasize": "what was built and tested, hardware platforms, measured results, tools (CAD, Altium, oscilloscopes, ROS), competitions"},
-    'finance': {"match": r'investment bank|banking|private equity|asset management|wealth|equity research|capital markets|corporate finance|accounting|audit',
+    'finance': {"match": r'investment bank|banking|private equity|asset management|wealth|equity research|capital markets|corporate finance|accounting|audit|'
+                         r'summer analyst|global markets|sales (?:&|and) trading|\bm&a\b|leveraged finance|restructuring|treasury|fp&a|fixed income|'
+                         r'\btax\b|actuar|underwriting|real estate|private credit|venture capital',
                 "template": "finance", "order": ["education", "experience", "leadership", "skills", "awards", "projects", "research"],
                 "emphasize": "GPA and test scores, deals/valuation/modeling work, Excel and financial modeling, leadership, an 'Additional' skills and interests line"},
     'consulting': {"match": r'consult|strategy|advisory', "template": "harvard",

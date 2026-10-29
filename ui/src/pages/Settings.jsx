@@ -24,6 +24,7 @@ export function Chips({ value = [], onChange, placeholder, suggestions = [] }) {
 }
 
 export const ROLE_SUGGEST = ['software engineer', 'machine learning', 'data science', 'quant', 'hardware', 'robotics', 'product', 'design', 'finance',
+  'investment banking', 'accounting', 'sales and trading', 'actuarial', 'real estate',
   'consulting', 'marketing', 'healthcare', 'research', 'policy', 'security', 'mechanical', 'operations', 'education']
 
 function Group({ title, children }) {

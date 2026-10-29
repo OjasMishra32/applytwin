@@ -6,7 +6,8 @@ keyword match lives in ats.py and runs only on jobs you actually look at.
 import re
 import time
 
-INTERN = re.compile(r'\b(intern|interns|internship|co-?op|summer (?:analyst|associate|scholar)|student|apprentice|'
+INTERN = re.compile(r'\b(intern|interns|internship|extern|externship|practicum|trainee|traineeship|co-?op|summer (?:analyst|associate|scholar|fellow)|'
+                    r'student|apprentice|apprenticeship|'
                     r'fellow(?:ship)?|insight (?:day|days|week|program|series)|discovery (?:day|days|program|week)|sophomore|freshman|first[- ]year|'
                     r'early (?:career|talent) program)\b', re.I)
 NEWGRAD = re.compile(r'\b(new grad|graduate|entry[- ]level|university grad|early career|junior|associate|analyst)\b', re.I)
@@ -34,7 +35,15 @@ ROLE_SYNONYMS = {
     'hardware': ['hardware', 'electrical', 'embedded', 'firmware', 'fpga', 'asic', 'silicon', 'circuit', 'rf'],
     'robotics': ['robot', 'autonom', 'controls', 'mechatronic', 'perception', 'guidance', 'gnc'],
     'product': ['product manag', 'product design', 'technical program', 'tpm'],
-    'finance': ['investment bank', 'finance', 'financial', 'private equity', 'asset management', 'wealth', 'equity research'],
+    'finance': ['investment bank', 'finance', 'financial', 'private equity', 'asset management', 'wealth', 'equity research', 'summer analyst',
+                'global markets', 'capital markets', 'sales & trading', 'sales and trading', 'm&a', 'mergers', 'leveraged finance', 'restructuring',
+                'treasury', 'fp&a', 'credit', 'fixed income', 'investment', 'portfolio', 'banking', 'private credit', 'venture', 'underwriting'],
+    'investment banking': ['investment bank', 'm&a', 'mergers', 'capital markets', 'leveraged finance', 'restructuring', 'coverage', 'ibd',
+                           'summer analyst', 'corporate finance', 'advisory'],
+    'accounting': ['accounting', 'accountant', 'audit', 'assurance', 'tax', 'cpa', 'controller', 'financial reporting', 'sox'],
+    'sales and trading': ['sales & trading', 'sales and trading', 'global markets', 'trading', 'trader', 'markets', 'fixed income', 'equities'],
+    'actuarial': ['actuar', 'underwriting', 'insurance', 'risk analyst', 'claims'],
+    'real estate': ['real estate', 'property', 'reit', 'development', 'acquisitions'],
     'security': ['security', 'cyber', 'offensive', 'appsec'],
     'design': ['design', 'ux', 'ui', 'graphic', 'visual', 'creative', 'illustrat', 'motion'],
     'marketing': ['marketing', 'brand', 'social media', 'content', 'growth', 'communications', 'pr ', 'public relations', 'seo'],

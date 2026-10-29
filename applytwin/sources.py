@@ -132,7 +132,8 @@ def smartrecruiters_company(company):
 
 
 def workday(spec, search='intern'):
-    """spec = 'tenant.wd5/Site_Name'"""
+    """spec = 'tenant.wd5/Site_Name', optionally '|Company Name' (tenant codes like 'ghr' or 'ms' aren't names)"""
+    spec, _, name = spec.partition('|')
     host, site = spec.split('/', 1)
     tenant = host.split('.')[0]
     base = f'https://{host}.myworkdayjobs.com'
@@ -143,7 +144,7 @@ def workday(spec, search='intern'):
         posts = d.get('jobPostings', [])
         for p in posts:
             url = f"{base}/en-US/{site}{p.get('externalPath', '')}"
-            yield job('workday', url, tenant.capitalize(), p.get('title'), p.get('locationsText', ''), url,
+            yield job('workday', url, name or tenant.capitalize(), p.get('title'), p.get('locationsText', ''), url,
                       url + '/apply', p.get('postedOn', ''), '')
         if len(posts) < 20:
             break

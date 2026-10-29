@@ -7,9 +7,9 @@ import { Avatar } from './ui'
    B  the twin rewrites it for one job, letter by letter, as the job's keywords lock in
    C  the page multiplies into tailored copies, each sent to a real company */
 
-const SCRAPS = ['Built a Go service on Kafka', 'First author, IEEE ICRA', '1st of 120 at HackTX', 'Shipped an iOS app to 1,000+ users',
-  'Led workshops for 80+ students', 'Trained a ViT on 1.2M images', 'Dean\'s List, every semester', 'Cut API latency 38%',
-  'Founded a robotics nonprofit', 'Interned at Northwind Labs']
+const SCRAPS = ['Built a DCF for a $40M acquisition', '320 clinical hours, BLS certified', '1st of 120 at a case competition', 'Shipped an iOS app to 1,000+ users',
+  'Led workshops for 80+ students', 'Redesigned a checkout flow in Figma', 'Dean\'s List, every semester', 'Cut API latency 38%',
+  'Founded a tutoring nonprofit', 'Research assistant, psych lab']
 const REWRITES = [
   ['Worked on the backend for the data team.', 'Built a Go ingestion service on Kafka processing 40K events/sec.'],
   ['Helped make the API faster.', 'Cut p99 API latency 38% (410 to 255 ms) with a Redis read-through cache.'],
@@ -18,20 +18,7 @@ const REWRITES = [
 const KEYWORDS = ['Go', 'Kafka', 'distributed systems', 'Redis', 'low latency']
 const SENT = [['Pinterest', 'pinterest.com'], ['Figma', 'figma.com'], ['Stripe', 'stripe.com'], ['Jane Street', 'janestreet.com'], ['MongoDB', 'mongodb.com'],
   ['Notion', 'notion.so'], ['Roblox', 'roblox.com'], ['Databricks', 'databricks.com'], ['Anthropic', 'anthropic.com']]
-const GLYPHS = 'abcdefghijklmnopqrstuvwxyz0123456789%$#'
 const clamp = v => Math.min(1, Math.max(0, v))
-
-function morph(a, b, t) {
-  if (t <= 0) return a
-  if (t >= 1) return b
-  const n = Math.round(b.length * t), out = []
-  for (let i = 0; i < Math.max(a.length, b.length); i++) {
-    if (i < n) out.push(b[i] ?? '')
-    else if (i < n + 3 && i < b.length) out.push(b[i] === ' ' ? ' ' : GLYPHS[(i * 7 + Math.floor(t * 40)) % GLYPHS.length])
-    else out.push(a[i] ?? '')
-  }
-  return out.join('')
-}
 
 export function Story() {
   const ref = useRef(null)
@@ -40,14 +27,16 @@ export function Story() {
   const [t, setT] = useState(0)
   useMotionValueEvent(p, 'change', v => setT(v))
 
-  const h0 = { opacity: useTransform(p, [0, 0.04, 0.29, 0.34], [0, 1, 1, 0]), scale: useTransform(p, [0, 0.34], [0.92, 1.06]) }
-  const h1 = { opacity: useTransform(p, [0.32, 0.37, 0.62, 0.67], [0, 1, 1, 0]), scale: useTransform(p, [0.32, 0.67], [0.92, 1.06]) }
-  const h2 = { opacity: useTransform(p, [0.65, 0.72, 1], [0, 1, 1]), scale: useTransform(p, [0.65, 1], [0.94, 1.04]) }
+  const h0 = { opacity: useTransform(p, [0, 0.04, 0.27, 0.31], [0, 1, 1, 0]), scale: useTransform(p, [0, 0.34], [0.92, 1.06]) }
+  const h1 = { opacity: useTransform(p, [0.33, 0.37, 0.6, 0.64], [0, 1, 1, 0]), scale: useTransform(p, [0.32, 0.67], [0.92, 1.06]) }
+  const h2 = { opacity: useTransform(p, [0.66, 0.71, 1], [0, 1, 1]), scale: useTransform(p, [0.65, 1], [0.94, 1.04]) }
   const coreScale = useTransform(p, [0, 0.28, 0.36], [0.2, 1.15, 0.6])
   const coreOp = useTransform(p, [0, 0.05, 0.3, 0.38], [0, 1, 1, 0])
   const card = { opacity: useTransform(p, [0.3, 0.38, 0.66, 0.74], [0, 1, 1, 0]), scale: useTransform(p, [0.3, 0.38, 0.66, 0.75], [0.6, 1, 1, 0.78]),
     rotateX: useTransform(p, [0.3, 0.4], [30, 0]) }
   const rw = i => clamp((t - 0.4 - i * 0.07) / 0.09)
+  const vw = typeof window === 'undefined' ? 1200 : window.innerWidth   // spread scales with the screen, so phones stay in frame
+  const rx = Math.min(560, vw * 0.36), ry = Math.min(240, vw * 0.5), fan = Math.min(150, vw / 7)
   const sent = Math.round(clamp((t - 0.7) / 0.28) * 1284)
 
   return (
@@ -57,7 +46,7 @@ export function Story() {
         <div className="absolute inset-x-0 top-[11vh] text-center">
           {[[h0, 'Everything', "you've ever done."], [h1, 'Rewritten', 'for each job.'], [h2, 'Sent.', 'Everywhere.']].map(([st, a, b]) => (
             <motion.h2 key={a} style={st} className="absolute inset-x-0 px-4 text-[clamp(52px,8.5vw,128px)] font-bold leading-[0.92] tracking-[-0.055em] text-white">
-              {a} <span className="serif-i text-aurora">{b}</span>
+              {a} <span className="serif-i text-[#9cc8ff]">{b}</span>
             </motion.h2>))}
         </div>
 
@@ -72,11 +61,11 @@ export function Story() {
             const r = Math.pow(1 - k, 3)
             return (
               <div key={s} className="absolute left-1/2 top-[34%] whitespace-nowrap rounded-full border border-white/15 bg-[#111a3d] px-4 py-2 text-[14px] font-medium text-white shadow-[0_10px_30px_rgb(0_0_0/.45)]"
-                style={{ transform: `translate(-50%,-50%) translate(${Math.cos(a) * 560 * r}px, ${Math.sin(a) * 240 * r}px) scale(${0.25 + 0.75 * r})`,
+                style={{ transform: `translate(-50%,-50%) translate(${Math.cos(a) * rx * r}px, ${Math.sin(a) * ry * r}px) scale(${0.25 + 0.75 * r})`,
                   opacity: t < 0.34 ? clamp(k * 5) * clamp(r * 20) : 0 }}>{s}</div>)
           })}
 
-          <motion.div style={{ ...card, x: '-50%', y: '-50%' }} className="absolute left-1/2 top-[34%] w-[min(640px,88vw)] rounded-[16px] bg-white p-8 text-left shadow-[0_60px_140px_rgb(0_0_0/.65),0_0_120px_rgb(76_141_255/.3)]">
+          <motion.div style={{ ...card, x: '-50%', y: '-50%' }} className="absolute left-1/2 top-[34%] w-[min(640px,88vw)] rounded-[16px] bg-white p-8 text-left shadow-[0_40px_100px_rgb(0_0_0/.5)]">
             <div className="flex items-baseline justify-between"><div className="text-[22px] font-semibold tracking-[-0.03em] text-[#0b1020]">Northwind Labs</div>
               <div className="text-[13px] text-[#6b7280]">Software Engineering Intern</div></div>
             <div className="mt-1 h-px bg-black/10" />
@@ -85,9 +74,11 @@ export function Story() {
                 const k = rw(i)
                 return (
                   <li key={i} className="relative flex gap-2.5 text-[15.5px] leading-snug">
-                    {k > 0 && k < 1 && <span className="absolute -inset-x-2 -inset-y-1 rounded-md bg-[#4c8dff]/10" />}
-                    <span className="relative mt-[8px] size-1.5 shrink-0 rounded-full" style={{ background: k >= 1 ? '#4c8dff' : '#9ca3af' }} />
-                    <span className="relative" style={{ color: k >= 1 ? '#0b1020' : k > 0 ? '#1d4ed8' : '#9ca3af' }}>{morph(a, b, k)}</span>
+                    <span className="relative mt-[8px] size-1.5 shrink-0 rounded-full transition-colors duration-300" style={{ background: k >= 0.5 ? '#0a84ff' : '#c7cad3' }} />
+                    <span className="relative grid flex-1">
+                      <span className="col-start-1 row-start-1 text-[#9ca3af]" style={{ opacity: 1 - k, transform: `translateY(${-k * 6}px)` }}>{a}</span>
+                      <span className="col-start-1 row-start-1 text-[#0b1020]" style={{ opacity: k, transform: `translateY(${(1 - k) * 6}px)` }}>{b}</span>
+                    </span>
                   </li>)
               })}
             </ul>
@@ -95,7 +86,7 @@ export function Story() {
               {KEYWORDS.map((w, i) => {
                 const k = clamp((t - 0.44 - i * 0.035) / 0.08)
                 return <span key={w} className="rounded-full px-3 py-1 text-[13px] font-semibold"
-                  style={{ transform: `translateY(${(1 - k) * -150}px) scale(${0.6 + 0.4 * k})`, opacity: k, background: k >= 1 ? '#0b1020' : '#e5edff', color: k >= 1 ? '#fff' : '#1d4ed8' }}>{w}</span>
+                  style={{ transform: `scale(${0.85 + 0.15 * k})`, opacity: k, background: '#0b1020', color: '#fff' }}>{w}</span>
               })}
             </div>
             <div className="mt-5 flex items-center justify-between text-[13px] text-[#6b7280]"><span>Keyword match for this job</span>
@@ -109,7 +100,7 @@ export function Story() {
             return (
               <div key={c} className="absolute left-1/2 top-[30%] w-[170px] rounded-[14px] bg-white p-3 shadow-[0_30px_70px_rgb(0_0_0/.55)]"
                 style={{ opacity: k > 0 ? clamp(k * 3) : 0,
-                  transform: `translate(-50%,-50%) translate(${spread * 150 * e}px, ${Math.abs(spread) * 22 * e}px) rotate(${spread * 6 * e}deg) scale(${0.5 + 0.5 * e})` }}>
+                  transform: `translate(-50%,-50%) translate(${spread * fan * e}px, ${Math.abs(spread) * 22 * e}px) rotate(${spread * 6 * e}deg) scale(${0.5 + 0.5 * e})` }}>
                 <div className="flex items-center gap-2"><Avatar name={c} domain={d} size={26} /><span className="truncate text-[13px] font-semibold text-[#0b1020]">{c}</span></div>
                 <div className="mt-2.5 space-y-1.5">{[90, 70, 82].map((w, j) => <div key={j} className="h-[4px] rounded-full bg-[#4c8dff]/35" style={{ width: `${w}%` }} />)}</div>
                 <div className="mt-2.5 text-[11px] font-semibold text-[#16a34a]" style={{ opacity: k >= 1 ? 1 : 0 }}>✓ Applied</div>
