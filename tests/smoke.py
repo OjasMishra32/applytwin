@@ -126,6 +126,20 @@ res.append(ok(not any(b == _v5['experience'][0]['bullets'][0] for b in _b5) and 
               and _dl(_v5['education'][0]) == 'Bachelor of Science in Management, Finance'
               and _dl({"degree": "B.S.", "major": "Physics"}) == 'B.S. in Physics',
               f'no bullet twice (rewrite + original), skills close the page, degree lines read right {_b5} {_res5["order"]}'))
+# an overclaiming rewrite goes back to the user's own words; one fact never takes two lines
+_orig_call = _tl.call_llm
+_tl.call_llm = lambda text, timeout=600, fast=False: {"overclaims": [{"id": "0", "why": "ran vs analyzed"}]}
+_rep6 = {"rewrites": [{"bullet": "x.0", "from": "Analyzed a checkout A/B test across 2.4M users.", "to": "Ran a checkout A/B test across 2.4M users."},
+                      {"bullet": "x.1", "from": "Wrote dbt models replacing 9 SQL queries.", "to": "Replaced 9 SQL queries with dbt models."}], "rejected": []}
+_res6 = {"experience": [{"bullets": [r["to"] for r in _rep6["rewrites"]]}]}
+_tl.audit(_res6, _rep6)
+_tl.call_llm = _orig_call
+res.append(ok(_res6["experience"][0]["bullets"] == ["Analyzed a checkout A/B test across 2.4M users.", "Replaced 9 SQL queries with dbt models."]
+              and len(_rep6["rejected"]) == 1 and _tl._one_per_fact([
+                  "Implemented an implicit-explicit time-stepping scheme allowing 6x larger time steps",
+                  "Wrote an implicit-explicit Runge-Kutta time stepper that allowed 6x larger time steps at the same accuracy",
+                  "Scaled the solver to 2,048 cores on Frontera"]).__len__() == 2,
+              'overclaiming rewrites revert to the vault, one fact never takes two lines'))
 # real form questions that used to get the wrong answer
 _pb = _an.default_bank({'name': 'Maya Chen', 'location': 'Austin, TX', 'grad_month': 'May', 'grad_year': '2028', 'major': 'Computer Science',
                         'work_authorized_us': True, 'needs_sponsorship': True, 'government_employee': False, 'willing_to_relocate': True})

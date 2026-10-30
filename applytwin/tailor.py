@@ -331,13 +331,17 @@ RESUME WRITING GUIDE (follow it):
 POSTING: {job.get('title', '')} at {job.get('company', '')} ({job.get('location', '')})
 {jd[:9000]}
 
-CAREER VAULT (entry ids are the "id" fields; every bullet is shown with its exact id, like "drift.0": use those ids as given):
-{_vault_for_prompt(v)}
+CAREER VAULT (entry ids are the "id" fields; every bullet is shown with its exact id, like "drift.0": use those ids as given.
+"posting_fit" on each entry and "fit" on each bullet measure how much of THIS posting's vocabulary they share: start from the
+high ones, lead with them, and give a low one page space only when it is the candidate's best proof of something the posting
+needs. Retail, food service and unrelated part-time jobs go only if nothing stronger is left):
+{_vault_for_prompt(v, jd=jd)}
 """
 
 
-def agent_llm(text, timeout=600):
-    """Run one prompt on the user's own Claude Code or Codex subscription (no API key). Returns the reply text or None."""
+def agent_llm(text, timeout=600, fast=False):
+    """Run one prompt on the user's own Claude Code or Codex subscription (no API key). Returns the reply text or None.
+    fast: a short checking job, so Claude uses its quickest model."""
     import subprocess
     import tempfile
     from . import agents, store
@@ -345,7 +349,7 @@ def agent_llm(text, timeout=600):
         try:
             if name == 'claude':
                 # a one-shot plan doesn't need the biggest model; Sonnet is several times faster for this
-                r = subprocess.run([agents.exe('claude'), '-p', '--model', 'sonnet', '--output-format', 'text', '--tools', ''], input=text, capture_output=True,
+                r = subprocess.run([agents.exe('claude'), '-p', '--model', 'haiku' if fast else 'sonnet', '--output-format', 'text', '--tools', ''], input=text, capture_output=True,
                                    text=True, encoding='utf-8', errors='replace', timeout=timeout, cwd=store.HOME, **store.NOWIN)
                 if r.returncode == 0 and r.stdout.strip():
                     return r.stdout
@@ -380,7 +384,7 @@ def _llm_log(name, r):
         pass
 
 
-def call_llm(text, timeout=600):
+def call_llm(text, timeout=600, fast=False):
     key = os.environ.get('ANTHROPIC_API_KEY')
     import urllib.request
     if key:
@@ -397,7 +401,7 @@ def call_llm(text, timeout=600):
         with urllib.request.urlopen(req, timeout=180) as r:
             out = json.load(r)['choices'][0]['message']['content']
     else:
-        out = agent_llm(text, timeout=timeout)
+        out = agent_llm(text, timeout=timeout, fast=fast)
         if not out:
             return None
     return _first_json(out)
@@ -428,10 +432,50 @@ def _with_bullet_ids(v):
     return out
 
 
-def _vault_for_prompt(v, limit=40000):
+_COMMON = set("""a an and are as at be by for from has have in is it its of on or our that the this to we will with you your
+    who what when where which while their they them using use used work working team teams role roles intern interns internship
+    experience skills ability strong including include such other into about across more than also must able well new
+    help helps support responsible responsibilities requirements qualifications preferred minimum summer 2026 2027 2028
+    students student candidates candidate applicants year years please equal opportunity""".split())
+
+
+def _jd_words(jd):
+    """The posting's own vocabulary, weighted by how often it uses each word (generic and HR words left out)."""
+    from collections import Counter
+    c = Counter(w for w in re.findall(r'[a-z][a-z0-9+#./-]{2,}', (jd or '').lower()) if w not in _COMMON)
+    return {w: min(n, 4) for w, n in c.items()}
+
+
+def relevance(text, kws, jdw):
+    """How directly a line speaks to this posting: its skill terms plus the posting's own words it shares."""
+    t = ats.plain(text)
+    return _kw_score(t, kws) + 0.35 * sum(jdw.get(w, 0) for w in set(re.findall(r'[a-z][a-z0-9+#./-]{2,}', t.lower())))
+
+
+def _annotate_fit(full, jd):
+    """Mark every entry and bullet 'high'/'medium'/'low' for this posting, so the model starts from what the posting asks for
+    (it still decides: a hint, not a rule)."""
+    kws, jdw = ats.keywords(jd), _jd_words(jd)
+    ents = [(e, relevance(json.dumps(e, ensure_ascii=False), kws, jdw)) for sec in ENTRY_SECS for e in full.get(sec, [])]
+    if not ents:
+        return
+    ranked = sorted(s for _, s in ents)
+    lo, hi = ranked[len(ranked) // 3], ranked[(2 * len(ranked)) // 3]
+    for e, s in ents:
+        e['posting_fit'] = 'high' if s >= hi and s > 0 else 'low' if s <= lo else 'medium'
+        bs = [relevance(b['text'], kws, jdw) for b in e.get('bullets', [])]
+        top = max(bs, default=0)
+        for b, s2 in zip(e.get('bullets', []), bs):
+            b['fit'] = (e['posting_fit'] if len(bs) == 1 else
+                        'high' if top and s2 >= 0.7 * top else 'low' if s2 <= 0.3 * top else 'medium')
+
+
+def _vault_for_prompt(v, limit=40000, jd=''):
     """The vault as JSON, short sections (skills, awards, education) first so nothing important is cut off, and alternate
     phrasings dropped before any real content if it's too long."""
     full = _with_bullet_ids(v)
+    if jd:
+        _annotate_fit(full, jd)
     first = ['basics', 'skills', 'awards', 'education', 'research', 'certifications']
     ordered = {k: full[k] for k in first if k in full}
     ordered.update({k: full[k] for k in full if k not in ordered})
@@ -544,7 +588,7 @@ def apply(v, plan, jd=''):
                     continue
                 if b not in bl and not any(_closest([b], x)[1] > 0.5 for x in bl):
                     bl.append(b)
-            e2['bullets'] = _upgrade(bl, e, avoid, kws, least)
+            e2['bullets'] = _one_per_fact(_upgrade(bl, e, avoid, kws, least))
             e2['_used'] = sorted(used | {i for i, b in enumerate(e.get('bullets', [])) if b in e2['bullets']})
             lst.append(e2)
         out[sec] = lst
@@ -576,6 +620,59 @@ def apply(v, plan, jd=''):
     return out, rep
 
 
+AUDIT = """You check resume rewrites for honesty. Each item has the candidate's ORIGINAL bullet (the truth) and a NEW version.
+Flag a NEW version if it claims anything the ORIGINAL does not support, even slightly:
+- more ownership ("ran" or "led" an A/B test the original only "analyzed"; "managed" what was "maintained"; "built" what was "helped build")
+- a purpose, audience, scope, outcome or causal link that is not stated ("to support due diligence", "driving a 1.8% lift" for "showed a 1.8% lift")
+- a dropped qualifier that changes the claim ("top 3 of 17" without "in the New England region"; "estimated" savings stated as real)
+- a number attached to a different thing, or a different kind of test/equipment ("shaker rig" for "rig")
+Rewording, reordering, mirroring the posting's vocabulary for the SAME fact, and cutting words are fine.
+Reply with ONLY JSON: {"overclaims": [{"id": "<item id>", "why": "<short reason>"}]}
+
+ITEMS:
+"""
+
+
+def audit(res, rep):
+    """A second, quick read of every rewrite against its original: any that claims more than the vault says goes back to
+    the user's own words (the fact checker catches new numbers and names, not a quietly upgraded verb or a dropped qualifier)."""
+    items = [{"id": str(i), "original": r['from'], "new": r['to']} for i, r in enumerate(rep['rewrites'])]
+    try:
+        out = call_llm(AUDIT + json.dumps(items, ensure_ascii=False), timeout=90, fast=True)
+    except Exception:
+        out = None
+    flagged = {str(x.get('id')): x.get('why', '') for x in (out or {}).get('overclaims', []) if isinstance(x, dict)}
+    if not flagged:
+        return 0
+    keep = []
+    for i, r in enumerate(rep['rewrites']):
+        if str(i) not in flagged:
+            keep.append(r)
+            continue
+        for sec in ENTRY_SECS:
+            for e in res.get(sec, []):
+                e['bullets'] = [r['from'] if b == r['to'] else b for b in e.get('bullets', [])]
+        rep['rejected'].append({"bullet": r['bullet'], "reason": 'overclaims: ' + flagged[str(i)], "text": r['to']})
+    rep['rewrites'] = keep
+    return len(flagged)
+
+
+def _same_fact(a, b):
+    """Two lines stating one fact: most words shared, or the same distinctive figure ('6x', '1e-12', '4B+') with real overlap."""
+    wa, wb = _words(ats.plain(a)), _words(ats.plain(b))
+    j = len(wa & wb) / (len(wa | wb) or 1)
+    figs = lambda t: {m for m in re.findall(r'\d[\d.,]*\s*(?:x|%|[kmb]\+?|e-?\d+)\b', ats.plain(t).lower())}
+    return j > 0.55 or (j > 0.25 and bool(figs(a) & figs(b)))
+
+
+def _one_per_fact(bl):
+    out = []
+    for b in bl:
+        if not any(_same_fact(b, x) for x in out):
+            out.append(b)
+    return out
+
+
 def _fill_page(v, res, jd, style, probe, k=1.0):
     """A two-thirds-empty page reads as thin. While there's clear room, add the user's next strongest true bullets for
     this posting (from the same roles first, then roles/projects the plan left out), never past one page."""
@@ -591,7 +688,7 @@ def _fill_page(v, res, jd, style, probe, k=1.0):
             src = byid.get(e.get('id'))
             for i, b in enumerate((src or {}).get('bullets', [])):
                 if (f"{src['id']}.{i}" in avoid or i in e.get('_used', []) or weak(b)
-                        or any(_closest([b], x)[1] > 0.45 for x in e.get('bullets', []))):
+                        or any(_closest([b], x)[1] > 0.45 or _same_fact(b, x) for x in e.get('bullets', []))):
                     continue
                 cands.append((_kw_score(ats.plain(b), kws) + (2 if IMPACT.search(b) else 0), 'bullet', sec, e.get('id'), b))
         for e in v.get(sec, []):
@@ -775,6 +872,8 @@ def tailor(v, job, jd, mode='auto', plan=None, style=None, out_dir=None):
                     plan, res, rep = plan2, res2, rep2
         except Exception:
             pass
+    if mode == 'api' and rep['rewrites']:
+        audit(res, rep)
     out_dir = out_dir or store.path('resumes', job.get('id', 'general'))
     name = (re.sub(r'[^\w]+', '_', res['basics'].get('name', 'Resume') or '', flags=re.UNICODE).strip('_') or 'Resume') + '_Resume.pdf'
     pdf = os.path.join(out_dir, name)
