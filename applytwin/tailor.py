@@ -311,6 +311,8 @@ RULES (hard):
   facts; if the honest version is less on-topic, keep it honest.
 - Refer to bullets by the exact ids shown in the vault ("drift.0"). A number keeps its meaning ("40K events/sec" never
   becomes "40K users").
+- A titled technical role on a student design team, lab or club ("Avionics Subteam Lead", "Electrical Lead") may go under
+  "experience" (use its leadership id there) when it is the strongest proof for this posting; it then leaves leadership.
 - Order sections for this reader. Ideal order for this field: {', '.join(rules.get('order', []))}.
 - What hiring managers in this field look for first: {rules.get('emphasize', 'the posting requirements and measurable results')}.
 {you}
@@ -533,6 +535,8 @@ def apply(v, plan, jd=''):
     one_based = bool(nums) and all(n >= 1 for _, n in nums) and any(n == allb.get(i, -1) for i, n in nums)
     for sec in ENTRY_SECS:
         byid = {e['id']: e for e in v.get(sec, [])}
+        if sec == 'experience':   # a titled role on a design team or club ("Avionics Subteam Lead") may count as experience
+            byid.update({e['id']: e for e in v.get('leadership', []) if e.get('title') and e['id'] not in byid})
         chosen = plan.get(sec)
         if chosen is None:
             out[sec] = v.get(sec, [])
@@ -594,6 +598,9 @@ def apply(v, plan, jd=''):
             e2['_used'] = sorted(used | {i for i, b in enumerate(e.get('bullets', [])) if b in e2['bullets']})
             lst.append(e2)
         out[sec] = lst
+    moved = {e.get('id') for e in out.get('experience', [])}
+    if out.get('leadership'):
+        out['leadership'] = [e for e in out['leadership'] if e.get('id') not in moved]   # never listed twice
     rid = {p.get('id'): p for p in v.get('research', [])}
     out['research'] = [rid[i] for i in plan.get('research', []) if i in rid] if 'research' in plan else v.get('research', [])
     aw = v.get('awards', [])
@@ -838,8 +845,10 @@ def _courses_for(e, jd):
     cw = e.get('coursework') or []
     if not jd or len(cw) <= 4:
         return e
-    jdw = _jd_words(jd)
-    score = lambda c: sum(jdw.get(w, 0) + (1 if w[:5] in {x[:5] for x in jdw} else 0) for w in _words(c) if len(w) > 2)
+    stems = {x[:5] for x in _jd_words(jd)}
+    generic = {'analysis', 'real', 'topics', 'introduction', 'intro', 'principles', 'applications', 'fundamentals', 'advanced',
+               'theory', 'methods', 'mathematics', 'engineering', 'science', 'design', 'systems', 'computation', 'structures'}
+    score = lambda c: sum(1 for w in _words(c) if len(w) > 3 and w not in generic and w[:5] in stems)
     keep = sorted(range(len(cw)), key=lambda i: (-score(cw[i]), i))[:6]
     return {**e, 'coursework': [cw[i] for i in keep]}
 

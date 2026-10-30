@@ -157,6 +157,13 @@ _res8, _ = _tl.apply(_v8, {"headline": ["Recommendation Systems", "Quantum Gravi
 res.append(ok(_res8['basics']['headline'] == ["Recommendation Systems", "NLP"] and 'Excel' in _res8['skills'][0]['items']
               and len(_res8['education'][0]['coursework']) == 6 and 'Poetry' not in _res8['education'][0]['coursework'],
               f"role-named headline from vault words, posting's named tools in skills, coursework trimmed {_res8['basics']['headline']}"))
+# a titled design-team role can lead Experience when it's the best proof, and then it isn't listed twice
+_v9 = {"basics": {"name": "T"}, "experience": [{"id": "bb", "org": "Best Buy", "title": "Tech", "dates": "2024", "bullets": ["Repaired 300 laptops."]}],
+       "leadership": [{"id": "rj", "org": "RoboJackets", "title": "Electrical Lead", "dates": "Aug 2025 – Present",
+                       "bullets": ["Designed power-distribution boards in Altium for an autonomous race car.", "Cut board respins from 3 to 1."]}]}
+_res9, _ = _tl.apply(_v9, {"experience": [{"id": "rj"}, {"id": "bb"}]})
+res.append(ok([e['id'] for e in _res9['experience']] == ['rj', 'bb'] and not _res9.get('leadership'),
+              'a design-team role can lead Experience without appearing twice'))
 # real form questions that used to get the wrong answer
 _pb = _an.default_bank({'name': 'Maya Chen', 'location': 'Austin, TX', 'grad_month': 'May', 'grad_year': '2028', 'major': 'Computer Science',
                         'work_authorized_us': True, 'needs_sponsorship': True, 'government_employee': False, 'willing_to_relocate': True})
