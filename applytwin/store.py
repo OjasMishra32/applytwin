@@ -86,12 +86,65 @@ def load(name, default=None):
 
 
 def save(name, obj):
+    import tempfile
     with _lock:
-        tmp = path(name + '.tmp')
-        with open(tmp, 'w', encoding='utf-8') as f:
-            json.dump(obj, f, indent=1, ensure_ascii=False)
-        os.replace(tmp, path(name))
+        # a temp file of its own: the app, the agent's MCP server and the CLI all save, sometimes at the same moment
+        fd, tmp = tempfile.mkstemp(prefix='.' + os.path.basename(name) + '.', suffix='.tmp', dir=os.path.dirname(path(name)))
+        try:
+            with os.fdopen(fd, 'w', encoding='utf-8') as f:
+                json.dump(obj, f, indent=1, ensure_ascii=False)
+            os.replace(tmp, path(name))
+        except BaseException:
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+            raise
     return obj
+
+
+class file_lock:
+    """A lock shared by every ApplyTwin process (app, MCP server, CLI), for read-modify-write of a JSON file."""
+    def __init__(self, name):
+        self.p = path(name + '.lock')
+
+    def __enter__(self):
+        self.f = open(self.p, 'a+', encoding='utf-8')
+        if os.name == 'nt':
+            import msvcrt
+            import time
+            while True:
+                try:
+                    self.f.seek(0)
+                    msvcrt.locking(self.f.fileno(), msvcrt.LK_NBLCK, 1)
+                    break
+                except OSError:
+                    time.sleep(0.05)
+        else:
+            import fcntl
+            fcntl.flock(self.f.fileno(), fcntl.LOCK_EX)
+        return self
+
+    def __exit__(self, *a):
+        try:
+            if os.name == 'nt':
+                import msvcrt
+                self.f.seek(0)
+                msvcrt.locking(self.f.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(self.f.fileno(), fcntl.LOCK_UN)
+        finally:
+            self.f.close()
+
+
+def update(name, fn, default=None):
+    """Read a JSON file, change it with fn, write it back, with no other process able to interleave."""
+    with file_lock(name):
+        cur = load(name, copy.deepcopy(default))
+        new = fn(cur)
+        save(name, cur if new is None else new)
+        return cur if new is None else new
 
 
 def next_summer():

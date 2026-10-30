@@ -544,11 +544,9 @@ def finish_jobs(job_ids, submit=False, agent=None):
     if not job_ids:
         return {"done": True, "note": "Already submitted."}
     if _run['proc'] and _run['proc'].poll() is None:   # mid-run: do it right after, instead of silently doing nothing
-        later = store.load('followups.json', [])
         f = {"job_ids": list(job_ids), "submit": bool(submit), "agent": agent}
-        if not any(x.get('job_ids') == f['job_ids'] and x.get('submit') == f['submit'] and not x.get('prompt') for x in later):
-            later.append(f)
-            store.save('followups.json', later)
+        store.update('followups.json', lambda later: None if any(
+            x.get('job_ids') == f['job_ids'] and x.get('submit') == f['submit'] and not x.get('prompt') for x in later) else later.append(f), [])
         return {"queued": True, "running": True}
     return start_run(agent, len(job_ids), prompt=finish_prompt(job_ids, submit))
 
@@ -561,10 +559,13 @@ def _agent():
 
 def _next_followup():
     """Start the next queued finish request (from a button pressed while a run was going). Returns True if one started."""
-    later = store.load('followups.json', [])
-    while later:
-        f = later.pop(0)
-        store.save('followups.json', later)
+    while True:
+        with store.file_lock('followups.json'):
+            later = store.load('followups.json', [])
+            if not later:
+                return False
+            f = later.pop(0)
+            store.save('followups.json', later)
         try:
             start_run(f['agent'], len(f['job_ids']), prompt=f.get('prompt') or finish_prompt(f['job_ids'], f['submit']))
             return True
@@ -674,9 +675,7 @@ def message(job_id, text):
 def _run_or_queue(job_id, prompt):
     agent = _agent()
     if _run['proc'] and _run['proc'].poll() is None:
-        later = store.load('followups.json', [])
-        later.append({"job_ids": [job_id], "submit": False, "agent": agent, "prompt": prompt})
-        store.save('followups.json', later)
+        store.update('followups.json', lambda later: later.append({"job_ids": [job_id], "submit": False, "agent": agent, "prompt": prompt}), [])
         return {"queued": True}
     return start_run(agent, 1, prompt=prompt)
 
@@ -985,19 +984,20 @@ def import_history(csv_path=None, text=None):
 
 def remember_applied(items):
     """Add roles applied to elsewhere to the permanent list (deduplicated by company + role)."""
-    cur = applied_elsewhere()
-    seen = {role_key(r['company'], r['title']) for r in cur}
-    added = 0
-    for it in items or []:
-        c, t = (it.get('company') or '').strip(), (it.get('title') or '').strip()
-        if not c or not t or role_key(c, t) in seen:
-            continue
-        seen.add(role_key(c, t))
-        cur.append({"company": c, "title": t, "url": it.get('url') or '', "status": it.get('status') or 'Applied',
-                    "date": it.get('date') or '', "source": it.get('source') or 'import', "at": time.time()})
-        added += 1
-    store.save('applied_elsewhere.json', cur)
-    return added
+    added = [0]
+
+    def add(cur):
+        seen = {role_key(r['company'], r['title']) for r in cur}
+        for it in items or []:
+            c, t = (it.get('company') or '').strip(), (it.get('title') or '').strip()
+            if not c or not t or role_key(c, t) in seen:
+                continue
+            seen.add(role_key(c, t))
+            cur.append({"company": c, "title": t, "url": it.get('url') or '', "status": it.get('status') or 'Applied',
+                        "date": it.get('date') or '', "source": it.get('source') or 'import', "at": time.time()})
+            added[0] += 1
+    store.update('applied_elsewhere.json', add, [])   # the email-history run and a CSV import can write at once
+    return added[0]
 
 
 def import_applied(items, source='email'):
