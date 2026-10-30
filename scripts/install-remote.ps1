@@ -12,9 +12,10 @@ function Ok($m) { Write-Host "  v $m" -ForegroundColor Green }
 function Warn($m) { Write-Host "  ! $m" -ForegroundColor Yellow }
 # Windows PowerShell 5.1 turns anything a program prints to stderr (even a warning) into a stopping error while
 # ErrorActionPreference is Stop, so external programs run through this, with their own exit code deciding success.
-function Run { param([Parameter(ValueFromRemainingArguments)]$cmd)
+function Run {   # no param() block on purpose: every argument (even '-c' or '-m') goes to the program untouched
   $prev = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
-  try { & $cmd[0] @($cmd | Select-Object -Skip 1) 2>&1 | ForEach-Object { "$_" } } finally { $ErrorActionPreference = $prev }
+  try { $exe = $args[0]; $rest = @($args | Select-Object -Skip 1); & $exe @rest 2>&1 | ForEach-Object { "$_" } }
+  finally { $ErrorActionPreference = $prev }
 }
 function Die($m) { Write-Host "  x $m" -ForegroundColor Red; throw "ApplyTwin install stopped: $m" }
 
@@ -24,7 +25,8 @@ Write-Host "Installing ApplyTwin" -ForegroundColor White
 $Py = $null
 foreach ($c in @(@('py', '-3'), @('python'), @('python3'))) {
   try {
-    $exe = Run $c[0] @($c | Select-Object -Skip 1) -c "import sys; print(sys.executable if sys.version_info >= (3, 9) else '')" | Select-Object -Last 1
+    $argv = @($c) + @('-c', "import sys; print(sys.executable if sys.version_info >= (3, 9) else '')")
+    $exe = Run @argv | Select-Object -Last 1
     if ($LASTEXITCODE -eq 0 -and $exe -and (Test-Path $exe.Trim())) { $Py = $exe.Trim(); break }
   } catch {}
 }
