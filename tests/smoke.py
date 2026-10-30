@@ -135,6 +135,31 @@ _thin = {"experience": [{"id": _v['experience'][0]['id'], "bullets": [f"{_v['exp
 _tr = _tl.tailor(store.load('resume.json'), {'id': 'fill', 'title': 'Software Engineer Intern', 'company': 'Acme'},
                  'Python distributed systems backend APIs', plan=_thin, style='classic')
 res.append(ok(_tr['pages'] == 1 and len(_tr['added']) >= 2, f"thin plans are filled to a full page ({len(_tr['added'])} added)"))
+# importing without AI: job titles aren't headings, wrapped lines stay in their bullet, any bullet style (or none) works
+from applytwin import importer as _imp
+_txt = '''Jordan Lee
+(555) 123-4567 | jordan@ufl.edu
+Experience
+Acme Corp Jun 2025 – Aug 2025
+Software Engineering Intern Remote
+• Built a payments API in Go serving 2M requests per day, cutting p99 latency by 30% across
+the checkout flow launched in 2025
+• Wrote integration tests in Python
+UF Machine Learning Lab Jan 2025 – Present
+Research Assistant
+• Trained a ResNet model on 50K images reaching 92% accuracy
+Projects
+Ledgerly | TypeScript, Next.js
+• Built an expenses app with 2,000 users
+Tinydb | Rust
+• Implemented an LSM-tree store at 180K writes/sec
+'''
+_shapes = []
+for _t in (_txt, _txt.replace('• ', '➢ '), _txt.replace('• ', '')):
+    _p = _imp.parse(_t)
+    _shapes.append(([(e.get('org'), len(e.get('bullets', []))) for e in _p['experience']], [(e.get('name'), len(e.get('bullets', []))) for e in _p['projects']]))
+_want = ([('Acme Corp', 2), ('UF Machine Learning Lab', 1)], [('Ledgerly', 1), ('Tinydb', 1)])
+res.append(ok(all(sh == _want for sh in _shapes), f'resumes import right with any bullet style {[sh for sh in _shapes if sh != _want][:1]}'))
 from applytwin import telemetry as _tm
 res.append(ok(not _tm.enabled() and _tm.ping() is False and len(_tm.install_id()) == 36, 'install count is off in tests and uses only a random ID'))
 

@@ -25,7 +25,8 @@ MONTH = r'(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?'
 DATE = rf'(?:{MONTH}\s+)?(?:19|20)\d\d|present|current|now'
 RANGE = re.compile(rf'({DATE})\s*(?:-|–|—|to|until)\s*({DATE})', re.I)
 ONE = re.compile(rf'\b({MONTH}\s+(?:19|20)\d\d|(?:19|20)\d\d)\b', re.I)
-BULLET = re.compile(r'^\s*(?:[•●▪◦‣∙·\-\*–]|\d+[.)])\s+')
+# any bullet glyph Word, Google Docs or LaTeX produce (•, ➢, ■, ►, ✓, ❖, -, *), a lone "o", or "1." / "1)"
+BULLET = re.compile(r'^\s*(?:\*(?!\*)|[^\w\s(\[*"\'$€£#@<]|o(?=\s+[A-Z])|\d+[.)])\s+')
 EMAIL = re.compile(r'[\w.+-]+@[\w-]+\.[\w.-]+')
 PHONE = re.compile(r'(?:\+?\d{1,2}[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}')
 URL = re.compile(r'(?:https?://)?(?:www\.)?(?:linkedin\.com/in/[\w-]+|github\.com/[\w-]+|[\w-]+\.(?:me|dev|io|com|org|net|ai|app)(?:/[\w./-]*)?)', re.I)
@@ -90,12 +91,20 @@ def tex_to_text(s):
     return re.sub(r'[ \t]+', ' ', s)
 
 
+def _verb_first(s):
+    from .ats import ACTION_VERBS
+    w = re.sub(r'[^a-z-]', '', (s.split() or [''])[0].lower())
+    return w in ACTION_VERBS or (w.endswith('ed') and len(w) > 4)
+
+
 def _head(line):
     raw = line.strip()
     t = re.sub(r'[^a-z& ]', '', raw.lower()).strip()
     if not t or len(t) > 45 or len(t.split()) > 5 or re.search(r'\d', raw):
         return None
-    headingish = raw.isupper() or raw.endswith(':') or len(t.split()) <= 3
+    # a heading is the exact section name, or styled like one (ALL CAPS / ending in ":"); a title-case line such as a job
+    # title "Research Assistant" is not a heading
+    headingish = (raw.isupper() and len(raw) > 2) or raw.endswith(':')
     for k, pat in HEAD.items():
         if re.fullmatch(pat, t) or (headingish and re.match(rf'^(?:{pat})\b', t)):
             return k
@@ -174,6 +183,9 @@ def parse(text):
         s = line.strip()
         is_b = bool(BULLET.match(s))
         s2 = BULLET.sub('', s)
+        if not is_b and sec not in ('skills', 'education') and cur is not None and (cur.get('title') or cur.get('name')) \
+                and not RANGE.search(s2) and len(s2) > 30 and _verb_first(s2):
+            is_b = True   # no bullet glyphs at all: a sentence that starts with an action verb is a bullet
         if sec == 'skills':
             if ':' in s2:
                 lab, items = s2.split(':', 1)
@@ -224,7 +236,10 @@ def parse(text):
                 v[sec].append(cur)
             cur.setdefault('bullets', []).append(s2)
             continue
-        if cur is not None and cur.get('bullets') and not RANGE.search(s2) and not ONE.search(s2[-12:]) and not split_loc(s2)[1]:
+        header = bool(re.search(r'\s[|·]\s|^\*\*|^\[', s2))   # "Tinydb | Rust", **Bold**, [Name](url): a new entry
+        if cur is not None and cur.get('bullets') and not header and not RANGE.search(s2) and (
+                s2[:1].islower() or not re.search(r'[.!?)\]]$', cur['bullets'][-1].rstrip())
+                or (not ONE.search(s2[-12:]) and not split_loc(s2)[1])):
             cur['bullets'][-1] += ' ' + s2  # a bullet that wrapped onto the next line
             continue
         a, z, rest = _dates(s2)
