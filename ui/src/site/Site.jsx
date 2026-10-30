@@ -11,6 +11,8 @@ import { Reveal, Words, soft, spring } from '../components/ui'
    on the Claude Code or Codex plan they already pay for, so this page's one job is a calm, one-line setup. */
 
 const INSTALL = 'curl -fsSL apply.twinly.tech/install | bash'
+const INSTALL_WIN = 'irm apply.twinly.tech/install.ps1 | iex'
+const IS_WIN = typeof navigator !== 'undefined' && /windows/i.test(navigator.userAgent)
 const COMPANIES = ['Stripe', 'Figma', 'Pinterest', 'Notion', 'Databricks', 'Anthropic', 'OpenAI', 'Ramp', 'Jane Street', 'Citadel', 'Two Sigma',
   'Roblox', 'MongoDB', 'Palantir', 'Duolingo', 'Airbnb', 'Robinhood', 'Plaid', 'Scale AI', 'Skydio', 'Anduril', 'SpaceX', 'Tesla', 'NVIDIA',
   'Microsoft', 'Google', 'Apple', 'Meta', 'Amazon', 'Netflix', 'Uber', 'Lyft', 'DoorDash', 'Coinbase', 'Snowflake', 'Datadog', 'Cloudflare',
@@ -22,6 +24,7 @@ const FAQ = [
   ['Where does my data live?', 'On your computer, in a folder called ~/.applytwin. Your resume, answers and history never go to a server unless you sign in to back them up.'],
   ['Will it submit applications without me?', 'Only if you turn that on. By default it fills every form and stops on the review screen, so you press submit.'],
   ['What will it never do?', 'Type your passwords, solve CAPTCHAs, create accounts, accept legal agreements, or invent a single fact about you. Those come back to you as a notification.'],
+  ['Does it work on Windows?', 'Yes. Mac, Windows and Linux. On Windows, paste the PowerShell command; it installs ApplyTwin in your user folder and adds an applytwin command.'],
   ['Is it only for software jobs?', 'No. It learns what a strong resume looks like in your field, whether that is nursing, finance, design, research or engineering, and tailors to each posting.'],
   ['What does it cost?', 'Nothing. ApplyTwin is free to use for students and job seekers.'],
 ]
@@ -61,7 +64,7 @@ export default function Site() {
               all through the Claude Code or Codex plan you already pay for. No API keys.
             </motion.p>
             <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="mt-8 max-w-[520px]"><InstallBox /></motion.div>
-            <p className="mt-3 text-[13px] text-white/55">macOS and Linux. Needs Python 3.9+, Node.js, and Claude Code or Codex.</p>
+            <p className="mt-3 text-[13px] text-white/55">Mac, Windows and Linux. Needs Python 3.9+, Node.js, and Claude Code or Codex.</p>
           </motion.div>
           <motion.div style={{ y: artY }} className="hidden md:block"><Hero3D name="Your Name" /></motion.div>
         </div>
@@ -108,15 +111,24 @@ export default function Site() {
 }
 
 function InstallBox() {
+  const [win, setWin] = useState(IS_WIN)
   const [ok, setOk] = useState(false)
-  const copy = () => { navigator.clipboard.writeText(INSTALL); setOk(true); setTimeout(() => setOk(false), 1600) }
+  const cmd = win ? INSTALL_WIN : INSTALL
+  const copy = () => { navigator.clipboard.writeText(cmd); setOk(true); setTimeout(() => setOk(false), 1600) }
   return (
-    <button onClick={copy} aria-label="Copy the install command" className="group flex w-full items-center gap-2.5 rounded-[16px] bg-black/55 py-3.5 pl-4 pr-3 text-left ring-1 ring-white/15 backdrop-blur transition hover:ring-white/30 sm:gap-3">
-      <span className="hidden select-none font-mono text-[14px] text-white/40 sm:inline">$</span>
-      <span className="min-w-0 flex-1 font-mono text-[12.5px] leading-snug text-white sm:text-[14px]">{INSTALL}</span>
-      <span className="grid size-8 shrink-0 place-items-center rounded-full text-white sm:flex sm:size-auto sm:items-center sm:gap-1.5 sm:px-3 sm:py-1 sm:text-[12.5px] sm:font-semibold" style={{ background: ok ? GREEN : BLUE }}>
-        {ok ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}<span className="hidden sm:inline">{ok ? 'Copied' : 'Copy'}</span></span>
-    </button>
+    <div>
+      <div className="mb-2 flex items-center gap-1 text-[12.5px]">
+        {[[false, 'Mac & Linux'], [true, 'Windows']].map(([w, l]) => (
+          <button key={l} onClick={() => setWin(w)} className={'rounded-full px-3 py-1 transition ' + (win === w ? 'bg-white/15 font-semibold text-white' : 'text-white/55 hover:text-white')}>{l}</button>))}
+        <span className="ml-1 text-white/40">{win ? 'in PowerShell' : 'in Terminal'}</span>
+      </div>
+      <button onClick={copy} aria-label="Copy the install command" className="group flex w-full items-center gap-2.5 rounded-[16px] bg-black/55 py-3.5 pl-4 pr-3 text-left ring-1 ring-white/15 backdrop-blur transition hover:ring-white/30 sm:gap-3">
+        <span className="hidden select-none font-mono text-[14px] text-white/40 sm:inline">{win ? '>' : '$'}</span>
+        <span className="min-w-0 flex-1 font-mono text-[12.5px] leading-snug text-white sm:text-[14px]">{cmd}</span>
+        <span className="grid size-8 shrink-0 place-items-center rounded-full text-white sm:flex sm:size-auto sm:items-center sm:gap-1.5 sm:px-3 sm:py-1 sm:text-[12.5px] sm:font-semibold" style={{ background: ok ? GREEN : BLUE }}>
+          {ok ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}<span className="hidden sm:inline">{ok ? 'Copied' : 'Copy'}</span></span>
+      </button>
+    </div>
   )
 }
 

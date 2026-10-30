@@ -29,10 +29,14 @@ iCIMS and LinkedIn, with everything learned there turned into code and agent pla
 ## Install
 
 ```bash
-curl -fsSL apply.twinly.tech/install | bash
+curl -fsSL apply.twinly.tech/install | bash        # Mac and Linux, in Terminal
 ```
 
-That's it. It installs ApplyTwin in `~/.applytwin-app`, connects it to Claude Code and Codex, checks your setup and opens
+```powershell
+irm apply.twinly.tech/install.ps1 | iex            # Windows, in PowerShell
+```
+
+That's it. It installs ApplyTwin in `~/.applytwin-app` (`%USERPROFILE%\.applytwin-app` on Windows), connects it to Claude Code and Codex, checks your setup and opens
 the app at http://localhost:4747. Run it again any time to update.
 
 **No API keys.** ApplyTwin runs on the Claude Code or Codex plan you already pay for: resume tailoring, imports and the

@@ -205,7 +205,10 @@ def chrome():
               '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
               '/Applications/Brave Browser.app/Contents/MacOS/Brave Browser',
               r'C:\Program Files\Google\Chrome\Application\chrome.exe',
-              r'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe']
+              r'C:\Program Files (x86)\Google\Chrome\Application\chrome.exe',
+              os.path.expandvars(r'%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe'),
+              r'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe',
+              r'C:\Program Files\Microsoft\Edge\Application\msedge.exe']   # Edge ships with every Windows install
     cands += [shutil.which(x) for x in ('google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser', 'chrome', 'msedge')]
     for c in cands:
         if c and os.path.exists(c):

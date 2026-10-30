@@ -139,8 +139,12 @@ def _self_update():
     if st['available']:
         print(f"Updating ApplyTwin ({st['current'] or 'new'} -> {st['latest']})...")
         try:
-            if update.apply().get('updated'):
-                os.execv(sys.executable, [sys.executable] + sys.argv)   # restart on the new code
+            if update.apply().get('updated'):   # restart on the new code
+                if os.name == 'nt':
+                    import subprocess
+                    subprocess.Popen([sys.executable] + sys.argv)
+                    sys.exit(0)
+                os.execv(sys.executable, [sys.executable] + sys.argv)
         except Exception as e:
             print(f'Update skipped: {e}')
 

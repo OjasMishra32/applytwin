@@ -4,13 +4,41 @@ jobs:
   test:
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: python3 tests/smoke.py
-      - run: python3 tests/e2e_fresh.py
-      - run: python3 tests/e2e_careers.py
+      - run: python tests/smoke.py
+      - run: python tests/e2e_fresh.py
+      - run: python tests/e2e_careers.py
+
+  installer:
+    # runs the real one-line installer on fresh machines, for this exact commit
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install (Mac and Linux)
+        if: runner.os != 'Windows'
+        run: APPLYTWIN_REF=${{ github.sha }} APPLYTWIN_NO_APP=1 bash scripts/install-remote.sh
+      - name: Install (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:APPLYTWIN_REF = '${{ github.sha }}'; $env:APPLYTWIN_NO_APP = '1'
+          ./scripts/install-remote.ps1
+      - name: Installed app runs
+        shell: bash
+        run: |
+          D="$HOME/.applytwin-app"; [ -d "$D" ] || D="$USERPROFILE/.applytwin-app"
+          python "$D/bin/applytwin" doctor || true
+          python "$D/bin/applytwin" templates
+

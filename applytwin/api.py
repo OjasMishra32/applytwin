@@ -456,15 +456,18 @@ def start_run(agent='claude', n=25, model=None):
         # runs on the user's own Claude subscription; only ApplyTwin's tools and a browser are pre-approved, so it never stalls on a prompt
         tools = ('mcp__plugin_applytwin_applytwin,mcp__applytwin,mcp__playwright,mcp__claude-in-chrome,'
                  'Read,Write,Bash(ls:*),Bash(open:*)')
-        cmd = [exe, '-p', prompt, '--allowedTools', tools, '--permission-mode', 'acceptEdits', '--output-format', 'text']
+        cmd = [exe, '-p', '--allowedTools', tools, '--permission-mode', 'acceptEdits', '--output-format', 'text']
     else:
-        cmd = [exe, 'exec', '--skip-git-repo-check', '-s', 'workspace-write', '-c', 'approval_policy="never"', *(['-m', model] if model else agents.codex_model_args()), prompt]
+        cmd = [exe, 'exec', '--skip-git-repo-check', '-s', 'workspace-write', '-c', 'approval_policy=never', *(['-m', model] if model else agents.codex_model_args()), '-']
     logf = store.path('autopilot.log')
     f = open(logf, 'w')
-    f.write(f"$ {' '.join(os.path.basename(c) if i == 0 else c for i, c in enumerate(cmd[:-1]) if c != prompt)} … apply to {n} jobs\n")
+    f.write(f"$ {' '.join(os.path.basename(c) if i == 0 else c for i, c in enumerate(cmd))} … apply to {n} jobs\n")
     f.flush()
     # run from the data folder, not the repo, so the agent loads the installed plugin rather than the repo's dev .mcp.json
-    proc = subprocess.Popen(cmd, stdout=f, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, cwd=store.HOME)
+    # the instructions go in on stdin: on Windows, claude/codex are .cmd wrappers and cmd.exe would mangle quotes in a long argument
+    proc = subprocess.Popen(cmd, stdout=f, stderr=subprocess.STDOUT, stdin=subprocess.PIPE, cwd=store.HOME, text=True)
+    proc.stdin.write(prompt)
+    proc.stdin.close()
     _run.update(proc=proc, agent=agent, log=logf)
     import threading
     threading.Thread(target=_watch_run, args=(proc, agent, logf, n, model), daemon=True).start()

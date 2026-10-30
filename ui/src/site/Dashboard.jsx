@@ -10,7 +10,8 @@ import { Avatar, Segmented, spring } from '../components/ui'
 
 const URL = 'https://advktwnedlgnhswpxokg.supabase.co'
 const ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFkdmt0d25lZGxnbmhzd3B4b2tnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1NzkzMTUsImV4cCI6MjA5NzE1NTMxNX0.kPKEMNuqvvzGWKHRSnCtq4vkiYQTicX0wDSiwyYj7LE'
-const INSTALL = 'curl -fsSL apply.twinly.tech/install | bash'
+const INSTALL = typeof navigator !== 'undefined' && /windows/i.test(navigator.userAgent)
+  ? 'irm apply.twinly.tech/install.ps1 | iex' : 'curl -fsSL apply.twinly.tech/install | bash'
 const KEY = 'applytwin:session'
 const BLUE = '#0a84ff', GREEN = '#30d158', ORANGE = '#ff9f0a'
 const STATUS = { Applied: [GREEN, Check, 'Applied'], 'Needs User': [ORANGE, Hand, 'Needs you'], Skipped: ['#7d869f', CircleSlash, 'Skipped'] }

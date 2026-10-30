@@ -17,6 +17,7 @@ for c in get(f"https://api.github.com/repos/{repo}/commits?sha=main&per_page=6")
         print(c["sha"]); break
 PY
 )"
+SHA="${APPLYTWIN_REF:-$SHA}"   # CI installs the exact commit under test
 SRC="${APPLYTWIN_SRC:-https://codeload.github.com/$REPO/tar.gz/${SHA:-refs/heads/main}}"
 DIR="${APPLYTWIN_DIR:-$HOME/.applytwin-app}"
 b() { printf '\033[1m%s\033[0m\n' "$*"; }
@@ -59,4 +60,5 @@ echo; b "Checking your setup"
 python3 "$DIR/bin/applytwin" doctor || true
 echo
 b "Opening ApplyTwin at http://localhost:4747  (Ctrl+C to stop, 'applytwin app' to open it again)"
+[ -n "${APPLYTWIN_NO_APP:-}" ] && exit 0
 exec python3 "$DIR/bin/applytwin" app ${APPLYTWIN_NO_OPEN:+--no-open} </dev/null

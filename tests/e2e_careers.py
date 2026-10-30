@@ -162,7 +162,7 @@ def main():
     for who, spec in PEOPLE.items():
         tmp = tempfile.mkdtemp(prefix=f'applytwin-{who}-')
         env = {k: v for k, v in os.environ.items() if k not in ('ANTHROPIC_API_KEY', 'OPENAI_API_KEY')}
-        env.update(HOME=tmp, APPLYTWIN_HOME=os.path.join(tmp, '.applytwin'))
+        env.update(HOME=tmp, USERPROFILE=tmp, APPLYTWIN_HOME=os.path.join(tmp, '.applytwin'))
         r = subprocess.run([sys.executable, '-c', RUNNER, ROOT, json.dumps({**spec, 'field': who})], env=env, capture_output=True, text=True, timeout=600)
         shutil.rmtree(tmp, ignore_errors=True)
         try:

@@ -19,7 +19,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BIN = os.path.join(ROOT, 'bin', 'applytwin')
 TMP = tempfile.mkdtemp(prefix='applytwin-fresh-')
 ENV = {k: v for k, v in os.environ.items() if k not in ('ANTHROPIC_API_KEY', 'OPENAI_API_KEY')}
-ENV.update(HOME=TMP, APPLYTWIN_HOME=os.path.join(TMP, '.applytwin'))
+ENV.update(HOME=TMP, USERPROFILE=TMP, APPLYTWIN_HOME=os.path.join(TMP, '.applytwin'))
 PORT = 4859
 
 RESUME = """Maya Chen

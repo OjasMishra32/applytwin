@@ -4,6 +4,7 @@ Claude Code: installs the plugin (skills + MCP server) from this folder's market
              `claude mcp add` + copying skills into ~/.claude/skills.
 Codex:       adds [mcp_servers.applytwin] to ~/.codex/config.toml and copies the skills into ~/.agents/skills.
 """
+import json
 import os
 import re
 import platform
@@ -22,6 +23,13 @@ def notify(title, msg):
     try:
         if platform.system() == 'Darwin':
             subprocess.run(['osascript', '-e', f'display notification "{msg}" with title "{title}" sound name "Glass"'], capture_output=True)
+        elif platform.system() == 'Windows':
+            ps = ("[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] > $null;"
+                  "$t = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent(1);"
+                  f"$x = $t.GetElementsByTagName('text'); $x.Item(0).AppendChild($t.CreateTextNode('{title.replace(chr(39), '')}')) > $null;"
+                  f"$x.Item(1).AppendChild($t.CreateTextNode('{msg.replace(chr(39), '')}')) > $null;"
+                  "[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('ApplyTwin').Show([Windows.UI.Notifications.ToastNotification]::new($t))")
+            subprocess.run(['powershell', '-NoProfile', '-Command', ps], capture_output=True, creationflags=0x08000000)
         elif shutil.which('notify-send'):
             subprocess.run(['notify-send', title, msg], capture_output=True)
     except Exception:
@@ -41,7 +49,8 @@ def _copy_skills(dest):
 
 
 BROWSER_PROFILE = os.path.join(store.HOME, 'browser')
-PLAYWRIGHT = ['npx', '-y', '@playwright/mcp@latest', '--user-data-dir', BROWSER_PROFILE]
+# on Windows npx is npx.cmd, which agents can't launch by bare name
+PLAYWRIGHT = [shutil.which('npx') or 'npx' if platform.system() == 'Windows' else 'npx', '-y', '@playwright/mcp@latest', '--user-data-dir', BROWSER_PROFILE]
 
 
 def install_claude():
@@ -52,9 +61,12 @@ def install_claude():
     if shutil.which('npx'):
         subprocess.run([claude, 'mcp', 'remove', '--scope', 'user', 'playwright'], capture_output=True)
         subprocess.run([claude, 'mcp', 'add', '--scope', 'user', 'playwright', '--'] + PLAYWRIGHT, capture_output=True)
-    r = subprocess.run([claude, 'plugin', 'marketplace', 'add', APP], capture_output=True, text=True)
-    r2 = subprocess.run([claude, 'plugin', 'install', 'applytwin@applytwin'], capture_output=True, text=True)
-    if r2.returncode == 0:
+    # the plugin launches `python3`, which usually isn't on PATH on Windows; there, register this exact Python instead
+    r2 = None
+    if platform.system() != 'Windows':
+        subprocess.run([claude, 'plugin', 'marketplace', 'add', APP], capture_output=True, text=True)
+        r2 = subprocess.run([claude, 'plugin', 'install', 'applytwin@applytwin'], capture_output=True, text=True)
+    if r2 is not None and r2.returncode == 0:
         return 'Claude Code: installed plugin applytwin@applytwin (skills + MCP). Restart Claude Code.'
     subprocess.run([claude, 'mcp', 'remove', '--scope', 'user', 'applytwin'], capture_output=True)
     r3 = subprocess.run([claude, 'mcp', 'add', '--scope', 'user', 'applytwin', '--', sys.executable, APPLYTWIN_BIN, 'mcp'],
@@ -69,15 +81,16 @@ def install_codex():
     os.makedirs(cfg_dir, exist_ok=True)
     cfg = os.path.join(cfg_dir, 'config.toml')
     txt = open(cfg).read() if os.path.exists(cfg) else ''
-    block = (f'\n[mcp_servers.applytwin]\ncommand = "{sys.executable}"\nargs = ["{APPLYTWIN_BIN}", "mcp"]\n'
+    q = json.dumps   # TOML basic strings use JSON escaping, so Windows paths (C:\\Users\\...) stay valid
+    block = (f'\n[mcp_servers.applytwin]\ncommand = {q(sys.executable)}\nargs = [{q(APPLYTWIN_BIN)}, "mcp"]\n'
              f'startup_timeout_sec = 20\ntool_timeout_sec = 300\ndefault_tools_approval_mode = "approve"\n')
     if '[mcp_servers.applytwin]' not in txt:
         with open(cfg, 'a') as f:
             f.write(block)
     if '[mcp_servers.playwright]' not in txt and shutil.which('npx'):
-        args = ', '.join(f'"{x}"' for x in PLAYWRIGHT[1:])
+        args = ', '.join(q(x) for x in PLAYWRIGHT[1:])
         with open(cfg, 'a') as f:
-            f.write(f'\n[mcp_servers.playwright]\ncommand = "npx"\nargs = [{args}]\nstartup_timeout_sec = 60\ndefault_tools_approval_mode = "approve"\n')
+            f.write(f'\n[mcp_servers.playwright]\ncommand = {q(PLAYWRIGHT[0])}\nargs = [{args}]\nstartup_timeout_sec = 60\ndefault_tools_approval_mode = "approve"\n')
     # headless `codex exec` cancels MCP calls that need approval, so make sure existing blocks pre-approve ours
     txt = open(cfg).read()
     for k in ('applytwin', 'playwright'):

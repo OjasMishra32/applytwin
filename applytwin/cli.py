@@ -37,6 +37,11 @@ def _p(x):
 
 
 def main():
+    for stream in (sys.stdout, sys.stderr):   # Windows consoles default to cp1252, which can't print ✓ or →
+        try:
+            stream.reconfigure(encoding='utf-8', errors='replace')
+        except (AttributeError, ValueError):
+            pass
     cmd = sys.argv[1] if len(sys.argv) > 1 else 'app'
     if cmd in ('app', 'serve'):
         from .server import serve
