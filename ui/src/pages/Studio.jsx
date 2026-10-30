@@ -119,7 +119,10 @@ export default function Studio({ arg }) {
                 <div className="mt-6 divide-y divide-line">{(rep?.lint || []).map((c, i) => (
                   <div key={c.id} className="flex items-start gap-3 py-3 text-[14px]">
                     {c.level === 'pass' ? <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-good text-white"><Check className="size-3" strokeWidth={3} /></span>
-                      : <AlertTriangle className={`mt-0.5 size-5 shrink-0 ${c.level === 'fail' ? 'text-bad' : 'text-warn'}`} />}<span className={c.level === 'pass' ? 'text-muted' : 'text-fg'}>{c.msg}</span></div>))}</div>
+                      : <AlertTriangle className={`mt-0.5 size-5 shrink-0 ${c.level === 'fail' ? 'text-bad' : 'text-warn'}`} />}
+                    <div className="min-w-0 flex-1"><span className={c.level === 'pass' ? 'text-muted' : 'text-fg'}>{c.msg}</span>
+                      {c.items?.length > 0 && <ul className="mt-2 space-y-1.5">{c.items.map((x, j) => (
+                        <li key={j} className="rounded-[10px] bg-white/[.05] px-3 py-2 text-[13px] leading-snug text-muted">{x}</li>))}</ul>}</div></div>))}</div>
               </div>
             </motion.div>)}
           {mode === 'style' && (

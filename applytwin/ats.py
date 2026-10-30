@@ -205,8 +205,10 @@ def lint(resume, pages=None, pdf_text=None):
     """Checks recruiters and parsers care about. Each: {id, level: pass|warn|fail, msg}."""
     out = []
 
-    def add(i, ok, msg, warn=False):
-        out.append({"id": i, "level": 'pass' if ok else ('warn' if warn else 'fail'), "msg": msg})
+    def add(i, ok, msg, warn=False, items=None):
+        # items: the exact bullets behind a warning, so you know which line to fix
+        out.append({"id": i, "level": 'pass' if ok else ('warn' if warn else 'fail'), "msg": msg,
+                    **({"items": [x if len(x) <= 120 else x[:117] + '…' for x in items[:6]]} if items and not ok else {})})
 
     b = resume.get('basics', {})
     links = ' '.join(l.get('url', '') for l in b.get('links', []))
@@ -222,18 +224,22 @@ def lint(resume, pages=None, pdf_text=None):
         quant = sum(bool(re.search(r'\d', x)) for x in bp) / len(bp)
         add('quantified', quant >= 0.5, f'{round(quant * 100)}% of bullets have a number (aim for 50%+: users, %, ms, $, rank)',
             warn=quant >= 0.3)
-        verbs = sum((x.split() or [''])[0].lower().strip(',:;') in ACTION_VERBS for x in bp) / len(bp)
-        add('verbs', verbs >= 0.7, f'{round(verbs * 100)}% of bullets start with a strong action verb (aim 70%+)', warn=verbs >= 0.5)
+        weakstart = [x for x in bp if (x.split() or [''])[0].lower().strip(',:;') not in ACTION_VERBS]
+        verbs = 1 - len(weakstart) / len(bp)
+        add('verbs', verbs >= 0.7, f'{round(verbs * 100)}% of bullets start with a strong action verb (aim 70%+). These don\'t:',
+            warn=verbs >= 0.5, items=weakstart)
         long_ = [x for x in bp if len(x) > 230]
         short = [x for x in bp if len(x) < 45]
-        add('length', not long_, f'{len(long_)} bullet(s) over ~2 lines; split or tighten them', warn=len(long_) <= 2)
-        add('substance', not short, f'{len(short)} bullet(s) too thin to show impact', warn=True)
+        add('length', not long_, f'{len(long_)} bullet(s) over ~2 lines; split or tighten them', warn=len(long_) <= 2, items=long_)
+        add('substance', not short, f'{len(short)} bullet(s) too thin to show impact: add what it achieved, for whom, how much', warn=True, items=short)
         weak = [w for w in WEAK if any(w in x.lower() for x in bp)]
-        add('weak', not weak, 'No filler phrases' + (f' (found: {", ".join(weak)})' if weak else ''), warn=True)
+        add('weak', not weak, 'No filler phrases' + (f' (found: {", ".join(weak)})' if weak else ''), warn=True,
+            items=[x for x in bp if any(w in x.lower() for w in weak)])
         pro = [x for x in bp if PRONOUNS.search(x)]
-        add('pronouns', not pro, 'No first-person pronouns in bullets', warn=True)
+        add('pronouns', not pro, 'No first-person pronouns in bullets', warn=True, items=pro)
         dup = [w for w, c in Counter((x.split() or [''])[0].lower() for x in bp).items() if c >= 4]
-        add('variety', not dup, 'Varied opening verbs' + (f' ("{dup[0]}" starts 4+ bullets)' if dup else ''), warn=True)
+        add('variety', not dup, 'Varied opening verbs' + (f' ("{dup[0]}" starts 4+ bullets)' if dup else ''), warn=True,
+            items=[x for x in bp if dup and (x.split() or [''])[0].lower() == dup[0]])
     else:
         add('bullets', False, 'Add experience or project bullets')
     add('skills', bool(resume.get('skills')), 'A skills section (ATS keyword search hits it first)')
