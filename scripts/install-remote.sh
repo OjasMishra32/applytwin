@@ -18,7 +18,8 @@ for c in get(f"https://api.github.com/repos/{repo}/commits?sha=main&per_page=6")
 PY
 )"
 SHA="${APPLYTWIN_REF:-$SHA}"   # CI installs the exact commit under test
-SRC="${APPLYTWIN_SRC:-https://codeload.github.com/$REPO/tar.gz/${SHA:-refs/heads/main}}"
+# the newest commit that passed every test; if GitHub can't be asked (rate limit), the copy published on the site, never untested main
+SRC="${APPLYTWIN_SRC:-$([ -n "$SHA" ] && echo "https://codeload.github.com/$REPO/tar.gz/$SHA" || echo "$BASE/applytwin.tar.gz")}"
 DIR="${APPLYTWIN_DIR:-$HOME/.applytwin-app}"
 b() { printf '\033[1m%s\033[0m\n' "$*"; }
 ok() { printf '\033[32m✓\033[0m %s\n' "$*"; }

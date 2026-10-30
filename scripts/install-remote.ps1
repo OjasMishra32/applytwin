@@ -60,8 +60,15 @@ if (-not (Test-Path $parent)) { New-Item -ItemType Directory $parent | Out-Null 
 $tmp = Join-Path $parent (".applytwin-install-" + [guid]::NewGuid())
 New-Item -ItemType Directory $tmp | Out-Null
 try {
-  Invoke-WebRequest "https://codeload.github.com/$Repo/zip/$Ref" -OutFile "$tmp\a.zip" -UseBasicParsing
-  Expand-Archive "$tmp\a.zip" "$tmp\x"
+  if (-not $Sha -and (Get-Command tar.exe -ErrorAction SilentlyContinue)) {
+    # GitHub couldn't be asked for the newest tested version (rate limit): use the copy published on the site, not untested main
+    Invoke-WebRequest "https://apply.twinly.tech/applytwin.tar.gz" -OutFile "$tmp\a.tgz" -UseBasicParsing
+    New-Item -ItemType Directory "$tmp\x" | Out-Null
+    tar.exe -xzf "$tmp\a.tgz" -C "$tmp\x"
+  } else {
+    Invoke-WebRequest "https://codeload.github.com/$Repo/zip/$Ref" -OutFile "$tmp\a.zip" -UseBasicParsing
+    Expand-Archive "$tmp\a.zip" "$tmp\x"
+  }
   $top = Get-ChildItem "$tmp\x" -Directory | Select-Object -First 1
   if (-not (Test-Path "$($top.FullName)\bin\applytwin")) { Die "The download looks incomplete. Try again in a minute." }
   if (Test-Path "$Dir.old") { Remove-Item "$Dir.old" -Recurse -Force }
