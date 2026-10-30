@@ -21,4 +21,6 @@ cat > site/vercel.json <<'JSON'
   ]
 }
 JSON
+# deploys must go to the applytwin project (apply.twinly.tech); relink if a direct Vite build wiped the link
+[ -d site/.vercel ] || (cd site && vercel link --yes --project applytwin >/dev/null 2>&1) || true
 echo "site/ ready: $(du -sh site | cut -f1), tarball $(du -h site/applytwin.tar.gz | cut -f1)"
