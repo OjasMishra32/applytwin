@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 import { api, fileUrl } from '../lib/api'
 import { useApp, Page } from '../App'
 import { Avatar, Button, Title, burst, spring } from '../components/ui'
-import { Upload } from 'lucide-react'
+import { Mail, Upload } from 'lucide-react'
 
 const COLS = [['Needs User', 'Needs you', '#ff9f0a'], ['Applied', 'Applied', '#0a84ff'], ['Interview', 'Interview', '#bf5af2'], ['Offer', 'Offer', '#30d158'], ['Rejected', 'Rejected', '#7d869f']]
 
@@ -32,11 +32,20 @@ export default function Board() {
     <label className="cursor-pointer"><input type="file" accept=".csv,text/csv" className="hidden" onChange={importCsv} />
       <span className={'inline-flex h-10 items-center gap-1.5 rounded-full px-5 text-[14px] font-medium ' + (primary ? 'bg-white text-[#0b1020] hover:bg-white/90' : 'bg-white/[.08] text-ink hover:bg-white/[.13]')}>
         <Upload className="size-4" />Import your tracker</span></label>)
+  const fromEmail = async () => {
+    try {
+      await api('/api/history/email', {})
+      toast.success('Reading your confirmation emails', { description: "Your twin opens your email in its browser and records every job you already applied to. If you're not signed in there, it'll ask you to sign in once." })
+    } catch (err) { toast.error(err.message) }
+  }
+  const EmailBtn = () => (
+    <button onClick={fromEmail} className="inline-flex h-10 items-center gap-1.5 rounded-full bg-white/[.08] px-5 text-[14px] font-medium text-ink hover:bg-white/[.13]">
+      <Mail className="size-4" />Find them in my email</button>)
   const empty = apps && apps.length === 0
   return (
     <div className="relative"><Page wide>
       <Title sub="Every application your twin sends lands here. Drag a card when you hear back; interviews and offers teach your twin what works."
-        right={!empty && <ImportBtn />}>
+        right={!empty && <div className="flex flex-wrap gap-2"><EmailBtn /><ImportBtn /></div>}>
         Applications</Title>
       {empty ? (
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={spring}
@@ -45,9 +54,10 @@ export default function Board() {
           <p className="mx-auto mt-2 max-w-[400px] text-[15px] leading-relaxed text-muted">Start your twin and every application shows up here, from needs-you to offer. Already applied somewhere? Import your tracker so your twin never applies twice.</p>
           <div className="mt-7 flex flex-wrap justify-center gap-3">
             <a href="#agents" className="inline-flex h-10 items-center rounded-full bg-signal px-5 text-[14px] font-semibold text-white hover:bg-[#2b95ff]">Start Autopilot</a>
+            <EmailBtn />
             <ImportBtn />
           </div>
-          <p className="mt-4 text-[12.5px] text-faint">CSV from Simplify, Huntr, Teal, Notion or a spreadsheet</p>
+          <p className="mt-4 text-[12.5px] text-faint">Your twin can read your "thank you for applying" emails, or import a CSV from Simplify, Huntr, Teal, Notion or a spreadsheet</p>
         </motion.div>
       ) : (
       <div className="grid gap-4 overflow-x-auto pb-4 md:grid-cols-5">

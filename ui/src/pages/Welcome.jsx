@@ -73,6 +73,7 @@ export default function Welcome() {
     { id: 'roles', ok: (s.roles || []).length > 0, cta: 'Continue' },
     { id: 'where', ok: (s.locations || []).length > 0 && (s.arrangement || []).length > 0, cta: 'Continue' },
     { id: 'companies', ok: true, cta: 'Continue' },
+    { id: 'history', ok: true, cta: 'Continue' },
     { id: 'You', ok: groupLeft('You') === 0, cta: 'Continue' },
     { id: 'School', ok: groupLeft('School') === 0, cta: 'Continue' },
     { id: 'Work authorization', ok: groupLeft('Work authorization') === 0, cta: 'Continue' },
@@ -87,6 +88,7 @@ export default function Welcome() {
   const next = () => { setDir(1); setI(x => Math.min(screens.length - 1, x + 1)) }
   const back = () => { setDir(-1); setI(x => Math.max(0, x - 1)) }
   const [derived, setDerived] = useState([])
+  const [hist, setHist] = useState('')
   const START = { summer: 'May', fall: 'August', winter: 'January', spring: 'January' }
   const onContinue = async () => {
     if (cur.id === 'when' && intern && !p.earliest_start && picked.length) {   // you picked the term, so the start date follows from it
@@ -167,6 +169,21 @@ export default function Welcome() {
       <div className="mx-auto mt-8 max-w-[600px] space-y-5 text-left">
         <Chips large value={s.companies_priority || []} onChange={v => ss('companies_priority', v)} placeholder="Type a company and press Enter" suggestions={DREAM_SUGGEST} />
         <div><div className="mb-2 text-[13px] text-muted">Never apply to</div><Chips large value={s.companies_skip || []} onChange={v => ss('companies_skip', v)} placeholder="Companies to skip (optional)" /></div>
+      </div>
+    </Center>,
+    history: <Center wide>
+      <H>Already applied somewhere?</H>
+      <Sub>Your twin skips every role you've already applied to, so it never applies twice. Optional, and you can do it later from Applications.</Sub>
+      <div className="mx-auto mt-10 grid max-w-[640px] gap-3 text-left sm:grid-cols-2">
+        <button onClick={async () => { try { await api('/api/history/email', {}); setHist('email') } catch (e) { toast.error(e.message) } }}
+          className={'rounded-[20px] px-6 py-5 ring-1 backdrop-blur transition ' + (hist === 'email' ? 'bg-white/[.14] ring-2 ring-signal' : 'bg-white/[.06] ring-white/10 hover:bg-white/[.1]')}>
+          <div className="text-[19px] font-semibold text-white">Find them in my email</div>
+          <div className="mt-1 text-[14px] text-white/60">{hist === 'email' ? 'Started. Your twin is reading your "thank you for applying" emails.' : 'Your twin reads your "thank you for applying" emails. Any email works.'}</div></button>
+        <label className={'cursor-pointer rounded-[20px] px-6 py-5 ring-1 backdrop-blur transition ' + (hist === 'csv' ? 'bg-white/[.14] ring-2 ring-signal' : 'bg-white/[.06] ring-white/10 hover:bg-white/[.1]')}>
+          <input type="file" accept=".csv,text/csv" className="hidden" onChange={async e => { const f = e.target.files?.[0]; if (!f) return
+            try { const r = await api('/api/history', { text: await f.text() }); setHist('csv'); toast.success(`Found ${r.known_applications} applications`) } catch (err) { toast.error(err.message) } }} />
+          <div className="text-[19px] font-semibold text-white">Import my tracker</div>
+          <div className="mt-1 text-[14px] text-white/60">{hist === 'csv' ? 'Imported.' : 'A CSV from Simplify, Huntr, Teal, Notion or a spreadsheet.'}</div></label>
       </div>
     </Center>,
     apply: <Center wide>

@@ -108,3 +108,11 @@ def install():
     print(install_claude())
     print(install_codex())
     print('\nDone. In Claude Code or Codex, say: "set me up with applytwin" to onboard, then "twin: apply to my top 10".')
+
+
+def refresh_skills():
+    """Keep agents' copies of the ApplyTwin skills current after an update (installs only copy them once)."""
+    for d in ('~/.claude/skills', '~/.agents/skills', '~/.codex/skills'):
+        dest = os.path.expanduser(d)
+        if os.path.isdir(dest) and any(n.startswith('applytwin-') for n in os.listdir(dest)):
+            _copy_skills(dest)

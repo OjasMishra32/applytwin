@@ -216,9 +216,9 @@ def next_jobs(n=10):
     p = store.profile()
     left = max(0, p['apply'].get('daily_limit', 40) - store.applied_count_today())
     cap = p['apply'].get('per_company_cap', 3)
-    out, per, done = [], {}, done_roles()
+    out, per, done, ids = [], {}, done_roles(), done_url_ids()
     for j in list_jobs(status='new', limit=400):
-        if already_done(j, done):
+        if already_done(j, done, ids):
             continue
         c = match.company_key(j['company'])
         if store.company_count(j['company']) + per.get(c, 0) >= cap:
@@ -246,19 +246,36 @@ def role_key(company, title):
     return c, toks
 
 
+URL_ID = re.compile(r'(?:token=|/jobs/|/job/|/)([0-9a-f]{8}-[0-9a-f-]{27}|\d{5,})')
+
+
+def applied_elsewhere():
+    """Roles you applied to outside ApplyTwin (a tracker CSV, or confirmations found in your email). Kept forever, so a
+    role that shows up in a later scan is still never applied to twice."""
+    return store.load('applied_elsewhere.json', [])
+
+
 def done_roles():
     """Every role you've already applied to, are mid-way through, or skipped, from any source."""
     rows = store.rows("select company, title from jobs where status not in ('new')")
     rows += store.rows("select company, title from applications")
-    return {role_key(r['company'], r['title']) for r in rows}
+    rows += applied_elsewhere()
+    return {role_key(r['company'], r['title']) for r in rows if r.get('company') and r.get('title')}
 
 
-def already_done(job, done=None):
-    return role_key(job['company'], job['title']) in (done if done is not None else done_roles())
+def done_url_ids():
+    return {m for r in applied_elsewhere() for m in URL_ID.findall(r.get('url') or '')}
+
+
+def already_done(job, done=None, ids=None):
+    if role_key(job['company'], job['title']) in (done if done is not None else done_roles()):
+        return True
+    ids = ids if ids is not None else done_url_ids()
+    return any(m in ids for m in URL_ID.findall(f"{job.get('apply_url') or ''} {job.get('url') or ''}"))
 
 
 def claim(job_id, who='agent'):
-    j = (store.rows('select id, company, title, status from jobs where id=?', (job_id,)) or [None])[0]
+    j = (store.rows('select id, company, title, status, url, apply_url from jobs where id=?', (job_id,)) or [None])[0]
     if j and (j['status'] != 'new' or already_done(j)):
         return {"claimed": False, "reason": "You already applied to this role (or a listing of the same role). Skip it."}
     return {"claimed": store.claim(job_id, who)}
@@ -424,10 +441,10 @@ def queue(n=50):
         k = match.company_key(r['company'])
         applied[k] = applied.get(k, 0) + r['n']
     claimed = {r['job_id'] for r in store.rows('select job_id from claims')}
-    out, per, done = [], {}, done_roles()
+    out, per, done, ids = [], {}, done_roles(), done_url_ids()
     for j in rows:
         c = match.company_key(j['company'])
-        if already_done(j, done) or j['id'] in claimed or applied.get(c, 0) + per.get(c, 0) >= cap:
+        if already_done(j, done, ids) or j['id'] in claimed or applied.get(c, 0) + per.get(c, 0) >= cap:
             continue
         per[c] = per.get(c, 0) + 1
         j['dream'] = any(match.same_company(d, j['company']) for d in dream)
@@ -628,7 +645,7 @@ def import_history(csv_path=None, text=None):
     else:
         body = rows[1:]
     cell = lambda r, k: r[idx[k]].strip() if idx[k] is not None and idx[k] < len(r) else ''
-    ids, names = {}, {}
+    ids, names, found = {}, {}, []
     for r in body:
         company, title, url, status = cell(r, 'company'), cell(r, 'title'), cell(r, 'url'), cell(r, 'status')
         if not company or not title:
@@ -642,6 +659,8 @@ def import_history(csv_path=None, text=None):
         for m in re.findall(r'(?:token=|/jobs/|/)([0-9a-f]{8}-[0-9a-f-]{27}|\d{5,})', url or ''):
             ids[m] = st
         names[role_key(company, title)] = st
+        found.append({"company": company, "title": title, "url": url, "status": status or 'Applied', "source": 'tracker'})
+    remember_applied(found)
     n = 0
     for j in store.rows('select id, company, title, url, apply_url from jobs where status="new"'):
         st = None
@@ -652,6 +671,48 @@ def import_history(csv_path=None, text=None):
             store.execute('update jobs set status=? where id=?', (st, j['id']))
             n += 1
     return {"matched": n, "known_applications": len(names)}
+
+
+def remember_applied(items):
+    """Add roles applied to elsewhere to the permanent list (deduplicated by company + role)."""
+    cur = applied_elsewhere()
+    seen = {role_key(r['company'], r['title']) for r in cur}
+    added = 0
+    for it in items or []:
+        c, t = (it.get('company') or '').strip(), (it.get('title') or '').strip()
+        if not c or not t or role_key(c, t) in seen:
+            continue
+        seen.add(role_key(c, t))
+        cur.append({"company": c, "title": t, "url": it.get('url') or '', "status": it.get('status') or 'Applied',
+                    "date": it.get('date') or '', "source": it.get('source') or 'import', "at": time.time()})
+        added += 1
+    store.save('applied_elsewhere.json', cur)
+    return added
+
+
+def import_applied(items, source='email'):
+    """What your agent found (e.g. confirmation emails): [{company, title, url?, date?, status?}]. Remembered forever and
+    applied to the current queue, so none of these roles is applied to again."""
+    added = remember_applied([{**i, "source": source} for i in items or []])
+    done, ids = done_roles(), done_url_ids()
+    n = 0
+    for j in store.rows('select id, company, title, url, apply_url from jobs where status="new"'):
+        if already_done(j, done, ids):
+            store.execute("update jobs set status='applied' where id=?", (j['id'],))
+            n += 1
+    return {"added": added, "known": len(applied_elsewhere()), "matched_in_queue": n}
+
+
+def email_history_prompt():
+    return ("Use the applytwin-history skill. Find every job I already applied to by reading my email in your browser, and "
+            "record them with applytwin_import_applied so ApplyTwin never applies to them again. Open my webmail (Gmail, "
+            "Outlook, or my school email; if I'm not signed in, applytwin_notify me to sign in in your browser and wait for "
+            "me, never type a password). Search the last 12 months for application confirmations: \"thank you for applying\", "
+            "\"application received\", \"we received your application\", \"your application was sent\" (LinkedIn), and mail from "
+            "greenhouse.io, lever.co, ashbyhq.com, myworkday.com, icims.com, smartrecruiters.com, jobvite.com, workable.com. "
+            "Read company and role from each (rejections and interview invites count too, with that status; skip job alerts "
+            "and newsletters), and record them in batches of about 25. Only record what an email shows; never guess. "
+            "Finish with how many you found.")
 
 
 def rescore():

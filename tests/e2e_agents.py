@@ -122,6 +122,24 @@ def main():
     got = open(os.path.join(os.environ['APPLYTWIN_HOME'], 'claude_stdin.txt'), encoding='utf-8').read()
     check('finish one application: the agent gets that job and the submit go-ahead', j['id'] in got and 'SUBMIT each one' in got)
 
+    # roles already applied to elsewhere (found in email) stay out of the queue, even ones a later scan finds
+    r = api.import_applied([{'company': 'Initech', 'title': 'Software Engineer Intern - Summer 2027'},
+                            {'company': 'Globex', 'title': 'Data Analyst Intern', 'url': 'https://boards.greenhouse.io/globex/jobs/7654321'}])
+    for jid, co, title, url in (('later1', '⭐ Initech', 'Software Engineer Intern (Summer 2027)', 'https://x.com/a'),
+                                ('later2', 'Globex Corp', 'Analyst Intern, Data', 'https://job-boards.greenhouse.io/globex/jobs/7654321')):
+        store.execute('insert or replace into jobs(id,source,company,title,url,apply_url,ats,found_at,fit,status) values(?,?,?,?,?,?,?,?,?,?)',
+                      (jid, 'test', co, title, url, url, 'greenhouse', time.time(), 90, 'new'))
+    q = [j['id'] for j in api.queue(500)['jobs']]
+    check('applied-elsewhere roles never come back (by name or by job link)', r['added'] == 2 and 'later1' not in q and 'later2' not in q,
+          f"{r['added']} recorded")
+    api.start_run('claude', 1, prompt=api.email_history_prompt())
+    for _ in range(100):
+        if not api.run_status()['running']:
+            break
+        time.sleep(0.2)
+    got = open(os.path.join(os.environ['APPLYTWIN_HOME'], 'claude_stdin.txt'), encoding='utf-8').read()
+    check('Find them in my email reaches the agent with the steps', 'thank you for applying' in got and 'applytwin_import_applied' in got)
+
     # in-app tailoring on the subscription (no API key) returns the agent's JSON
     agents._cache.clear()
     store.save('profile.json', {**store.profile(), "apply": {**store.profile()['apply'], "agent": "codex"}})

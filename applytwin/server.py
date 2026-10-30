@@ -67,6 +67,8 @@ POST = {
     r'/api/finish': lambda m, qs, b: api.finish_jobs(b.get('job_ids') or [], bool(b.get('submit'))),
     r'/api/open-twin': lambda m, qs, b: api.open_in_twin_browser(b['url']),
     r'/api/history': lambda m, qs, b: api.import_history(text=b.get('text', '')),
+    r'/api/history/email': lambda m, qs, b: api.start_run(b.get('agent') or api.store.profile()['apply'].get('agent') or 'claude', 1,
+                                                          prompt=api.email_history_prompt()),
     r'/api/auth': lambda m, qs, b: cloud.set_session(b['access_token'], b['refresh_token'], b.get('expires_in', 3600)),
     r'/api/auth/logout': lambda m, qs, b: cloud.logout(),
     r'/api/sync': lambda m, qs, b: cloud.push(),
@@ -177,7 +179,8 @@ def serve(port=4747, open_browser=True):
     url = f'http://localhost:{port}'
     # on start: re-apply the current matching rules to saved jobs (so fixes like the skip list reach existing queues),
     # then refresh jobs if the last scan is old
-    threading.Thread(target=lambda: (api.rescore(), api.scan_if_stale()), daemon=True).start()
+    from . import install
+    threading.Thread(target=lambda: (install.refresh_skills(), api.rescore(), api.scan_if_stale()), daemon=True).start()
     print(f'ApplyTwin is running at {url}  (data in {store.HOME})')
     if open_browser:
         import webbrowser
