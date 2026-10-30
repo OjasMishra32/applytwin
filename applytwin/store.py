@@ -188,5 +188,7 @@ def applied_count_today():
 
 
 def company_count(company):
-    return rows("select count(*) n from applications where status='Applied' and lower(company)=lower(?)",
-                (company,))[0]['n']
+    from .match import company_key
+    k = company_key(company)
+    return sum(r['n'] for r in rows("select company, count(*) n from applications where status='Applied' group by company")
+               if company_key(r['company']) == k)

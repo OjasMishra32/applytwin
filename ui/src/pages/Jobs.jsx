@@ -59,7 +59,8 @@ export default function Jobs({ arg }) {
   )
 }
 
-const STEPS = ['Reading the posting', 'Choosing your strongest evidence', 'Matching the posting’s words', 'Fitting one page', 'Checking it like an ATS']
+// the steps follow the real work: the agent's writing is the long one (about a minute), so it says so and counts up
+const STEPS = ['Reading the posting', 'Choosing your strongest evidence', 'Writing it with your agent', 'Fitting one page and checking it like an ATS']
 
 function JobSheet({ id, onClose, onChange }) {
   const { templates } = useApp()
@@ -68,17 +69,19 @@ function JobSheet({ id, onClose, onChange }) {
   const [tpl, setTpl] = useState('')
   const [run, setRun] = useState(-1)
   const [res, setRes] = useState(null)
+  const [secs, setSecs] = useState(0)
   useEffect(() => {
     setJob(null); setRep(null); setRes(null); setRun(-1)
     if (!id) return
     api('/api/jobs/' + id).then(setJob); api(`/api/jobs/${id}/ats`).then(setRep)
   }, [id])
   const tailor = async () => {
-    setRes(null); setRun(0)
-    const timer = setInterval(() => setRun(r => Math.min(r + 1, STEPS.length - 1)), 900)
+    setRes(null); setRun(0); setSecs(0)
+    const t0 = Date.now()
+    const timer = setInterval(() => { const s = (Date.now() - t0) / 1000; setSecs(Math.floor(s)); setRun(s < 1.2 ? 0 : s < 3 ? 1 : 2) }, 250)
     try {
       const r = await api(`/api/jobs/${id}/tailor`, { template: tpl || undefined, mode: 'auto' })
-      clearInterval(timer); setRun(STEPS.length); setRes(r)
+      clearInterval(timer); setRun(3); await new Promise(ok => setTimeout(ok, 500)); setRun(STEPS.length); setRes(r)
     } catch (e) { clearInterval(timer); setRun(-1); toast.error('Could not build: ' + e.message) }
   }
   const mark = async st => {
@@ -136,7 +139,8 @@ function JobSheet({ id, onClose, onChange }) {
                       <div className="mt-5 space-y-2.5">{STEPS.map((s, i) => (
                         <motion.div key={s} initial={{ opacity: 0, x: -8 }} animate={{ opacity: i <= run ? 1 : 0.35, x: 0 }} transition={{ delay: i * 0.05 }} className="flex items-center gap-3 text-[14px]">
                           <span className={`grid size-6 place-items-center rounded-full ${i < run ? 'bg-good text-white' : i === run ? 'bg-signal/10 text-signal' : 'bg-mist text-faint'}`}>
-                            {i < run ? <Check className="size-3.5" strokeWidth={3} /> : i === run ? <Loader2 className="size-3.5 animate-spin" /> : i + 1}</span>{s}</motion.div>))}</div>
+                            {i < run ? <Check className="size-3.5" strokeWidth={3} /> : i === run ? <Loader2 className="size-3.5 animate-spin" /> : i + 1}</span>{s}
+                          {i === 2 && run === 2 && <span className="text-[12.5px] text-faint">{secs}s · {secs < 90 ? 'usually about a minute' : 'almost there; it falls back to the built-in writer at 2½ minutes'}</span>}</motion.div>))}</div>
                     </motion.div>)}</AnimatePresence>
                   {res && (
                     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={spring}>

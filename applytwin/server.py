@@ -175,7 +175,9 @@ def serve(port=4747, open_browser=True):
         raise SystemExit(f'Ports {port}-{port + 19} are all busy. Free one, or run: applytwin app --port 5050')
     port = srv.server_address[1]
     url = f'http://localhost:{port}'
-    threading.Thread(target=lambda: api.scan_if_stale(), daemon=True).start()   # fresh jobs every day, no button needed
+    # on start: re-apply the current matching rules to saved jobs (so fixes like the skip list reach existing queues),
+    # then refresh jobs if the last scan is old
+    threading.Thread(target=lambda: (api.rescore(), api.scan_if_stale()), daemon=True).start()
     print(f'ApplyTwin is running at {url}  (data in {store.HOME})')
     if open_browser:
         import webbrowser

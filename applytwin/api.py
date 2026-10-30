@@ -220,8 +220,8 @@ def next_jobs(n=10):
     for j in list_jobs(status='new', limit=400):
         if already_done(j, done):
             continue
-        c = j['company'].lower()
-        if store.company_count(c) + per.get(c, 0) >= cap:
+        c = match.company_key(j['company'])
+        if store.company_count(j['company']) + per.get(c, 0) >= cap:
             continue
         if store.rows('select 1 from claims where job_id=?', (j['id'],)):
             continue
@@ -238,7 +238,7 @@ STOP = {'the', 'a', 'an', 'and', 'of', 'for', 'to', 'in', 'at', 'hq', 'remote', 
 def role_key(company, title):
     """Same role at the same company, however a board spells it: 'Software Engineer Intern (First Play) - Summer 2027
     (Mountain View, CA)' and 'Software Engineer Intern, First Play' are one job."""
-    c = re.sub(r'[^a-z]+', '', (company or '').lower())
+    c = match.company_key(company)
     t = (title or '').lower()
     t = re.sub(r'\([^)]*,[^)]*\)', ' ', t)                                  # (Mountain View, CA)
     t = re.sub(r'\b(summer|fall|spring|winter|autumn)\b|\b20\d\d\b', ' ', t)
@@ -416,18 +416,21 @@ def import_resume(name='', data=None, text=None):
 def queue(n=50):
     """Everything worth applying to, in order: dream companies first, then by fit. Respects caps and the skip list."""
     p = store.profile()
-    dream = {c.lower() for c in p['search'].get('companies_priority', [])}
+    dream = p['search'].get('companies_priority', [])
     cap = p['apply'].get('per_company_cap', 3)
     rows = list_jobs(status='new', limit=20000)
-    applied = {r['c']: r['n'] for r in store.rows("select lower(company) c, count(*) n from applications where status='Applied' group by lower(company)")}
+    applied = {}
+    for r in store.rows("select company, count(*) n from applications where status='Applied' group by company"):
+        k = match.company_key(r['company'])
+        applied[k] = applied.get(k, 0) + r['n']
     claimed = {r['job_id'] for r in store.rows('select job_id from claims')}
     out, per, done = [], {}, done_roles()
     for j in rows:
-        c = j['company'].lower()
+        c = match.company_key(j['company'])
         if already_done(j, done) or j['id'] in claimed or applied.get(c, 0) + per.get(c, 0) >= cap:
             continue
         per[c] = per.get(c, 0) + 1
-        j['dream'] = any(d in c for d in dream)
+        j['dream'] = any(match.same_company(d, j['company']) for d in dream)
         out.append(j)
     out.sort(key=lambda j: (not j['dream'], j.get('source') != 'manual', -j['fit']))   # dream companies, then jobs you added, then fit
     left = max(0, p['apply'].get('daily_limit', 40) - store.applied_count_today())
@@ -660,6 +663,10 @@ def rescore():
     n = 0
     with store.db() as con:
         for j in [dict(r) for r in con.execute('select * from jobs')]:
+            name = sources.clean_company(j['company'])   # older scans kept tracker decorations like '🔥 Tesla'
+            if name and name != j['company']:
+                j['company'] = name
+                con.execute('update jobs set company=? where id=?', (name, j['id']))
             f, why = match.fit(j, prof, terms)
             con.execute('update jobs set fit=?, fit_why=? where id=?', (f, why, j['id']))
             n += 1

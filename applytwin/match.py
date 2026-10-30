@@ -84,6 +84,45 @@ ROLE_SYNONYMS = {
 }
 
 
+# ------------------------------------------------------------------ company names
+# Boards spell one company many ways: "🔥 Tesla", "Tesla, Inc.", "JPMorganChase", "JPMorgan Chase & Co.", "jpmc".
+# Every comparison (skip list, dream companies, per-company cap) goes through company_key, so they all agree.
+LEGAL = {'inc', 'incorporated', 'llc', 'ltd', 'limited', 'corp', 'corporation', 'co', 'company', 'plc', 'lp', 'llp', 'gmbh', 'ag', 'sa', 'the'}
+ALIASES = {
+    'jpmorganchase': 'jpmorgan', 'jpmorganchaseco': 'jpmorgan', 'jpmc': 'jpmorgan', 'jpmorganchasebank': 'jpmorgan', 'chase': 'jpmorgan',
+    'jpmorgan': 'jpmorgan', 'bofa': 'bankofamerica', 'bofasecurities': 'bankofamerica', 'bankofamericamerrill': 'bankofamerica',
+    'gs': 'goldmansachs', 'goldman': 'goldmansachs', 'ms': 'morganstanley', 'facebook': 'meta', 'metaplatforms': 'meta',
+    'alphabet': 'google', 'googlellc': 'google', 'aws': 'amazon', 'amazonwebservices': 'amazon', 'teslamotors': 'tesla',
+    'microntechnology': 'micron', 'citigroup': 'citi', 'citibank': 'citi', 'wellsfargobank': 'wellsfargo', 'pwcus': 'pwc',
+    'pricewaterhousecoopers': 'pwc', 'ernstyoung': 'ey', 'deloittetoucheusa': 'deloitte', 'bcg': 'bostonconsultinggroup',
+}
+
+
+def company_words(name):
+    words = re.findall(r'[a-z0-9]+', (name or '').lower().replace('&', ' '))
+    while words and words[-1] in LEGAL:
+        words.pop()
+    while words and words[0] == 'the':
+        words.pop(0)
+    return words
+
+
+def company_key(name):
+    collapsed = ''.join(company_words(name))
+    return ALIASES.get(collapsed, collapsed)
+
+
+def same_company(a, b):
+    """True when two spellings name the same company, or one is the other plus more words ('Tesla' / 'Tesla Energy')."""
+    ka, kb = company_key(a), company_key(b)
+    if not ka or not kb:
+        return False
+    if ka == kb:
+        return True
+    wa, wb = ' '.join(company_words(a)), ' '.join(company_words(b))
+    return wb.startswith(wa + ' ') or wa.startswith(wb + ' ')
+
+
 def role_terms(role):
     """Search terms for any role a user types, known or not. Unknown roles match on word stems, so 'marine biology'
     finds 'Marine Biologist' and 'environmental science' finds 'Environmental Sciences Intern'."""
@@ -143,8 +182,8 @@ def fit(job, prof, vault_terms=None):
     only = ONLY.search(title)
     if only and (prof.get('school') or '').lower()[:6] not in only.group(1).lower():
         return 0, f'restricted to {only.group(1).strip()} students'
-    company = (job.get('company') or '').lower()
-    if any(c.lower() == company for c in s.get('companies_skip', [])):
+    company = job.get('company') or ''
+    if any(same_company(c, company) for c in s.get('companies_skip', [])):
         return 0, 'company on skip list'
     if any(x and re.search(r'\b%s' % re.escape(x.lower()), t) for x in s.get('exclude', [])):
         return 0, 'excluded keyword in title'
@@ -249,7 +288,7 @@ def fit(job, prof, vault_terms=None):
         elif age <= 3:
             score += 6
             why.append('posted in the last 3 days')
-    if any(c.lower() == company for c in s.get('companies_priority', [])):
+    if any(same_company(c, company) for c in s.get('companies_priority', [])):
         score += 15
         why.append('priority company')
     return max(1, min(100, round(score))), '; '.join(why)

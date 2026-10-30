@@ -239,7 +239,8 @@ def agent_llm(text, timeout=600):
     for name in agents.preferred(store.profile()):
         try:
             if name == 'claude':
-                r = subprocess.run([agents.exe('claude'), '-p', '--output-format', 'text', '--tools', ''], input=text, capture_output=True,
+                # a one-shot plan doesn't need the biggest model; Sonnet is several times faster for this
+                r = subprocess.run([agents.exe('claude'), '-p', '--model', 'sonnet', '--output-format', 'text', '--tools', ''], input=text, capture_output=True,
                                    text=True, timeout=timeout, cwd=store.HOME)
                 if r.returncode == 0 and r.stdout.strip():
                     return r.stdout
@@ -263,7 +264,7 @@ def agent_llm(text, timeout=600):
     return None
 
 
-def call_llm(text):
+def call_llm(text, timeout=600):
     key = os.environ.get('ANTHROPIC_API_KEY')
     import urllib.request
     if key:
@@ -280,7 +281,7 @@ def call_llm(text):
         with urllib.request.urlopen(req, timeout=180) as r:
             out = json.load(r)['choices'][0]['message']['content']
     else:
-        out = agent_llm(text)
+        out = agent_llm(text, timeout=timeout)
         if not out:
             return None
     m = re.search(r'\{.*\}', out, re.S)
@@ -362,7 +363,7 @@ def tailor(v, job, jd, mode='auto', plan=None, style=None, out_dir=None):
     if plan is None:
         if mode in ('auto', 'api'):
             try:
-                plan = call_llm(prompt(v, job, jd, ctx))
+                plan = call_llm(prompt(v, job, jd, ctx), timeout=150)   # never leave someone waiting: past this, the built-in writer takes over
             except Exception:
                 plan = None
         if plan is None:

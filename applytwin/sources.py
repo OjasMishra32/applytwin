@@ -82,7 +82,8 @@ CO_NOISE = re.compile(r"\s*(?:[-|:(]\s*)?\b(?:early\s*careers?|careers?(?:'s)?\s
 
 
 def clean_company(name):
-    n = (name or '').strip()
+    # trackers decorate names ('🔥 Tesla', '⭐️ Stripe'); keep letters, numbers and normal punctuation only
+    n = re.sub(r"[^\w\s&.,'()+/-]", '', name or '').strip()
     for _ in range(3):
         n2 = CO_NOISE.sub('', n).strip(' -|:')
         if n2 == n or not n2:
