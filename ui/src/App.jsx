@@ -28,7 +28,7 @@ function keepCurrent() {
   addEventListener('pointerdown', touch); addEventListener('keydown', touch)
   const check = async () => {
     try { const v = await api('/api/version'); if (v.ui && v.ui !== mine) stale = true } catch { /* restarting; try next time */ }
-    if (stale && (document.hidden || Date.now() - last > 60000)) location.reload()
+    if (stale && !location.hash.startsWith('#welcome') && (document.hidden || Date.now() - last > 60000)) location.reload()   // never mid-setup
   }
   const t = setInterval(check, 20000)
   const vis = () => { if (!document.hidden) check() }
@@ -46,7 +46,11 @@ export default function App() {
 
   const [auth, setAuth] = useState({ signed_in: false })
   const [authReady, setAuthReady] = useState(false)
-  const refresh = useCallback(async () => { const s = await api('/api/state'); setState(s); return s }, [])
+  const [loadErr, setLoadErr] = useState(null)
+  const refresh = useCallback(async () => {
+    try { const s = await api('/api/state'); setState(s); setLoadErr(null); return s }
+    catch (e) { setLoadErr(e.message || "Couldn't reach ApplyTwin"); return null }
+  }, [])
   useEffect(() => {
     const h = location.hash
     if (h.includes('access_token=')) {
@@ -59,7 +63,9 @@ export default function App() {
   }, [refresh])
   const signIn = async () => { const r = await api('/api/auth/login?redirect=' + encodeURIComponent(location.origin + '/')); location.href = r.url }
   const signOut = async () => { setAuth(await api('/api/auth/logout', {})); toast('Signed out') }
-  useEffect(() => { if (state && (!location.hash || location.hash === '#home') && !(state.vault?.experience?.length || state.vault?.projects?.length)) location.hash = 'welcome' }, [state])
+  useEffect(() => {   // first time only: once setup is finished, an empty resume never sends you back into it
+    if (state && !state.profile?.onboarded && (!location.hash || location.hash === '#home') && !(state.vault?.experience?.length || state.vault?.projects?.length)) location.hash = 'welcome'
+  }, [state])
   const loadJobs = useCallback(() => api('/api/jobs?limit=200').then(setJobs), [])
   useEffect(() => { refresh(); loadJobs() }, [refresh, loadJobs])
   useEffect(() => keepCurrent(), [])
@@ -84,6 +90,12 @@ export default function App() {
   const actions = [['Scan for new jobs', Radar, startScan], ['Open Resume Studio', FileText, () => go('studio')],
     ['Import a resume', Upload, () => go('studio', 'import')], ['Connect Claude or Codex', Sparkles, () => go('agents')]]
 
+  if (!state && loadErr) return (
+    <div className="grid h-full place-items-center px-6 text-center">
+      <div><div className="text-[22px] font-semibold text-white">ApplyTwin isn't answering</div>
+        <p className="mt-2 text-[15px] text-muted">It may be restarting after an update. {loadErr}</p>
+        <button onClick={refresh} className="mt-6 h-10 rounded-full bg-signal px-6 text-[15px] font-semibold text-white">Try again</button></div>
+    </div>)
   if (!state || !authReady) return <Loading />
   if (!auth.signed_in) return <SignInGate signIn={signIn} />
   const Page = PAGES[route.page]

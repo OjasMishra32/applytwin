@@ -6,7 +6,8 @@ import { useApp, Page } from '../App'
 import { Avatar, Button, Title, burst, spring } from '../components/ui'
 import { Mail, Upload } from 'lucide-react'
 
-const COLS = [['Needs User', 'Needs you', '#ff9f0a'], ['Applied', 'Applied', '#0a84ff'], ['Interview', 'Interview', '#bf5af2'], ['Offer', 'Offer', '#30d158'], ['Rejected', 'Rejected', '#7d869f']]
+const COLS = [['Needs User', 'Needs you', '#ff9f0a'], ['Applied', 'Applied', '#0a84ff'], ['Interview', 'Interview', '#bf5af2'], ['Offer', 'Offer', '#30d158'],
+  ['Rejected', 'Rejected', '#7d869f'], ['Failed', "Didn't go through", '#ff453a'], ['Skipped', 'Skipped', '#5f6a8a']]
 
 export default function Board() {
   const [apps, setApps] = useState(null)

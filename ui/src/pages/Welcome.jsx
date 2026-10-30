@@ -55,11 +55,16 @@ export default function Welcome() {
     setBusy(false)
   }
   const build = async () => {
-    await save(); await api('/api/scan', {})
+    // never strand someone on this screen: a failed save, scan or poll retries, and after a minute it moves on anyway
+    const t0 = Date.now()
+    try { await save(); await api('/api/scan', {}) } catch { /* the scan also runs on its own later */ }
     const tick = async () => {
-      const r = await api('/api/scan'); setScan(r.stats || {})
-      if (r.running) return setTimeout(tick, 900)
-      setQueue(await api('/api/queue?n=5')); await refresh(); next()
+      try {
+        const r = await api('/api/scan'); setScan(r.stats || {})
+        if (r.running && Date.now() - t0 < 90000) return setTimeout(tick, 900)
+      } catch { if (Date.now() - t0 < 90000) return setTimeout(tick, 1500) }
+      try { setQueue(await api('/api/queue?n=5')); await refresh() } catch {}
+      next()
     }
     tick()
   }
@@ -96,7 +101,7 @@ export default function Welcome() {
       setP(x => ({ ...x, earliest_start: `${START[term] || 'May'} ${yr}` })); setDerived(['earliest_start'])
     }
     if (cur.id === 'agent') { next(); return build() }
-    if (cur.id === 'done') return go('agents')
+    if (cur.id === 'done') { api('/api/profile', { onboarded: true }).catch(() => {}); return go('agents') }
     if (i > 1) await save()
     next()
   }

@@ -21,7 +21,7 @@ export default function Agents() {
   const [q, setQ] = useState(null)
   const [run, setRun] = useState(null)
   const [agents, setAgents] = useState(null)
-  const [agent, setAgent] = useState(safeGet('at:agent') || 'claude')
+  const [agent, setAgent] = useState(profile.apply?.agent || safeGet('at:agent') || 'claude')   // Settings' choice comes first
   const [n, setN] = useState(+(safeGet('at:n') || 25))
   const [inbox, setInbox] = useState({ items: [], pending: [] })
   const [apps, setApps] = useState([])
@@ -39,11 +39,18 @@ export default function Agents() {
     }).catch(() => {})
   }, [])
   useEffect(() => { if (!run?.running) return; const t = setInterval(refresh, 5000); return () => clearInterval(t) }, [run?.running])
-  useEffect(() => {
-    let t; const poll = async () => { const r = await api('/api/run'); setRun(r); if (r.running) t = setTimeout(poll, 2000); else refresh() }
-    poll(); return () => clearTimeout(t)
-  }, [run?.running])
-  useEffect(() => safeSet('at:agent', agent), [agent])
+  useEffect(() => {   // fast while a run is going, slow otherwise, so runs started elsewhere (Needs you, a message) show up too
+    let t, live = true
+    const poll = async () => {
+      try { const r = await api('/api/run'); if (!live) return; setRun(r); if (!r.running) refresh(); t = setTimeout(poll, r.running ? 2000 : 6000) }
+      catch { if (live) t = setTimeout(poll, 6000) }
+    }
+    poll(); return () => { live = false; clearTimeout(t) }
+  }, [])
+  useEffect(() => {   // the agent you pick here is the one everything uses (Needs you buttons, messages, email history)
+    safeSet('at:agent', agent)
+    if (agent && agent !== profile.apply?.agent) api('/api/profile', { apply: { agent } }).catch(() => {})
+  }, [agent])
   useEffect(() => safeSet('at:n', n), [n])
 
   const live = parseRun(run?.log)
@@ -58,8 +65,10 @@ export default function Agents() {
   const start = async () => {
     if (typeof Notification !== 'undefined' && Notification.permission === 'default') Notification.requestPermission()   // so it can tell you when it needs you
     try {
+      const r = await api('/api/run', { agent, n })
+      setRun(r)
+      if (r.busy) { toast("Your twin is already working", { description: 'It finishes what it is doing first. You can watch it here.' }); return }
       since.current = Date.now() / 1000; safeSet('at:runStart', since.current)
-      setRun(await api('/api/run', { agent, n }))
       toast.success(`${label} is applying`, { description: `Working through your next ${n} jobs.` })
     } catch (e) { toast.error(e.message) }
   }

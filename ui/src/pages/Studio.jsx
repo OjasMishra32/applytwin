@@ -35,11 +35,35 @@ export default function Studio({ arg }) {
   const [saved, setSaved] = useState(true)
   const [importing, setImporting] = useState(arg === 'import' || !(v0.experience?.length || v0.projects?.length))
   const t = useRef()
-  const save = nv => { setV(nv); setSaved(false); clearTimeout(t.current); t.current = setTimeout(async () => { await api('/api/vault', nv); setSaved(true); api('/api/ats').then(setRep) }, 650) }
+  // the app keeps one copy of the vault; update it too, so leaving and coming back never shows (and then re-saves) an old one
+  const save = nv => {
+    setV(nv); setSaved(false); setState?.(s => s ? { ...s, vault: nv } : s); clearTimeout(t.current)
+    t.current = setTimeout(async () => {
+      try { await api('/api/vault', nv); setSaved(true); api('/api/ats').then(setRep).catch(() => {}) }
+      catch (e) { toast.error("Couldn't save your resume", { description: e.message }) }
+    }, 650)
+  }
+  useEffect(() => () => {   // leaving the page with an edit still pending: save it now instead of dropping it
+    if (t.current) { clearTimeout(t.current); api('/api/vault', vRef.current).catch(() => {}) }
+  }, [])
+  const vRef = useRef(v); vRef.current = v
   useEffect(() => { api('/api/ats').then(setRep) }, [])
   const set = (path, val) => { const nv = structuredClone(v); let o = nv; for (const k of path.slice(0, -1)) o = o[k] ??= {}; o[path.at(-1)] = val; save(nv) }
-  const pick = async id => { setTpl(id); await api('/api/profile', { apply: { template: id } }); toast.success('Template set', { description: templates.find(x => x.id === id)?.label }) }
-  const download = async () => { const id = toast.loading('Rendering your PDF…'); const r = await api('/api/render', { template: tpl }); toast.success('Ready', { id }); window.open(fileUrl(r.pdf)) }
+  const pick = async id => {
+    setTpl(id)
+    try {
+      await api('/api/profile', { apply: { template: id } })
+      setState?.(s => s ? { ...s, profile: { ...s.profile, apply: { ...s.profile.apply, template: id } } } : s)
+      toast.success('Template set', { description: templates.find(x => x.id === id)?.label })
+    } catch (e) { toast.error(e.message) }
+  }
+  const download = async () => {
+    const id = toast.loading('Rendering your PDF…')
+    try {
+      const r = await api('/api/render', { template: tpl })
+      toast.success('Your PDF is ready', { id, action: { label: 'Open', onClick: () => window.open(fileUrl(r.pdf)) } })   // a click, so popup blockers allow it
+    } catch (e) { toast.error("Couldn't make the PDF", { id, description: e.message }) }
+  }
   const fails = (rep?.lint || []).filter(c => c.level !== 'pass')
 
   return (

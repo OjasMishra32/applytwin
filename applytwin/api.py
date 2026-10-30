@@ -30,6 +30,8 @@ def update_profile(patch):
     store.save('answers.json', bank)
     from . import cloud
     cloud.sync_soon()
+    if 'search' in (patch or {}) and not os.environ.get('APPLYTWIN_NO_RESCORE'):   # new roles, places or skip list apply now
+        threading.Thread(target=rescore, daemon=True).start()
     return p
 
 

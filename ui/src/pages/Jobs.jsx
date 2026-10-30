@@ -86,6 +86,7 @@ function JobSheet({ id, onClose, onChange }) {
   }
   const mark = async st => {
     if (st === 'applied') { await api(`/api/jobs/${id}/log`, { status: 'Applied', notes: 'marked in app' }); toast.success('Logged as applied', { description: 'Nice. Your twin will remember what worked.' }) }
+    else if (st === 'skipped') await api(`/api/jobs/${id}/skip`, {})   // also clears it from Needs you
     else await api(`/api/jobs/${id}/status`, { status: st })
     onChange(); onClose()
   }
