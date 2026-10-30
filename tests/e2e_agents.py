@@ -191,12 +191,14 @@ def main():
     code = ("import sys, os; sys.path.insert(0, sys.argv[1]); from applytwin import update; update.APP = sys.argv[1]; "
             "src = sys.argv[2]; import shutil; "
             "update._get = lambda url, timeout=8: open(src, 'rb').read(); print(update.apply('0' * 40))")
+    open(os.path.join(app, 'applytwin.cmd'), 'w').write('@echo installer-made\r\n')   # the Windows installer's command
     tgz = os.path.join(TMP, 'new.tgz')
     import tarfile
     with tarfile.open(tgz, 'w:gz') as t:
         t.add(app, arcname='applytwin-new', filter=lambda i: None if '__pycache__' in i.name else i)
     r = subprocess.run([sys.executable, '-c', code, app, tgz], capture_output=True, text=True, timeout=120)
-    check('self-update swaps the app folder', "'updated': True" in r.stdout and os.path.exists(os.path.join(app, 'INSTALLED')),
+    check('self-update swaps the app folder and keeps the applytwin command',
+          "'updated': True" in r.stdout and os.path.exists(os.path.join(app, 'INSTALLED')) and os.path.exists(os.path.join(app, 'applytwin.cmd')),
           (r.stdout + r.stderr).strip()[-160:])
 
     bad = [n for n, ok in results if not ok]

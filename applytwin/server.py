@@ -198,6 +198,8 @@ def update_now():
 def serve(port=4747, open_browser=True):
     import time as _t
     import urllib.request
+    from . import update as _upd
+    _upd.ensure_command()
     _self_update()
     srv = None
     if os.environ.pop('APPLYTWIN_RESTART', None):   # restarting after an update: wait for the old process to free the port

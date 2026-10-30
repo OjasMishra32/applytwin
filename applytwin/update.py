@@ -55,6 +55,22 @@ def check():
     return out
 
 
+def ensure_command():
+    """Windows: the `applytwin` command is applytwin.cmd in the app folder (on PATH). Updates before this fix replaced the
+    folder without it, so put it back if it's missing."""
+    if os.name != 'nt' or is_checkout():
+        return
+    cmd = os.path.join(APP, 'applytwin.cmd')
+    if os.path.exists(cmd):
+        return
+    import sys
+    py = sys.executable
+    if os.path.basename(py).lower() == 'pythonw.exe':   # started from the Startup shortcut; the command needs a console
+        py = os.path.join(os.path.dirname(py), 'python.exe')
+    with open(cmd, 'w', encoding='ascii', errors='replace') as f:
+        f.write(f'@"{py}" "%~dp0bin\\applytwin" %*\r\n')
+
+
 def apply(sha=None):
     """Download main, replace the app folder in place (your data in ~/.applytwin is separate and untouched)."""
     if is_checkout():
@@ -78,6 +94,9 @@ def apply(sha=None):
             raise ValueError('incomplete download')
         old = APP + '.old'
         shutil.rmtree(old, ignore_errors=True)
+        for f in os.listdir(APP):   # keep what the installer made in the app folder (Windows: the applytwin.cmd command)
+            if os.path.isfile(os.path.join(APP, f)) and not os.path.exists(os.path.join(new, f)) and f != 'INSTALLED':
+                shutil.copy2(os.path.join(APP, f), os.path.join(new, f))
         os.rename(APP, old)
         shutil.move(new, APP)
         open(os.path.join(APP, 'INSTALLED'), 'w', encoding='utf-8').write(sha)
