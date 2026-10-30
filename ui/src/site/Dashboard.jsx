@@ -76,6 +76,9 @@ export default function Dashboard() {
         search: { roles: ['software engineer', 'machine learning'], companies_priority: ['Stripe', 'Figma', 'Jane Street'] } }, vault: { experience: [1, 2, 3], projects: [1, 2] } })
       setApps(DEMO_APPS); return
     }
+    // signing in here counts as signing up: make sure there's an account row (never overwrites an existing one)
+    if (session.user?.id) sb('/rest/v1/applytwin_accounts?on_conflict=user_id', session, { method: 'POST',
+      headers: { Prefer: 'resolution=ignore-duplicates,return=minimal' }, body: JSON.stringify([{ user_id: session.user.id }]) }).catch(() => {})
     sb(`/rest/v1/applytwin_accounts?user_id=eq.${session.user?.id}&select=profile,vault,updated_at`, session).then(r => setAccount(r[0] || {})).catch(() => setAccount({}))
     sb('/rest/v1/applytwin_applications?select=*&order=created_at.desc&limit=2000', session).then(rows => {
       const seen = new Set()   // a job can be logged more than once (filled, then submitted): show its latest status
