@@ -76,7 +76,7 @@ def default_bank(p):
         ('website', 'Website / portfolio', r'website|portfolio|personal (site|url)', p.get('website', '')),
         ('phone', 'Phone', r'^(phone|mobile|cell)', p.get('phone', '')),
         ('email', 'Email', r'^e-?mail', p.get('email', '')),
-        ('location', 'Current location', r'(current )?(location|city)( of residence)?$|where are you (located|based)', p.get('location', '')),
+        ('location', 'Current location', r'(?<![a-z])(current )?(location|city)( of residence)?$|where are you (located|based)', p.get('location', '')),
         ('gender', 'Gender', r'\bgender\b|\bsex\b', s.get('gender', '')),
         ('race', 'Race / ethnicity', r'\brace\b|ethnic', s.get('race', '')),
         ('hispanic', 'Are you Hispanic or Latino?', r'hispanic|latin[oax]', s.get('hispanic', '')),

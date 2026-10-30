@@ -70,6 +70,11 @@ res.append(ok(_st.load('enc_test.json')['t'] == "June 2025 – Aug. 2025, it’s
 open(_st.path('enc_old.json'), 'wb').write('{"t": "a – b"}'.encode('cp1252'))
 res.append(ok(_st.load('enc_old.json')['t'] == "a – b", 'old Windows-encoded files still load'))
 
+from applytwin import answers as _an
+_bank = _an.default_bank({**store.profile(), 'location': 'Gainesville, FL'})
+_q = [_an.match(x, _bank) for x in ('Race/Ethnicity', 'Current city')]
+res.append(ok((_q[0] or {}).get('answer') != 'Gainesville, FL' and (_q[1] or {}).get('answer') == 'Gainesville, FL',
+              'Race/Ethnicity is never answered with your city'))
 from applytwin import telemetry as _tm
 res.append(ok(not _tm.enabled() and _tm.ping() is False and len(_tm.install_id()) == 36, 'install count is off in tests and uses only a random ID'))
 
