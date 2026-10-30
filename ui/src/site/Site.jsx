@@ -1,125 +1,367 @@
-import { useState } from 'react'
-import { motion, useScroll, useTransform } from 'motion/react'
-import { Check, Copy } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { AnimatePresence, motion, useInView, useScroll, useTransform, useReducedMotion } from 'motion/react'
+import { Check, ChevronRight, Copy, Laptop, Lock, KeyRound, ShieldCheck } from 'lucide-react'
 import { Toaster } from 'sonner'
-import { Sky } from '../components/Sky'
-import { Hero3D } from '../components/Hero3D'
-import { LogoWall, Story, StoryMobile } from '../components/Story'
-import { Reveal, Words, soft, spring } from '../components/ui'
-import { REPO_URL, StarButton } from '../lib/star'
+import { Avatar, Reveal } from '../components/ui'
+import { REPO_URL, useStars } from '../lib/star'
+import './site.css'
 
-/* apply.twinly.tech: the public home of ApplyTwin. The app itself runs on each person's own computer,
-   on the Claude Code or Codex plan they already pay for, so this page's one job is a calm, one-line setup. */
+/* apply.twinly.tech: the public home of ApplyTwin, built the way Apple builds a product page. Plain surfaces, the
+   system font, one blue, real product UI instead of decoration. The app runs on each person's own computer, on the
+   Claude Code or Codex plan they already pay for, so the page's one job is a calm, one-line setup. */
 
 const INSTALL = 'curl -fsSL apply.twinly.tech/install | bash'
 const INSTALL_WIN = 'irm apply.twinly.tech/install.ps1 | iex'
 const IS_WIN = typeof navigator !== 'undefined' && /windows/i.test(navigator.userAgent)
-const COMPANIES = ['Stripe', 'Figma', 'Pinterest', 'Notion', 'Databricks', 'Anthropic', 'OpenAI', 'Ramp', 'Jane Street', 'Citadel', 'Two Sigma',
-  'Roblox', 'MongoDB', 'Palantir', 'Duolingo', 'Airbnb', 'Robinhood', 'Plaid', 'Scale AI', 'Skydio', 'Anduril', 'SpaceX', 'Tesla', 'NVIDIA',
-  'Microsoft', 'Google', 'Apple', 'Meta', 'Amazon', 'Netflix', 'Uber', 'Lyft', 'DoorDash', 'Coinbase', 'Snowflake', 'Datadog', 'Cloudflare',
-  'Shopify', 'Atlassian', 'Salesforce', 'Adobe', 'Intuit']
-const BLUE = '#0a84ff', GREEN = '#30d158'
 
 const FAQ = [
   ['Do I need an API key?', 'No. ApplyTwin runs on the Claude Code or Codex subscription you already have. If you can use either one in a terminal, you can use ApplyTwin.'],
-  ['Where does my data live?', 'On your computer, in a folder called ~/.applytwin. Your resume, answers and history never go to a server unless you sign in to back them up.'],
-  ['Will it submit applications without me?', 'Only if you turn that on. By default it fills every form and stops on the review screen, so you press submit.'],
-  ['What will it never do?', 'Type your passwords, solve CAPTCHAs, create accounts, accept legal agreements, or invent a single fact about you. Those come back to you as a notification.'],
-  ['Does it work on Windows?', 'Yes. Mac, Windows and Linux. On Windows, paste the PowerShell command; it installs ApplyTwin in your user folder and adds an applytwin command.'],
-  ['Is it only for software jobs?', 'No. It learns what a strong resume looks like in your field, whether that is nursing, finance, design, research or engineering, and tailors to each posting.'],
-  ['Why do I sign in with Google?', "So your setup, answers and applications are saved to your account: switch laptops or reinstall and everything is still there. ApplyTwin never posts, emails or signs up for anything as you."],
-  ['Does it track me?', "No. To count installs, the app sends a random ID, your OS and its version once a day. Never your resume, jobs or applications. You can turn it off in Settings."],
-  ['What does it cost?', 'Nothing. ApplyTwin is free to use for students and job seekers.'],
+  ['Where does my data live?', 'On your computer, in a folder called ~/.applytwin. Signing in backs up your setup so a new laptop picks up where you left off.'],
+  ['Will it submit applications without me?', 'Only if you turn that on. Otherwise it fills every form and stops on the review screen, so you press Submit.'],
+  ['What will it never do?', 'Type your passwords, solve CAPTCHAs, create accounts, accept legal agreements, or invent a single fact about you. Those come to you instead.'],
+  ['Does it work on Windows?', 'Yes. Mac, Windows and Linux. On Windows, paste the PowerShell command.'],
+  ['Is it only for software jobs?', 'No. It knows what a strong resume looks like in your field, from nursing and finance to design, research and engineering.'],
+  ['Why do I sign in with Google?', 'So your setup, answers and applications are saved to your account. ApplyTwin never posts, emails or signs up for anything as you.'],
+  ['Does it track me?', 'It counts installs with a random ID, your OS and its version, once a day. Never your resume, jobs or applications. You can turn it off in Settings.'],
+  ['What does it cost?', 'Nothing. ApplyTwin is free.'],
 ]
+// Apple's motion: long, eased, small. Nothing bounces; things settle.
+const EASE = [0.25, 0.1, 0.25, 1]
+const rise = (delay = 0) => ({ initial: { opacity: 0, y: 28 }, animate: { opacity: 1, y: 0 }, transition: { duration: 1.1, ease: EASE, delay } })
+
+const COMPANIES = [['Google', 'google.com'], ['Meta', 'meta.com'], ['Apple', 'apple.com'], ['NVIDIA', 'nvidia.com'], ['Jane Street', 'janestreet.com'],
+  ['Citadel', 'citadel.com'], ['Palantir', 'palantir.com'], ['Anduril', 'anduril.com'], ['Stripe', 'stripe.com'], ['Microsoft', 'microsoft.com'],
+  ['Amazon', 'amazon.com'], ['Two Sigma', 'twosigma.com']]
 
 export default function Site() {
-  const { scrollY } = useScroll()
-  const heroY = useTransform(scrollY, [0, 600], [0, -110])
-  const heroO = useTransform(scrollY, [0, 450], [1, 0])
-  const artY = useTransform(scrollY, [0, 600], [0, 80])
   return (
-    <div className="min-h-screen overflow-x-clip bg-paper text-fg">
-      <Toaster theme="dark" position="bottom-center" />
-      <header className="glass fixed inset-x-0 top-0 z-50 border-b border-white/[.06]">
-        <div className="mx-auto flex h-14 max-w-[1180px] items-center justify-between px-5">
-          <a href="#" className="flex items-center gap-2 text-[15px] font-semibold text-white"><Logo />ApplyTwin</a>
-          <nav className="flex items-center gap-4 text-[13.5px] text-white/70 sm:gap-5">
-            <a href="#how" className="hidden hover:text-white sm:block">How it works</a>
-            <a href="#faq" className="hidden hover:text-white sm:block">Questions</a>
-            <span className="hidden sm:block"><StarButton /></span>
-            <span className="sm:hidden"><StarButton compact /></span>
-            <a href="/app" className="hidden whitespace-nowrap hover:text-white sm:block">Your account</a>
-            <a href="#start" className="whitespace-nowrap rounded-full px-4 py-1.5 font-medium text-white" style={{ background: BLUE }}>Get started</a>
-          </nav>
-        </div>
-      </header>
+    <div className="site min-h-screen overflow-x-clip">
+      <Toaster position="bottom-center" />
+      <Nav />
 
-      <div className="relative">
-        <Sky height={920} />
-        <div className="relative mx-auto grid max-w-[1180px] items-center gap-6 px-5 pt-32 md:grid-cols-[1.1fr_1fr]">
-          <motion.div style={{ y: heroY, opacity: heroO }} className="min-w-0 text-white">
-            <motion.span initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={soft}
-              className="inline-block rounded-full bg-white/10 px-3 py-1 text-[13px] font-semibold ring-1 ring-white/20">Free to use</motion.span>
-            <h1 className="mt-4 text-[clamp(48px,7vw,80px)] font-bold leading-[0.95] tracking-[-0.045em]">
-              <Words text="You apply once." /><br />
-              <Words text="Your twin" delay={0.25} className="serif-i text-[#9cc8ff]" /> <Words text="does the rest." delay={0.4} />
-            </h1>
-            <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }} className="mt-6 max-w-[480px] text-[19px] leading-[1.45] text-white/80">
-              Give it your resume once. It finds every open role that fits you, writes the ideal resume for each one, and fills the application,
-              all through the Claude Code or Codex plan you already pay for. No API keys.
-            </motion.p>
-            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="mt-8 max-w-[520px]"><InstallBox /></motion.div>
-            <p className="mt-3 text-[13px] text-white/55">Mac, Windows and Linux. Needs Python 3.9+, Node.js, and Claude Code or Codex.</p>
-          </motion.div>
-          <motion.div style={{ y: artY }} className="hidden md:block"><Hero3D name="Your Name" /></motion.div>
-        </div>
-      </div>
-
-      <Reveal className="relative mt-6">
-        <div className="text-center text-[15px] text-muted">Thousands of open roles, at companies like</div>
-        <LogoWall companies={COMPANIES} />
-      </Reveal>
-
-      <div id="how"><div className="hidden md:block"><Story /></div><div className="md:hidden"><StoryMobile /></div></div>
-
-      <section className="mx-auto max-w-[1080px] px-5 py-24">
-        <Reveal><h2 className="text-center text-[clamp(40px,5.5vw,64px)] font-bold leading-[1] tracking-[-0.045em] text-white">Set up in one line.</h2>
-          <p className="mx-auto mt-4 max-w-[560px] text-center text-[18px] text-muted">One command installs ApplyTwin, connects it to your agent and checks everything. Then you drop in your resume.</p></Reveal>
-        <Reveal delay={0.1}><Terminal /></Reveal>
+      <section className="px-4 pb-10 pt-28 text-center sm:pt-36">
+        <motion.div {...rise(0)} className="text-[19px] font-semibold sm:text-[21px]">ApplyTwin</motion.div>
+        <h1 className="display mx-auto mt-2 max-w-[920px] text-[44px] font-semibold leading-[1.06] sm:text-[72px] sm:leading-[1.04]">
+          <motion.span {...rise(0.12)} className="block">You apply once.</motion.span>
+          <motion.span {...rise(0.32)} className="block muted">Your twin does the rest.</motion.span>
+        </h1>
+        <motion.p {...rise(0.55)} className="mx-auto mt-5 max-w-[640px] text-[19px] leading-[1.42] sm:text-[21px]">
+          It finds every role that fits you, writes a tailored resume for each one, and fills out the application.
+          On the Claude Code or Codex plan you already have. Free.
+        </motion.p>
+        <motion.div {...rise(0.7)} className="mt-8 flex flex-wrap items-center justify-center gap-x-7 gap-y-3">
+          <a href="#start" className="btn">Get ApplyTwin</a>
+          <a href="#how" className="link inline-flex items-center text-[17px]">See how it works<ChevronRight className="size-4" /></a>
+        </motion.div>
       </section>
 
-      <section id="faq" className="mx-auto max-w-[760px] px-5 pb-24">
-        <Reveal><h2 className="mb-5 text-[32px] font-bold tracking-[-0.035em] text-white">Questions</h2></Reveal>
-        <Reveal delay={0.05}><div className="overflow-hidden rounded-[20px] bg-[#111526] ring-1 ring-white/[.06] [&>*+*]:border-t [&>*+*]:border-white/[.06]">
-          {FAQ.map(([q, a]) => <Faq key={q} q={q} a={a} />)}
-        </div></Reveal>
+      <section className="px-4 pb-24"><Lid><AppWindow /></Lid></section>
+
+      <section id="how" className="bg-[var(--bg)] px-4 pb-24">
+        <Reveal className="mx-auto max-w-[980px] text-center">
+          <h2 className="display text-[40px] font-semibold leading-[1.08] sm:text-[56px]">Every step of applying.<br /><span className="muted">Done for you.</span></h2>
+        </Reveal>
+        <div className="mx-auto mt-14 grid max-w-[1080px] gap-5 md:grid-cols-2">
+          <Tile title="Finds every role." text="It reads thousands of company job boards and keeps only the roles that fit you: your field, your cycle, your locations.">
+            <Roles />
+          </Tile>
+          <Tile title="A new resume for every job." text="Your strongest true experience, rewritten for each posting and fitted to one clean page. It never invents a fact.">
+            <Stack />
+          </Tile>
+          <Tile title="Fills the whole form." text="Work authorization, graduation date, address, even the short essays. Answered once in setup, used everywhere.">
+            <Form />
+          </Tile>
+          <Tile title="Only asks what matters." text="A sign-in, a code, a question only you can answer. It pings you, keeps going, and finishes when you're done.">
+            <Ask />
+          </Tile>
+        </div>
       </section>
 
-      <section id="start" className="px-5 pb-20">
-        <Reveal className="relative mx-auto max-w-[1180px] overflow-hidden rounded-[32px] border border-white/10 px-6 py-24 text-center">
-          <div className="absolute inset-0" style={{ background: 'radial-gradient(60% 80% at 50% 110%, rgb(76 141 255 / .55), transparent 70%), radial-gradient(40% 60% at 20% 0%, rgb(124 92 255 / .25), transparent 70%), #060b22' }} />
-          <div className="relative">
-            <div className="text-[clamp(64px,11vw,160px)] font-bold leading-[0.85] tracking-[-0.06em] text-white">Get <span className="serif-i text-[#9cc8ff]">hired.</span></div>
-            <p className="mx-auto mt-6 max-w-[520px] text-[18px] text-muted">Paste this into your terminal. Your twin starts on its first applications in a few minutes.</p>
-            <div className="mx-auto mt-10 min-w-0 max-w-[560px] text-left"><InstallBox /></div>
-            <p className="mt-4 text-[14px] text-white/60">100% free. Your data stays on your computer.</p>
+      <section className="px-4 pb-24">
+        <Reveal className="tile mx-auto max-w-[1080px] px-6 py-14 text-center sm:px-16 sm:py-20">
+          <Laptop className="mx-auto size-10 text-[var(--fg)]" strokeWidth={1.4} />
+          <h2 className="display mx-auto mt-5 max-w-[720px] text-[34px] font-semibold leading-[1.1] sm:text-[48px]">Runs on the plan you already pay for.</h2>
+          <p className="mx-auto mt-4 max-w-[600px] text-[19px] leading-[1.45] muted">
+            ApplyTwin works through Claude Code or Codex on your own computer. No API keys, no new subscription, nothing to configure.
+          </p>
+        </Reveal>
+      </section>
+
+      <section className="px-4 pb-24">
+        <Reveal className="mx-auto max-w-[980px] text-center">
+          <h2 className="display text-[34px] font-semibold leading-[1.1] sm:text-[48px]">Roles at companies like these.</h2>
+        </Reveal>
+        <Reveal delay={0.05} className="mx-auto mt-10 grid max-w-[980px] grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6">
+          {COMPANIES.map(([c, d]) => (
+            <div key={c} className="tile flex flex-col items-center gap-2 rounded-[18px] px-2 py-5">
+              <Avatar name={c} domain={d} size={36} /><span className="text-[13px] font-medium">{c}</span>
+            </div>))}
+        </Reveal>
+      </section>
+
+      <section className="px-4 pb-24">
+        <div className="mx-auto grid max-w-[1080px] gap-5 md:grid-cols-3">
+          {[[Lock, 'Your data stays yours.', 'Everything lives on your computer. Sign in only to back it up.'],
+            [KeyRound, 'Never your passwords.', 'It never types a password, solves a CAPTCHA or creates an account for you.'],
+            [ShieldCheck, 'Never a made-up fact.', 'Every bullet and answer comes from what you told it. A fact checker blocks the rest.']].map(([I, t, d]) => (
+            <Reveal key={t} className="tile px-7 py-9">
+              <I className="size-7 text-[var(--fg)]" strokeWidth={1.6} />
+              <div className="display mt-4 text-[24px] font-semibold leading-tight">{t}</div>
+              <p className="mt-2 text-[17px] leading-[1.45] muted">{d}</p>
+            </Reveal>))}
+        </div>
+      </section>
+
+      <section id="start" className="px-4 pb-24">
+        <Reveal className="mx-auto max-w-[760px] text-center">
+          <h2 className="display text-[40px] font-semibold leading-[1.08] sm:text-[56px]">Set up in one line.</h2>
+          <p className="mx-auto mt-4 max-w-[560px] text-[19px] leading-[1.45] muted">Paste this into your terminal. It installs ApplyTwin, connects your agent and opens the app.</p>
+          <div className="mt-9 text-left"><InstallBox /></div>
+          <p className="mt-3 text-[14px] faint">Mac, Windows and Linux. Needs Python 3.9+, Node.js, and Claude Code or Codex.</p>
+        </Reveal>
+        <div className="mx-auto mt-12 grid max-w-[760px] gap-4 sm:grid-cols-3">
+          {[['1', 'Paste the command', 'in Terminal, or PowerShell on Windows.'], ['2', 'Drop in your resume', 'and answer the setup questions once.'],
+            ['3', 'Press Start', 'and watch your twin apply in its own window.']].map(([n, t, d]) => (
+            <Reveal key={n} className="text-center sm:text-left">
+              <div className="mx-auto grid size-8 place-items-center rounded-full bg-[var(--fg)] text-[15px] font-semibold text-[var(--bg)] sm:mx-0">{n}</div>
+              <div className="mt-3 text-[17px] font-semibold">{t}</div>
+              <div className="text-[15px] muted">{d}</div>
+            </Reveal>))}
+        </div>
+      </section>
+
+      <section id="faq" className="px-4 pb-24">
+        <div className="mx-auto max-w-[760px]">
+          <Reveal><h2 className="display mb-6 text-[32px] font-semibold sm:text-[40px]">Questions</h2></Reveal>
+          <Reveal delay={0.05}><div className="group overflow-hidden">{FAQ.map(([q, a]) => <Faq key={q} q={q} a={a} />)}</div></Reveal>
+        </div>
+      </section>
+
+      <section className="px-4 pb-24">
+        <Reveal className="mx-auto max-w-[760px] text-center">
+          <h2 className="display text-[44px] font-semibold leading-[1.05] sm:text-[64px]">Get hired.</h2>
+          <p className="mx-auto mt-4 max-w-[520px] text-[19px] muted">ApplyTwin is free and has no ads. A star on GitHub is how other students find it.</p>
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-x-7 gap-y-3">
+            <a href="#start" className="btn">Get ApplyTwin</a>
+            <Stars />
           </div>
         </Reveal>
       </section>
 
-      <section className="px-5 pb-16">
-        <Reveal className="mx-auto flex max-w-[760px] flex-col items-center gap-4 rounded-[24px] bg-[#111526] px-6 py-10 text-center ring-1 ring-white/[.06]">
-          <h2 className="text-[28px] font-bold tracking-[-0.03em] text-white sm:text-[34px]">Free for every student. Help it reach more of them.</h2>
-          <p className="max-w-[520px] text-[15px] text-muted">ApplyTwin costs nothing and has no ads. A star on GitHub is how other students find it, and it's the best way to say thanks.</p>
-          <a href={REPO_URL} target="_blank" rel="noreferrer" className="mt-1 inline-flex h-11 items-center gap-2 rounded-full bg-white px-6 text-[15px] font-semibold text-[#0b1020] transition hover:bg-white/90">
-            <span className="text-[#f5a524]">★</span> Star ApplyTwin on GitHub</a>
-        </Reveal>
-      </section>
-
-      <footer className="mx-auto flex max-w-[1180px] flex-wrap items-center justify-between gap-3 border-t border-white/[.06] px-5 py-8 text-[13px] text-faint">
-        <span className="flex items-center gap-2"><Logo size={16} />© 2026 Ojasva Mishra · ApplyTwin, from Twinly</span>
-        <span className="flex gap-4"><a href="/app" className="hover:text-white">Your account</a><a href={REPO_URL} target="_blank" rel="noreferrer" className="hover:text-white">★ Star on GitHub</a></span>
+      <footer className="border-t border-[var(--line)] bg-[var(--bg-2)] px-4 py-8 text-[12px] faint">
+        <div className="mx-auto flex max-w-[1080px] flex-wrap items-center justify-between gap-3">
+          <span>Copyright © 2026 Ojasva Mishra. ApplyTwin, from Twinly.</span>
+          <span className="flex gap-5"><a href="/app" className="hover:underline">Your account</a><a href={REPO_URL} target="_blank" rel="noreferrer" className="hover:underline">GitHub</a></span>
+        </div>
       </footer>
+    </div>
+  )
+}
+
+function Nav() {
+  return (
+    <header className="nav fixed inset-x-0 top-0 z-50">
+      <div className="mx-auto flex h-12 max-w-[1080px] items-center justify-between px-4">
+        <a href="#" className="flex items-center gap-2 text-[15px] font-semibold"><Logo size={18} />ApplyTwin</a>
+        <nav className="flex items-center gap-5 text-[13px]">
+          <a href="#how" className="hidden opacity-80 hover:opacity-100 sm:block">How it works</a>
+          <a href="#faq" className="hidden opacity-80 hover:opacity-100 sm:block">Questions</a>
+          <a href="/app" className="hidden opacity-80 hover:opacity-100 sm:block">Account</a>
+          <a href="#start" className="rounded-full bg-[var(--blue)] px-3.5 py-1 text-[13px] font-medium text-white">Get</a>
+        </nav>
+      </div>
+    </header>
+  )
+}
+
+/* As it scrolls in, the window tilts up toward you and settles flat, the way Apple opens a MacBook on its pages. */
+function Lid({ children }) {
+  const ref = useRef(null)
+  const still = useReducedMotion()
+  const { scrollYProgress } = useScroll({ target: ref, offset: ['start end', 'center center'] })
+  const rotateX = useTransform(scrollYProgress, [0, 1], [24, 0])
+  const scale = useTransform(scrollYProgress, [0, 1], [0.86, 1])
+  const opacity = useTransform(scrollYProgress, [0, 0.35], [0.3, 1])
+  return (
+    <div ref={ref} style={{ perspective: 1800 }}>
+      <motion.div style={still ? {} : { rotateX, scale, opacity, transformOrigin: 'center bottom' }}>{children}</motion.div>
+    </div>
+  )
+}
+
+/* The app itself, at work: what you'd see on your Mac while your twin applies. It really runs through its steps. */
+function AppWindow() {
+  const queue = [['Google', 'google.com', 'Software Engineering Intern', 98], ['Pinterest', 'pinterest.com', 'Software Engineer Intern', 100],
+    ['NVIDIA', 'nvidia.com', 'Deep Learning Software Intern', 96], ['Jane Street', 'janestreet.com', 'Software Engineer Intern', 95],
+    ['Citadel', 'citadel.com', 'Quantitative Research Intern', 93], ['Two Sigma', 'twosigma.com', 'Quant Research Intern', 92]]
+  const STEPS = ['Opening the posting', 'Tailoring your resume', 'Filling the application', 'Submitted']
+  const box = useRef(null)
+  const seen = useInView(box, { margin: '-20% 0px' })
+  const [tick, setTick] = useState(0)
+  useEffect(() => {
+    if (!seen) return
+    const t = setInterval(() => setTick(x => x + 1), 1700)
+    return () => clearInterval(t)
+  }, [seen])
+  const job = Math.floor(tick / STEPS.length) % (queue.length - 3)
+  const step = STEPS[tick % STEPS.length]
+  const cur = queue[job]
+  const next = queue.slice(job + 1, job + 5)
+  const done = [[ 'Meta', 'meta.com', 'Software Engineer Intern'], ['Palantir', 'palantir.com', 'Forward Deployed Engineer Intern'],
+    ...queue.slice(0, job).map(([c, d, t]) => [c, d, t])].slice(-3).reverse()
+  const count = 2 + job + (step === 'Submitted' ? 1 : 0)
+  return (
+    <div ref={box} className="sheet mx-auto w-full max-w-[1080px] overflow-hidden">
+      <div className="flex h-11 items-center gap-2 border-b border-[var(--line)] px-4">
+        {['#ff5f57', '#febc2e', '#28c840'].map(c => <span key={c} className="size-3 rounded-full" style={{ background: c }} />)}
+        <span className="mx-auto pr-14 text-[13px] font-medium faint">ApplyTwin</span>
+      </div>
+      <div className="grid gap-8 p-5 text-left sm:p-10 md:grid-cols-[1.25fr_1fr] [&>*]:min-w-0">
+        <div>
+          <div className="text-[13px] font-medium" style={{ color: 'var(--green)' }}>Claude Code is applying</div>
+          <div className="relative mt-1 h-[40px] overflow-hidden sm:h-[46px]">
+            <AnimatePresence mode="popLayout" initial={false}>
+              <motion.div key={step + job} initial={{ y: 22, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -22, opacity: 0 }}
+                transition={{ duration: 0.55, ease: EASE }} className="display flex items-center gap-2 text-[30px] font-semibold leading-tight sm:text-[36px]">
+                {step}{step === 'Submitted' && <Check className="size-7" style={{ color: 'var(--green)' }} />}
+              </motion.div>
+            </AnimatePresence>
+          </div>
+          <div className="mt-1 text-[15px] muted">{cur[0]} · {cur[2]} · {count} of 25 done</div>
+          <div className="mt-5 h-[5px] max-w-[380px] overflow-hidden rounded-full bg-[var(--bg-2)]">
+            <motion.div className="h-full rounded-full bg-[var(--blue)]" animate={{ width: `${(count / 25) * 100}%` }} transition={{ duration: 0.9, ease: EASE }} /></div>
+          <div className="mt-8 text-[13px] font-semibold uppercase tracking-[0.04em] faint">Up next</div>
+          <div className="group mt-2 overflow-hidden">
+            <AnimatePresence initial={false}>
+              {next.map(([c, d, t, f]) => (
+                <motion.div layout key={c} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -14 }}
+                  transition={{ duration: 0.6, ease: EASE }} className="flex items-center gap-3 px-4 py-3">
+                  <Avatar name={c} domain={d} size={30} />
+                  <div className="min-w-0 flex-1"><div className="truncate text-[15px] font-medium">{t}</div><div className="text-[13px] muted">{c}</div></div>
+                  <div className="text-[15px] tabular-nums muted">{f}%</div>
+                </motion.div>))}
+            </AnimatePresence>
+          </div>
+        </div>
+        <div>
+          <div className="text-[13px] font-semibold uppercase tracking-[0.04em] faint">Needs you</div>
+          <div className="group mt-2 p-4">
+            <div className="flex items-center gap-3"><Avatar name="Booz Allen" domain="boozallen.com" size={30} />
+              <div><div className="text-[15px] font-medium">Sign in to Workday</div><div className="text-[13px] muted">Booz Allen · Data Scientist Intern</div></div></div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <span className="rounded-full bg-[var(--blue)] px-3.5 py-1.5 text-[13px] font-medium text-white">I signed in, finish it</span>
+              <span className="rounded-full bg-[var(--bg-3)] px-3.5 py-1.5 text-[13px] font-medium ring-1 ring-[var(--line)]">Skip</span>
+            </div>
+            <div className="mt-3 rounded-full bg-[var(--bg-3)] px-3.5 py-2 text-[13px] faint ring-1 ring-[var(--line)]">Message your twin about this one…</div>
+          </div>
+          <div className="mt-6 text-[13px] font-semibold uppercase tracking-[0.04em] faint">Today</div>
+          <div className="group mt-2 overflow-hidden">
+            <AnimatePresence initial={false}>
+              {done.map(([c, d, t]) => (
+                <motion.div layout key={c} initial={{ opacity: 0, y: -14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                  transition={{ duration: 0.6, ease: EASE }} className="flex items-center gap-3 px-4 py-3">
+                  <Avatar name={c} domain={d} size={30} />
+                  <div className="min-w-0 flex-1"><div className="truncate text-[15px] font-medium">{t}</div><div className="text-[13px] muted">{c}</div></div>
+                  <Check className="size-4" style={{ color: 'var(--green)' }} />
+                </motion.div>))}
+            </AnimatePresence>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function Tile({ title, text, children }) {
+  return (
+    <Reveal className="tile flex flex-col overflow-hidden px-7 pt-9 sm:px-10 sm:pt-11">
+      <div className="display text-[28px] font-semibold leading-tight sm:text-[32px]">{title}</div>
+      <p className="mt-2 max-w-[440px] text-[17px] leading-[1.45] muted">{text}</p>
+      <div className="mt-8 flex flex-1 items-end">{children}</div>
+    </Reveal>
+  )
+}
+
+function useSeen() {
+  const ref = useRef(null)
+  return [ref, useInView(ref, { once: true, margin: '-15% 0px' })]
+}
+
+function Roles() {
+  const [ref, seen] = useSeen()
+  const r = [['Stripe', 'stripe.com', 'Software Engineer Intern', 'San Francisco'], ['Two Sigma', 'twosigma.com', 'Quantitative Research Intern', 'New York'],
+    ['Anduril', 'anduril.com', 'Autonomy Engineer Intern', 'Costa Mesa']]
+  return (
+    <div ref={ref} className="sheet w-full overflow-hidden rounded-b-none [&>*+*]:border-t [&>*+*]:border-[var(--line)]">
+      {r.map(([c, d, t, l], i) => (
+        <motion.div key={c} initial={{ opacity: 0, x: -24 }} animate={seen ? { opacity: 1, x: 0 } : {}} transition={{ duration: 0.8, ease: EASE, delay: 0.15 + i * 0.18 }}
+          className="flex items-center gap-3 px-4 py-3">
+          <Avatar name={c} domain={d} size={28} />
+          <div className="min-w-0 flex-1"><div className="truncate text-[14px] font-medium">{t}</div><div className="text-[12.5px] muted">{c} · {l}</div></div>
+          <motion.span initial={{ opacity: 0 }} animate={seen ? { opacity: 1 } : {}} transition={{ delay: 0.7 + i * 0.18, duration: 0.5 }}
+            className="text-[12.5px] font-medium" style={{ color: 'var(--green)' }}>Fits you</motion.span>
+        </motion.div>))}
+    </div>
+  )
+}
+
+function Stack() {
+  const [ref, seen] = useSeen()
+  const cards = [['Jane Street', 'janestreet.com', 96], ['NVIDIA', 'nvidia.com', 95], ['Meta', 'meta.com', 96], ['Google', 'google.com', 98]]
+  return (
+    <div ref={ref} className="relative w-full pt-[96px]">
+      {cards.map(([c, d, f], i) => {
+        const front = i === cards.length - 1
+        return (
+          <motion.div key={c} className={'sheet rounded-b-none px-5 ' + (front ? 'relative pb-6 pt-4' : 'absolute inset-x-0 pb-6 pt-[7px]')}
+            initial={front ? { y: 30, opacity: 0 } : { top: 96, scale: 0.94, opacity: 0 }}
+            animate={seen ? (front ? { y: 0, opacity: 1 } : { top: i * 32, scale: 0.91 + i * 0.03, opacity: 1 }) : {}}
+            transition={{ duration: 0.9, ease: EASE, delay: front ? 0 : 0.35 + (cards.length - 2 - i) * 0.16 }}
+            style={{ transformOrigin: 'top center' }}>
+            <div className="flex items-center gap-2.5">
+              <Avatar name={c} domain={d} size={front ? 28 : 22} />
+              <span className={front ? 'text-[16px] font-semibold' : 'text-[14px] font-medium'}>{c}</span>
+              <span className="ml-auto text-[13px] tabular-nums muted">{f}% match</span>
+            </div>
+            {front && <div className="mt-4 space-y-2">{[92, 78, 86].map((w, j) => (
+              <motion.div key={j} className="h-[6px] rounded-full bg-[var(--bg-2)]" initial={{ width: 0 }} animate={seen ? { width: `${w}%` } : {}}
+                transition={{ duration: 0.9, ease: EASE, delay: 0.3 + j * 0.15 }} />))}</div>}
+          </motion.div>)
+      })}
+    </div>
+  )
+}
+
+function Form() {
+  const [ref, seen] = useSeen()
+  const f = [['Authorized to work in the US?', 'Yes'], ['Expected graduation', 'May 2028'], ['Street address', '1 University Ave'],
+    ['What interests you about us?', 'Your GPU kernels team…']]
+  return (
+    <div ref={ref} className="sheet w-full overflow-hidden rounded-b-none [&>*+*]:border-t [&>*+*]:border-[var(--line)]">
+      {f.map(([q, a], i) => (
+        <div key={q} className="flex items-center justify-between gap-4 px-4 py-3 text-[14px]">
+          <span className="muted">{q}</span>
+          <motion.span className="truncate font-medium" initial={{ opacity: 0, x: 8 }} animate={seen ? { opacity: 1, x: 0 } : {}}
+            transition={{ duration: 0.6, ease: EASE, delay: 0.3 + i * 0.45 }}>{a}</motion.span>
+        </div>))}
+    </div>
+  )
+}
+
+function Ask() {
+  const [ref, seen] = useSeen()
+  return (
+    <div ref={ref} className="w-full pb-8">
+      <motion.div initial={{ y: -36, opacity: 0, scale: 0.96 }} animate={seen ? { y: 0, opacity: 1, scale: 1 } : {}}
+        transition={{ type: 'spring', stiffness: 260, damping: 30, delay: 0.25 }} className="sheet mx-auto max-w-[400px] rounded-[18px] px-4 py-3.5">
+        <div className="flex items-center gap-3">
+          <Logo size={34} />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center justify-between text-[13px]"><span className="font-semibold">ApplyTwin</span><span className="faint">now</span></div>
+            <div className="text-[14px] leading-snug">Code needed for Stripe. Check your email and type it in the open tab.</div>
+          </div>
+        </div>
+      </motion.div>
     </div>
   )
 }
@@ -131,50 +373,25 @@ function InstallBox() {
   const copy = () => { navigator.clipboard.writeText(cmd); setOk(true); setTimeout(() => setOk(false), 1600) }
   return (
     <div>
-      <div className="mb-2 flex items-center gap-1 text-[12.5px]">
+      <div className="mx-auto mb-3 flex w-fit rounded-full bg-[var(--bg-2)] p-[3px] text-[13px]">
         {[[false, 'Mac & Linux'], [true, 'Windows']].map(([w, l]) => (
-          <button key={l} onClick={() => setWin(w)} className={'rounded-full px-3 py-1 transition ' + (win === w ? 'bg-white/15 font-semibold text-white' : 'text-white/55 hover:text-white')}>{l}</button>))}
-        <span className="ml-1 text-white/40">{win ? 'in PowerShell' : 'in Terminal'}</span>
+          <button key={l} onClick={() => setWin(w)} className={'rounded-full px-4 py-1.5 transition ' + (win === w ? 'bg-[var(--bg-3)] font-semibold shadow-sm' : 'muted')}>{l}</button>))}
       </div>
-      <button onClick={copy} aria-label="Copy the install command" className="group flex w-full items-center gap-2.5 rounded-[16px] bg-black/55 py-3.5 pl-4 pr-3 text-left ring-1 ring-white/15 backdrop-blur transition hover:ring-white/30 sm:gap-3">
-        <span className="hidden select-none font-mono text-[14px] text-white/40 sm:inline">{win ? '>' : '$'}</span>
-        <span className="min-w-0 flex-1 font-mono text-[12.5px] leading-snug text-white sm:text-[14px]">{cmd}</span>
-        <span className="grid size-8 shrink-0 place-items-center rounded-full text-white sm:flex sm:size-auto sm:items-center sm:gap-1.5 sm:px-3 sm:py-1 sm:text-[12.5px] sm:font-semibold" style={{ background: ok ? GREEN : BLUE }}>
-          {ok ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}<span className="hidden sm:inline">{ok ? 'Copied' : 'Copy'}</span></span>
+      <button onClick={copy} aria-label="Copy the install command"
+        className="flex w-full items-center gap-3 rounded-[14px] bg-[var(--bg-2)] py-3.5 pl-4 pr-3 text-left transition hover:brightness-[.98]">
+        <span className="mono min-w-0 flex-1 text-[13px] leading-snug sm:text-[15px]">{cmd}</span>
+        <span className="flex shrink-0 items-center gap-1.5 text-[14px] font-medium link">
+          {ok ? <Check className="size-4" /> : <Copy className="size-4" />}<span className="hidden sm:inline">{ok ? 'Copied' : 'Copy'}</span></span>
       </button>
     </div>
   )
 }
 
-const LINES = [
-  ['$ ' + INSTALL, 'cmd'],
-  ['Downloading ApplyTwin…', 'dim'],
-  ['Claude Code: installed plugin applytwin (skills + tools)', 'ok'],
-  ['Codex: connected, browser added', 'ok'],
-  ['Python 3.12', 'check'], ['Codex signed in · your ChatGPT plan', 'check'], ['Node.js (for the browser)', 'check'],
-  ['Resume imported', 'todo'],
-  ['Opening ApplyTwin at http://localhost:4747', 'dim'],
-]
-
-function Terminal() {
+function Stars() {
+  const n = useStars()
   return (
-    <motion.div initial="h" whileInView="s" viewport={{ once: true, margin: '-120px' }} variants={{ s: { transition: { staggerChildren: 0.28 } } }}
-      className="mx-auto mt-12 max-w-[760px] overflow-hidden rounded-[18px] bg-[#0b0e1a] ring-1 ring-white/10 shadow-[0_40px_120px_rgb(0_0_0/.55)]">
-      <div className="flex items-center gap-2 border-b border-white/[.06] px-4 py-3">
-        {['#ff5f57', '#febc2e', '#28c840'].map(c => <span key={c} className="size-3 rounded-full" style={{ background: c }} />)}
-        <span className="ml-2 text-[12.5px] text-white/40">Terminal</span>
-      </div>
-      <div className="space-y-1.5 p-5 font-mono text-[13px] leading-relaxed">
-        {LINES.map(([t, k]) => (
-          <motion.div key={t} variants={{ h: { opacity: 0, y: 6 }, s: { opacity: 1, y: 0, transition: spring } }} className="flex gap-2">
-            {k === 'check' && <span style={{ color: GREEN }}>✓</span>}
-            {k === 'ok' && <span style={{ color: BLUE }}>→</span>}
-            {k === 'todo' && <span className="text-white/40">·</span>}
-            <span className={k === 'cmd' ? 'text-white' : k === 'dim' ? 'text-white/45' : k === 'todo' ? 'text-white/55' : 'text-white/85'}>
-              {t}{k === 'todo' && <span className="text-white/35">  → drop your resume in the app</span>}</span>
-          </motion.div>))}
-      </div>
-    </motion.div>
+    <a href={REPO_URL} target="_blank" rel="noreferrer" className="link inline-flex items-center text-[17px]">
+      Star on GitHub{n ? ` (${n.toLocaleString()})` : ''}<ChevronRight className="size-4" /></a>
   )
 }
 
@@ -182,11 +399,11 @@ function Faq({ q, a }) {
   const [open, setOpen] = useState(false)
   return (
     <div>
-      <button onClick={() => setOpen(!open)} className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left text-[16px] font-medium text-white hover:bg-white/[.03]">
-        {q}<motion.span animate={{ rotate: open ? 45 : 0 }} transition={spring} className="text-[22px] font-light text-white/50">+</motion.span>
+      <button onClick={() => setOpen(!open)} className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left text-[17px]">
+        {q}<ChevronRight className="size-4 shrink-0 faint transition-transform" style={{ transform: open ? 'rotate(90deg)' : 'none' }} />
       </button>
-      <motion.div initial={false} animate={{ height: open ? 'auto' : 0, opacity: open ? 1 : 0 }} transition={{ type: 'spring', stiffness: 260, damping: 30 }} className="overflow-hidden">
-        <p className="px-5 pb-5 text-[15px] leading-relaxed text-muted">{a}</p>
+      <motion.div initial={false} animate={{ height: open ? 'auto' : 0, opacity: open ? 1 : 0 }} transition={{ duration: 0.25, ease: 'easeOut' }} className="overflow-hidden">
+        <p className="px-5 pb-5 text-[15px] leading-relaxed muted">{a}</p>
       </motion.div>
     </div>
   )
@@ -194,7 +411,8 @@ function Faq({ q, a }) {
 
 function Logo({ size = 20 }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#38bdf8" /><stop offset="1" stopColor="#a78bfa" /></linearGradient></defs>
-      <rect x="4" y="4" width="38" height="38" rx="12" fill="url(#lg)" /><rect x="22" y="22" width="38" height="38" rx="12" fill="#fff" fillOpacity=".85" /></svg>
+    <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden>
+      <rect x="4" y="4" width="38" height="38" rx="12" fill="#0071e3" /><rect x="22" y="22" width="38" height="38" rx="12" fill="#5ac8fa" fillOpacity=".9" />
+    </svg>
   )
 }
