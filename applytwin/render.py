@@ -245,7 +245,8 @@ def _print(cmd, out_pdf, limit=60):
         return False
     finally:
         if p.poll() is None:
-            p.kill()
+            from .store import kill_tree
+            kill_tree(p)   # on Windows Chrome's helper processes survive a plain kill and keep the profile folder open
             try:
                 p.wait(5)
             except Exception:

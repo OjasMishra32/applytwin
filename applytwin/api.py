@@ -19,20 +19,48 @@ def get_profile():
 
 
 def update_profile(patch):
-    p = store._merge(store.profile(), patch or {})
-    store.save('profile.json', p)
-    # keep profile-derived answers in sync unless the user overrode them
-    bank = store.answers()
-    fresh = {r['key']: r for r in ans.default_bank(p)}
-    for r in bank:
-        if r.get('source') == 'profile' and r['key'] in fresh:
-            r['answer'] = fresh[r['key']]['answer']
-    store.save('answers.json', bank)
+    # read-change-write under a lock shared with the agent's MCP process, so neither overwrites the other's change
+    p = store.update('profile.json', lambda cur: store._merge(store.profile(), patch or {}), {})
+
+    def sync(bank):   # keep profile-derived answers in sync unless the user overrode them
+        bank = bank or store.answers()
+        fresh = {r['key']: r for r in ans.default_bank(p)}
+        for r in bank:
+            if r.get('source') == 'profile' and r['key'] in fresh:
+                r['answer'] = fresh[r['key']]['answer']
+        return bank
+    store.update('answers.json', sync, [])
     from . import cloud
     cloud.sync_soon()
     if 'search' in (patch or {}) and not os.environ.get('APPLYTWIN_NO_RESCORE'):   # new roles, places or skip list apply now
-        threading.Thread(target=rescore, daemon=True).start()
+        rescore_soon()
     return p
+
+
+_rescoring = {"running": False, "again": False}
+
+
+def rescore_soon():
+    """One rescore at a time: saving Settings five times in a row runs it once more at the end, not five at once (each
+    holds a write over the whole jobs table, and a pile of them locked the database for everyone)."""
+    if _rescoring['running']:
+        _rescoring['again'] = True
+        return
+
+    def go():
+        try:
+            while True:
+                _rescoring['again'] = False
+                try:
+                    rescore()
+                except Exception:
+                    pass
+                if not _rescoring['again']:
+                    break
+        finally:
+            _rescoring['running'] = False
+    _rescoring['running'] = True
+    threading.Thread(target=go, daemon=True).start()
 
 
 def get_vault():
@@ -68,8 +96,7 @@ def get_answers():
 
 
 def save_answer(question, answer, key=None):
-    bank = ans.upsert(store.answers(), question, answer, key)
-    store.save('answers.json', bank)
+    bank = store.update('answers.json', lambda cur: ans.upsert(cur or store.answers(), question, answer, key), [])
     return {"ok": True, "count": len(bank)}
 
 
@@ -172,7 +199,10 @@ def get_job(job_id, with_description=True):
         return None
     j = r[0]
     if with_description and len(j.get('description') or '') < 400:
-        j['description'] = sources.fetch_description(j)
+        d = sources.fetch_description(j)
+        if d and len(d) > len(j.get('description') or ''):   # keep it: it was being downloaded again on every view
+            store.execute('update jobs set description=? where id=?', (d, job_id))
+        j['description'] = d or j.get('description') or ''
     return j
 
 
@@ -307,28 +337,44 @@ def claim(job_id, who='agent'):
     return {"claimed": ok}
 
 
-_tailoring = {}   # job_id -> {"thread", "result", "error"}: dedicated resume builds running in the background
+_tailoring = {}   # job_id -> {"thread", "result", "error", "vault"}: dedicated resume builds running in the background
+_tlock = threading.Lock()
+_builders = threading.BoundedSemaphore(2)   # several agents claiming at once never start a crowd of Claude processes
+
+
+def _vault_stamp():
+    try:
+        return os.path.getmtime(store.path('resume.json'))
+    except OSError:
+        return 0
 
 
 def pretailor(job_id):
     """Start the full resume pipeline for a job in the background (a focused AI plan, honesty check, page fit), unless
     one is already running or a current resume exists. The agent picks it up with applytwin_tailor_apply(job_id)."""
-    t = _tailoring.get(job_id)
-    if t and (t['thread'].is_alive() or t.get('result')):
-        return
+    with _tlock:
+        t = _tailoring.get(job_id)
+        if t and (t['thread'].is_alive() or (t.get('result') and t.get('vault') == _vault_stamp())):
+            return   # building now, or built from the current vault
+        _tailoring.pop(job_id, None)
+        return _start_build(job_id)
+
+
+def _start_build(job_id):
     saved = store.path('resumes', job_id, 'tailor.json')
     try:
         d = json.load(open(saved, encoding='utf-8'))
-        if d.get('pipeline', 0) >= tailor.PIPELINE and d.get('mode') == 'api':
-            return
+        if d.get('pipeline', 0) >= tailor.PIPELINE and d.get('mode') == 'api' and os.path.getmtime(saved) >= _vault_stamp():
+            return   # a current resume, built after the last vault edit
     except Exception:
         pass
-    slot = {"result": None, "error": None}
+    slot = {"result": None, "error": None, "vault": _vault_stamp()}
 
     def work():
         try:
-            j = get_job(job_id)
-            slot['result'] = tailor.tailor(get_vault(), j, j.get('description', ''), mode='auto')
+            with _builders:
+                j = get_job(job_id)
+                slot['result'] = tailor.tailor(get_vault(), j, j.get('description', ''), mode='auto')
         except Exception as e:
             slot['error'] = str(e)
     slot['thread'] = threading.Thread(target=work, daemon=True)
@@ -340,6 +386,12 @@ def on_start():
     """After the app (re)starts: unfinished claims from a run that died go to Needs you, and work you queued during a run
     still happens."""
     release_claims(older_than=3 * 3600)
+    try:   # progress files of builds that were killed with the app
+        for f in os.listdir(store.path('progress')) if os.path.isdir(store.path('progress')) else []:
+            if time.time() - os.path.getmtime(store.path('progress', f)) > 60:
+                os.unlink(store.path('progress', f))
+    except OSError:
+        pass
     try:
         refresh_resumes()
     except Exception:
@@ -494,12 +546,15 @@ def tailor_apply(job_id, plan=None, template=None, mode='auto', fresh=False):
         pretailor(job_id)
         slot = _tailoring.get(job_id)
         if slot:
-            slot['thread'].join(timeout=420)
-            if slot.get('result') and (not template or slot['result'].get('style') == template):
+            slot['thread'].join(timeout=900)   # longer than the slowest build: never start a second one alongside it
+            if slot['thread'].is_alive():
+                return {"error": "Your resume is still being written. It will be ready here in a moment."}
+            if slot.get('result') and slot.get('vault') == _vault_stamp() and (not template or slot['result'].get('style') == template):
                 return slot['result']
         try:   # a current dedicated build is saved: show it (in another template, the same plan re-set, no new AI plan)
             d = json.load(open(store.path('resumes', job_id, 'tailor.json'), encoding='utf-8'))
-            if d.get('pipeline', 0) >= tailor.PIPELINE and d.get('mode') in ('api', 'agent') and d.get('plan'):
+            if (d.get('pipeline', 0) >= tailor.PIPELINE and d.get('mode') in ('api', 'agent') and d.get('plan')
+                    and os.path.getmtime(store.path('resumes', job_id, 'tailor.json')) >= _vault_stamp()):
                 return tailor.tailor(get_vault(), j, j.get('description', ''), plan=d['plan'], style=template or d.get('style'), mode='agent')
         except (OSError, ValueError):
             pass
@@ -863,6 +918,7 @@ def _start_run(agent, n, model, prompt, restarts):
     env = {**os.environ, 'APPLYTWIN_RUN_ID': run_id}   # the agent's ApplyTwin tools tag their claims with this run
     proc = subprocess.Popen(cmd, stdout=f, stderr=subprocess.STDOUT, stdin=subprocess.PIPE, cwd=store.HOME, text=True, encoding='utf-8', env=env,
                             errors='replace', **(store.NOWIN if os.name == 'nt' else {'start_new_session': True}))   # its own group: Stop ends its browser too
+    f.close()   # the agent has its own handle to the log; keeping ours open leaked one file per run
     proc.stdin.write(prompt)
     proc.stdin.close()
     _run.update(proc=proc, agent=agent, log=logf, started=time.time(), stopped=False, id=run_id)
@@ -909,7 +965,22 @@ def _skip_stuck(since, minutes):
     return stuck[:1]
 
 
-def _watch_run(proc, agent, logf, n, model, prompt=None, restarts=0, run_id=None):
+def _watch_run(*a, **k):
+    """One error in the watcher (a locked database, an unreadable log) used to end it silently: stuck runs were never
+    skipped, claims never released and queued follow-ups never started until the app restarted."""
+    try:
+        return _watch_run_body(*a, **k)
+    except Exception as e:
+        try:
+            print(f'Autopilot watcher error: {e}')
+            release_claims(who=k.get('run_id') or (a[6] if len(a) > 6 else None))
+            if not (_run['proc'] and _run['proc'].poll() is None):
+                _next_followup()
+        except Exception:
+            pass
+
+
+def _watch_run_body(proc, agent, logf, n, model, prompt=None, restarts=0, run_id=None):
     # a run that makes no progress for apply.stuck_minutes is stuck on one application (waiting on a sign-in, a hung page):
     # skip that application and carry on with the rest instead of holding up the whole queue
     minutes = float(store.profile()['apply'].get('stuck_minutes') or 20)

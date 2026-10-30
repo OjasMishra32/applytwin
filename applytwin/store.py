@@ -92,6 +92,30 @@ def load(name, default=None):
     return _merge(default, data) if isinstance(default, dict) else data
 
 
+def replace(src, dst, tries=6):
+    """os.replace that waits out Windows' share lock: another process (the app, the agent's MCP server) reading the
+    target at that instant makes the replace fail with PermissionError for a few milliseconds."""
+    for i in range(tries):
+        try:
+            return os.replace(src, dst)
+        except PermissionError:
+            if i == tries - 1:
+                raise
+            time.sleep(0.05)
+
+
+def kill_tree(p):
+    """Stop a child process and everything it started. On Windows, killing a .cmd wrapper (npm's claude.cmd) or Chrome
+    leaves node.exe / Chrome's helpers running and holding pipes and folders open."""
+    import subprocess
+    if p.poll() is not None:
+        return
+    if os.name == 'nt':
+        subprocess.run(['taskkill', '/F', '/T', '/PID', str(p.pid)], capture_output=True, **NOWIN)
+    else:
+        p.kill()
+
+
 def save(name, obj):
     import tempfile
     with _lock:
@@ -100,7 +124,7 @@ def save(name, obj):
         try:
             with os.fdopen(fd, 'w', encoding='utf-8') as f:
                 json.dump(obj, f, indent=1, ensure_ascii=False)
-            os.replace(tmp, path(name))
+            replace(tmp, path(name))
         except BaseException:
             try:
                 os.remove(tmp)

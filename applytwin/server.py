@@ -54,7 +54,7 @@ _UNKNOWN = set()
 POST = {
     r'/api/profile': lambda m, qs, b: api.update_profile(b),
     r'/api/vault': lambda m, qs, b: api.save_vault(b),
-    r'/api/answers': lambda m, qs, b: (store.save('answers.json', b), {"ok": True})[1],
+    r'/api/answers': lambda m, qs, b: (store.update('answers.json', lambda cur: b, []), {"ok": True})[1],
     r'/api/answer': lambda m, qs, b: api.save_answer(b['question'], b['answer'], b.get('key')),
     r'/api/answer/test': lambda m, qs, b: api.answer_questions(b.get('questions', []), notify_user=False),   # just trying
     r'/api/dump': lambda m, qs, b: api.save_dump(b.get('text', '')),
@@ -212,9 +212,12 @@ def _update_loop(hours=1):
     import time
     while True:
         time.sleep(hours * 3600)
-        while api.run_status().get('running'):
-            time.sleep(300)
-        _self_update()
+        try:   # one failed check must never stop this install from updating for good
+            while api.run_status().get('running'):
+                time.sleep(300)
+            _self_update()
+        except Exception as e:
+            print(f'Update check failed (will retry): {e}')
 
 
 def _code_stamp():

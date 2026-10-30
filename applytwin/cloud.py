@@ -198,10 +198,30 @@ def push_applications():
         return {"uploaded": len(out)}
 
 
+_syncing = {"running": False, "again": False}
+
+
 def sync_soon():
-    """Fire-and-forget push after local changes."""
-    if _session():
-        threading.Thread(target=lambda: (_safe(push), _safe(push_applications)), daemon=True).start()
+    """Push local changes to your account in the background: one push at a time, and changes made while it runs go in
+    one more push at the end (every save used to start its own thread)."""
+    if not _session():
+        return
+    if _syncing['running']:
+        _syncing['again'] = True
+        return
+
+    def go():
+        try:
+            while True:
+                _syncing['again'] = False
+                _safe(push)
+                _safe(push_applications)
+                if not _syncing['again']:
+                    break
+        finally:
+            _syncing['running'] = False
+    _syncing['running'] = True
+    threading.Thread(target=go, daemon=True).start()
 
 
 def _safe(fn, *a):

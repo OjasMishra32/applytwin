@@ -336,17 +336,23 @@ _SINK = __import__('threading').local()   # where a running build wants live "ch
 def _claude_stream(cmd, text, timeout, env, sink):
     """Run Claude Code with streamed output, reporting how much of the reply is written so far. Returns (ok, reply, err)."""
     import subprocess
+    import tempfile
     import threading
     from . import store
+    # stderr goes to a file, not a pipe: a pipe nobody reads fills (4 KB on Windows) and stalls the reply mid-stream
+    errf = tempfile.TemporaryFile(mode='w+', encoding='utf-8', errors='replace')
     p = subprocess.Popen(cmd + ['--output-format', 'stream-json', '--verbose', '--include-partial-messages'], stdin=subprocess.PIPE,
-                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding='utf-8', errors='replace',
+                         stdout=subprocess.PIPE, stderr=errf, text=True, encoding='utf-8', errors='replace',
                          cwd=store.HOME, env=env, **store.NOWIN)
-    killer = threading.Timer(timeout, p.kill)
+    killer = threading.Timer(timeout, lambda: store.kill_tree(p))
     killer.start()
     parts, result, n = [], None, 0
     try:
-        p.stdin.write(text)
-        p.stdin.close()
+        try:
+            p.stdin.write(text)
+            p.stdin.close()
+        except OSError:   # it exited before reading (signed out, an old CLI): its error is in errf
+            pass
         for line in p.stdout:
             try:
                 e = json.loads(line)
@@ -360,11 +366,16 @@ def _claude_stream(cmd, text, timeout, env, sink):
                     sink(n)
             elif e.get('type') == 'result':
                 result = e.get('result') if not e.get('is_error') else None
-        p.wait()
     finally:
         killer.cancel()
+        store.kill_tree(p)   # no-op when it finished; never leaves a zombie or an orphaned node.exe
+        p.wait()
+        p.stdout.close()
+        errf.seek(0)
+        err = errf.read()[-600:]
+        errf.close()
     reply = result or ''.join(parts)
-    return p.returncode == 0 and bool(reply.strip()), reply, (p.stderr.read() if p.stderr else '')[-600:]
+    return p.returncode == 0 and bool(reply.strip()), reply, err
 
 
 def agent_llm(text, timeout=600, fast=False, think=True):
@@ -400,10 +411,12 @@ def agent_llm(text, timeout=600, fast=False, think=True):
                         out = f.name
                     cmd = [agents.exe('codex'), 'exec', '--skip-git-repo-check', '--ephemeral', '-s', 'read-only', '-o', out,
                            *agents.codex_model_args(), '-']
-                    r = subprocess.run(cmd, input=text, capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=timeout, cwd=store.HOME, **store.NOWIN)
-                    reply = open(out, encoding='utf-8').read() if os.path.exists(out) else ''
-                    if os.path.exists(out):
-                        os.unlink(out)
+                    try:
+                        r = subprocess.run(cmd, input=text, capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=timeout, cwd=store.HOME, **store.NOWIN)
+                        reply = open(out, encoding='utf-8').read() if os.path.exists(out) else ''
+                    finally:   # also when it timed out: a temp file per call otherwise piles up
+                        if os.path.exists(out):
+                            os.unlink(out)
                     if reply.strip():
                         return reply
                     _llm_log('codex', r)
@@ -847,6 +860,29 @@ def _recency(e):
     return 9999.0 if when >= now.tm_year + now.tm_mon / 12 - 1 else when
 
 
+def _lead_with_proof(res, reqs, jd):
+    """The top third must prove the posting's #1 requirement. Among recent roles (the ones the plan may order by
+    relevance) the role that best matches the requirements leads, and in every role the bullet that best proves them comes
+    first. Requirement #1 counts most; the posting's own words break ties."""
+    if os.environ.get('APPLYTWIN_NO_LEAD') or not reqs:
+        return
+    kws = ats.keywords(jd)
+    jdw = _jd_words(' '.join(reqs[:1]) * 3 + ' ' + ' '.join(reqs[1:3]) * 2)   # the requirements' own words, #1 weighted
+    score = lambda t: relevance(t, [], jdw) + 0.3 * _kw_score(ats.plain(t), kws)
+    for sec in ('experience', 'projects'):
+        for e in res.get(sec, []):
+            bl = e.get('bullets') or []
+            if len(bl) > 1:
+                best = max(range(len(bl)), key=lambda i: (score(bl[i]) + (0.5 if i == 0 else 0), -i))
+                e['bullets'] = [bl[best]] + bl[:best] + bl[best + 1:]
+    exp = res.get('experience') or []
+    recent = [e for e in exp if _recency(e) == 9999.0]
+    if len(recent) > 1:
+        ranked = sorted(recent, key=lambda e: -(score(json.dumps(e, ensure_ascii=False)) + (1.0 if e is recent[0] else 0)))
+        it = iter(ranked)
+        res['experience'] = [next(it) if _recency(e) == 9999.0 else e for e in exp]
+
+
 def _house_rules(res, ctx):
     """Field conventions a screener checks at a glance. Banking and finance read strict reverse-chronological order (a
     recent role listed below an older one looks like a formatting error), so relevance never reorders their roles."""
@@ -1039,12 +1075,13 @@ class _Track:
 
     def _publish(self):
         import time
+        from . import store
         while self.live:
             try:
                 tmp = self._file() + '.tmp'
                 with open(tmp, 'w', encoding='utf-8') as f:
                     json.dump(self.view(), f)
-                os.replace(tmp, self._file())
+                store.replace(tmp, self._file())
             except Exception:
                 pass
             time.sleep(1)
@@ -1085,6 +1122,8 @@ class _Track:
 
     def stop(self):
         self.live = False
+        if PROGRESS.get(self.key) is not self:   # a newer build for this job owns the timer now: leave it alone
+            return
         PROGRESS.pop(self.key, None)
         try:
             os.unlink(self._file())
@@ -1093,7 +1132,10 @@ class _Track:
 
     def view(self):
         import time
-        now, t = time.time(), _timings()
+        now = time.time()
+        if not getattr(self, '_t', None) or self._t[0] != self.cur:   # read the learned timings once per step, not every second
+            self._t = (self.cur, _timings())
+        t = self._t[1]
         order = [k for k, _ in STAGES]
         cur = self.cur or 'audit'   # a build from a ready plan starts at the checks
         i = order.index(cur)
@@ -1183,6 +1225,8 @@ def _tailor(v, job, jd, mode, plan, style, out_dir, track):
     else:
         mode = 'agent'
     res, rep = apply(v, plan, jd)
+    if mode == 'api':
+        _lead_with_proof(res, rep.get('requirements') or [], jd)
     _house_rules(res, ctx)
     if mode == 'api' and rep['rejected']:   # one revision: show the model exactly what the fact checker refused, and why
         track.stage('fix')
@@ -1195,6 +1239,7 @@ def _tailor(v, job, jd, mode, plan, style, out_dir, track):
             plan2 = call_llm(fix, timeout=200, think=False)
             if plan2:
                 res2, rep2 = apply(v, plan2, jd)
+                _lead_with_proof(res2, rep2.get('requirements') or [], jd)
                 _house_rules(res2, ctx)
                 if len(rep2['rejected']) < len(rep['rejected']):
                     plan, res, rep = plan2, res2, rep2

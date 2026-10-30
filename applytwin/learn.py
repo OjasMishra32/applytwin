@@ -103,7 +103,10 @@ def prefs():
 
 
 def remember(note=None, pin=None, avoid=None, template_field=None, template=None):
-    p = prefs()
+    return store.update('learnings.json', lambda cur: _remember({**__import__('copy').deepcopy(DEFAULT), **(cur or {})}, note, pin, avoid, template_field, template), DEFAULT)
+
+
+def _remember(p, note, pin, avoid, template_field, template):
     if note and note not in p['notes']:
         p['notes'].append(note)
     if pin and pin not in p['pins']:
@@ -114,17 +117,17 @@ def remember(note=None, pin=None, avoid=None, template_field=None, template=None
         p['pins'] = [x for x in p['pins'] if x != avoid]
     if template_field and template:
         p['template_by_field'][template_field] = template
-    store.save('learnings.json', p)
     return p
 
 
 def forget(note=None, pin=None, avoid=None):
-    p = prefs()
-    p['notes'] = [n for n in p['notes'] if n != note]
-    p['pins'] = [n for n in p['pins'] if n != pin]
-    p['avoid'] = [n for n in p['avoid'] if n != avoid]
-    store.save('learnings.json', p)
-    return p
+    def go(p):
+        p = {**__import__('copy').deepcopy(DEFAULT), **(p or {})}
+        p['notes'] = [n for n in p['notes'] if n != note]
+        p['pins'] = [n for n in p['pins'] if n != pin]
+        p['avoid'] = [n for n in p['avoid'] if n != avoid]
+        return p
+    return store.update('learnings.json', go, DEFAULT)
 
 
 # ------------------------------------------------------------------ outcomes
