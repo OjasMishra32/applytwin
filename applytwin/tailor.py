@@ -349,7 +349,7 @@ def agent_llm(text, timeout=600, fast=False):
         try:
             if name == 'claude':
                 # a one-shot plan doesn't need the biggest model; Sonnet is several times faster for this
-                r = subprocess.run([agents.exe('claude'), '-p', '--model', 'haiku' if fast else 'sonnet', '--output-format', 'text', '--tools', ''], input=text, capture_output=True,
+                r = subprocess.run([agents.exe('claude'), '-p', '--model', 'haiku' if fast else os.environ.get('APPLYTWIN_PLAN_MODEL', 'sonnet'), '--output-format', 'text', '--tools', ''], input=text, capture_output=True,
                                    text=True, encoding='utf-8', errors='replace', timeout=timeout, cwd=store.HOME, **store.NOWIN)
                 if r.returncode == 0 and r.stdout.strip():
                     return r.stdout
@@ -657,6 +657,18 @@ def audit(res, rep):
     return len(flagged)
 
 
+def trim_worth(res, kws, jd):
+    """What to keep when the page runs long: measured results, the posting's own words, and the order the plan chose within
+    each entry (keyword overlap alone threw out 'Merged 5 PRs into kubectl' and kept 'Reviewed PRs and triaged issues')."""
+    jdw = _jd_words(jd)
+    rank = {}
+    for sec in ENTRY_SECS:
+        for e in res.get(sec, []):
+            for i, b in enumerate(e.get('bullets', [])):
+                rank.setdefault(b, i)
+    return lambda b: strength(b, kws) + 0.35 * sum(jdw.get(w, 0) for w in set(re.findall(r'[a-z][a-z0-9+#./-]{2,}', ats.plain(b).lower()))) - 1.0 * rank.get(b, 0)
+
+
 def _same_fact(a, b):
     """Two lines stating one fact: most words shared, or the same distinctive figure ('6x', '1e-12', '4B+') with real overlap."""
     wa, wb = _words(ats.plain(a)), _words(ats.plain(b))
@@ -681,6 +693,7 @@ def _fill_page(v, res, jd, style, probe, k=1.0):
     kws = ats.keywords(jd)
     avoid = set(learn_avoid(v))
     shown = {e.get('id') for sec in ENTRY_SECS for e in res.get(sec, [])}
+    pick = trim_worth({}, kws, jd)   # the same measure trimming uses: results and the posting's words, not keywords alone
     cands = []
     for sec in ('experience', 'projects', 'leadership'):
         byid = {e['id']: e for e in v.get(sec, [])}
@@ -690,10 +703,10 @@ def _fill_page(v, res, jd, style, probe, k=1.0):
                 if (f"{src['id']}.{i}" in avoid or i in e.get('_used', []) or weak(b)
                         or any(_closest([b], x)[1] > 0.45 or _same_fact(b, x) for x in e.get('bullets', []))):
                     continue
-                cands.append((_kw_score(ats.plain(b), kws) + (2 if IMPACT.search(b) else 0), 'bullet', sec, e.get('id'), b))
+                cands.append((pick(b), 'bullet', sec, e.get('id'), b))
         for e in v.get(sec, []):
             if e['id'] not in shown and e.get('bullets') and not OLD.search(json.dumps(e)):
-                cands.append((_kw_score(ats.plain(' '.join(e['bullets'])), kws) - 1, 'entry', sec, e['id'], e))
+                cands.append((max(pick(b) for b in e['bullets']) - 1, 'entry', sec, e['id'], e))
     shown_skills = {s.get('label') for s in res.get('skills', [])}
     for s in v.get('skills', []):   # a skills line trimmed to fit is one short line: often exactly what a gap needs
         if s.get('label') not in shown_skills and s.get('items'):
@@ -878,7 +891,7 @@ def tailor(v, job, jd, mode='auto', plan=None, style=None, out_dir=None):
     name = (re.sub(r'[^\w]+', '_', res['basics'].get('name', 'Resume') or '', flags=re.UNICODE).strip('_') or 'Resume') + '_Resume.pdf'
     pdf = os.path.join(out_dir, name)
     kws = ats.keywords(jd)
-    worth = lambda b: _kw_score(ats.plain(b), kws) + (2 if IMPACT.search(b) else 0)   # what to keep when trimming to fit
+    worth = trim_worth(res, kws, jd)
     r = render.render(res, style, pdf, worth=worth)
     if r['pages'] == 1 and style != 'latex':   # room left on the page (also after trimming a big item): fill it with real material
         base = r['resume'] if r['dropped'] else res

@@ -140,6 +140,13 @@ res.append(ok(_res6["experience"][0]["bullets"] == ["Analyzed a checkout A/B tes
                   "Wrote an implicit-explicit Runge-Kutta time stepper that allowed 6x larger time steps at the same accuracy",
                   "Scaled the solver to 2,048 cores on Frontera"]).__len__() == 2,
               'overclaiming rewrites revert to the vault, one fact never takes two lines'))
+# trimming to one page keeps the measured, plan-chosen bullet over an unmeasured one that merely shares a keyword
+from applytwin import ats as _ats
+_jd7 = 'You will review code and pull requests in Python and TypeScript for developer tools.'
+_res7 = {"projects": [{"bullets": ["Merged **5 PRs** into kubernetes/kubectl, including a fix for events sorting and clearer selector errors.",
+                                   "Reviewed pull requests and triaged open issues as part of SIG CLI."]}]}
+_w7 = _tl.trim_worth(_res7, _ats.keywords(_jd7), _jd7)
+res.append(ok(_w7(_res7["projects"][0]["bullets"][0]) > _w7(_res7["projects"][0]["bullets"][1]), 'trimming keeps measured results over keyword-only lines'))
 # real form questions that used to get the wrong answer
 _pb = _an.default_bank({'name': 'Maya Chen', 'location': 'Austin, TX', 'grad_month': 'May', 'grad_year': '2028', 'major': 'Computer Science',
                         'work_authorized_us': True, 'needs_sponsorship': True, 'government_employee': False, 'willing_to_relocate': True})
