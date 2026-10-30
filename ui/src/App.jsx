@@ -53,7 +53,12 @@ export default function App() {
   }, [])
   useEffect(() => {
     const h = location.hash
-    if (h.includes('access_token=')) {
+    if (h.includes('error_description=') || h.includes('error=')) {   // Google or Supabase said no (cancelled, blocked): say so
+      const q = new URLSearchParams(h.slice(1))
+      history.replaceState(null, '', location.pathname + '#home')
+      toast.error("Sign-in didn't finish", { description: (q.get('error_description') || q.get('error') || '').replace(/\+/g, ' ') + ' Try again.' })
+      api('/api/auth').then(r => { setAuth(r); setAuthReady(true) }).catch(() => setAuthReady(true))
+    } else if (h.includes('access_token=')) {
       const q = new URLSearchParams(h.slice(1))
       history.replaceState(null, '', location.pathname + '#home')
       api('/api/auth', { access_token: q.get('access_token'), refresh_token: q.get('refresh_token'), expires_in: q.get('expires_in') })

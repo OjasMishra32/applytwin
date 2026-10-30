@@ -63,7 +63,10 @@ def set_session(access_token, refresh_token, expires_in=3600):
             "user": {"id": user['id'], "email": user.get('email'), "name": meta.get('full_name') or meta.get('name'),
                      "avatar": meta.get('avatar_url') or meta.get('picture')}}
     _save(sess)
-    first = pull()
+    try:
+        first = pull()
+    except Exception:   # signed in either way; the backup restore can retry on the next sync
+        first = False
     threading.Thread(target=lambda: (_safe(push), _safe(push_applications)), daemon=True).start()
     return {"signed_in": True, "user": sess['user'], "restored": first}
 
