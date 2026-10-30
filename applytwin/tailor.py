@@ -76,8 +76,8 @@ def _forms(w):
 
 
 def check_rewrite(orig, new, vault_txt, jd, entry_txt=None):
-    """Return None if the rewrite is truthful, else the reason it was rejected.
-    entry_txt = all text of the same role/project: new numbers and tools must come from THAT entry."""
+    """Return None if the rewrite is allowed, else the reason it was rejected. Numbers are locked: every number must come from
+    the same role/project (entry_txt) and keep its meaning; a scale claim can't grow. Wording, tools and outcomes can move."""
     o, n = ats.plain(orig), ats.plain(new)
     scope = ats.plain(entry_txt or orig)
     if len(n) < 25:
@@ -101,28 +101,8 @@ def check_rewrite(orig, new, vault_txt, jd, entry_txt=None):
     mags = {x.lower() for x in MAGNITUDE.findall(n)} - {x.lower() for x in MAGNITUDE.findall(scope)}
     if mags:
         return 'adds a scale claim not in this entry: ' + ', '.join(sorted(mags))
-    for term, pat in ats.PATTERNS.items():
-        if term not in ats.SOFT and pat.search(n) and not pat.search(scope):
-            return f'claims {term}, which this entry never mentions'
-    vw = words(vault_txt)
-    stems = {w[:6].lower() for w in vw if len(w) >= 6}
-    vlow = {w.lower() for w in vw}
-    caps = {w for w in words(n) - vw if w[0].isupper() and w.lower() not in vlow and w.lower() not in ats.ACTION_VERBS}
-    caps = {w for w in caps if not (len(w) >= 6 and w[:6].lower() in stems)}
-    # a capitalized verb that starts a bullet ("Ship", "Lead") is the same word as "shipped"/"leading" in the vault,
-    # and an acronym already inside a vault word ("OS" in macOS/iOS) is not a new name
-    first = (re.findall(r'[A-Za-z][\w-]*', n) or [''])[0]
-    caps = {w for w in caps if not (w == first and re.search(r'(ed|ied)$', w.lower()))}   # "Converted ...": a verb, not a name
-    caps = {w for w in caps if not any(f in vlow for f in _forms(w.lower())) and w.lower() not in IRREGULAR_PAST
-            and not (w.isupper() and any(x.endswith(w) and x != w for x in vw))
-            and not ('-' in w and w.split('-')[0].lower() in vlow)}
-    if caps:
-        return 'adds names/tools not in your vault: ' + ', '.join(sorted(caps))
-    jdw = {w.lower() for w in words(jd)}
-    stuffed = {w for w in {x.lower() for x in words(n)} - vlow if w in jdw and not (len(w) >= 6 and w[:6] in stems)}
-    stuffed -= ats.ACTION_VERBS | {'and', 'the', 'for', 'with', 'to', 'of', 'in', 'on', 'a', 'an', 'by', 'via', 'using', 'across'}
-    if len(stuffed) > 1:
-        return 'stuffs posting keywords the vault does not back: ' + ', '.join(sorted(stuffed))
+    # tools, methods and outcomes may be framed toward the posting (the user's call); numbers, scale and links may not.
+    # Titles, employers, awards and team leadership are checked by the honesty read (audit), which understands context.
     for link in re.findall(r'\]\(([^)]+)\)', orig):
         if link not in new:
             return 'dropped a link'
@@ -296,9 +276,9 @@ THEN BUILD THE PAGE AROUND IT so a recruiter skimming for 6 seconds sees those t
 RULES (hard):
 - Every research/publication entry in the vault appears on the page (you choose where the section goes; put it high when
   the role values research). Never spend a bullet restating a paper the research section already lists.
-- Never invent: no new numbers, employers, tools, skills, titles, dates, awards or links. A fact guard rejects violations.
-- REWRITE every bullet you keep into its strongest truthful form for THIS posting: lead with the result, mirror the
-  posting's exact terms where the bullet already proves them, cut filler, keep every fact. Keep **bold** on the 1-3
+- Locked: numbers and metrics, employers, titles, dates, degrees, awards and links. A fact guard rejects any change.
+- REWRITE every bullet you keep into its strongest form for THIS posting: lead with the result, mirror the posting's
+  exact terms, cut filler, keep every number exactly. Keep **bold** on the 1-3
   most impressive facts per entry. No em/en dashes. No first person.
 - Each bullet: past-tense action verb first (present tense for current roles), 80-200 characters, ideally a number.
 - Fill one page with the strongest material: usually 4-6 entries and 14-18 bullets. 2-4 bullets per relevant role, 1-2 per
@@ -310,9 +290,9 @@ RULES (hard):
 - No fact twice: an honor in education is not repeated in awards, a placement in a bullet is not repeated in awards.
 - No orphan section: a section with one entry and one short bullet either earns a second bullet or gives way to a
   stronger entry.
-- A rewrite never adds a purpose, audience, scope, tool or outcome the vault does not state ("to feed the production
-  model", "for the growth team", "before production runs", "validated" for "reduced data"). Reframe with the vault's own
-  facts; if the honest version is less on-topic, keep it honest.
+- Reframe toward the posting: stronger verbs, the purpose and outcome of the work, the posting's vocabulary, and closely
+  related tools or methods. Numbers are locked (never a new or changed number, metric or scale), and so are titles,
+  employers, degrees, awards and placements; never claim leading people they didn't lead.
 - Refer to bullets by the exact ids shown in the vault ("drift.0"). A number keeps its meaning ("40K events/sec" never
   becomes "40K users").
 - A titled technical role on a student design team, lab or club ("Avionics Subteam Lead", "Electrical Lead") may go under
@@ -347,9 +327,47 @@ needs. Retail, food service and unrelated part-time jobs go only if nothing stro
 """
 
 
-def agent_llm(text, timeout=600, fast=False):
+_SINK = __import__('threading').local()   # where a running build wants live "characters written" counts
+
+
+def _claude_stream(cmd, text, timeout, env, sink):
+    """Run Claude Code with streamed output, reporting how much of the reply is written so far. Returns (ok, reply, err)."""
+    import subprocess
+    import threading
+    from . import store
+    p = subprocess.Popen(cmd + ['--output-format', 'stream-json', '--verbose', '--include-partial-messages'], stdin=subprocess.PIPE,
+                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding='utf-8', errors='replace',
+                         cwd=store.HOME, env=env, **store.NOWIN)
+    killer = threading.Timer(timeout, p.kill)
+    killer.start()
+    parts, result, n = [], None, 0
+    try:
+        p.stdin.write(text)
+        p.stdin.close()
+        for line in p.stdout:
+            try:
+                e = json.loads(line)
+            except ValueError:
+                continue
+            if e.get('type') == 'stream_event':
+                d = (e.get('event') or {}).get('delta') or {}
+                if d.get('type') == 'text_delta':
+                    parts.append(d.get('text', ''))
+                    n += len(d.get('text', ''))
+                    sink(n)
+            elif e.get('type') == 'result':
+                result = e.get('result') if not e.get('is_error') else None
+        p.wait()
+    finally:
+        killer.cancel()
+    reply = result or ''.join(parts)
+    return p.returncode == 0 and bool(reply.strip()), reply, (p.stderr.read() if p.stderr else '')[-600:]
+
+
+def agent_llm(text, timeout=600, fast=False, think=True):
     """Run one prompt on the user's own Claude Code or Codex subscription (no API key). Returns the reply text or None.
-    fast: a short checking job, so Claude uses its quickest model."""
+    fast: a short checking job, so Claude uses its quickest model. think=False: no extended thinking (a resume plan is as
+    good without it and takes ~20 seconds instead of ~2 minutes); careful checks keep it."""
     import subprocess
     import tempfile
     from . import agents, store
@@ -357,8 +375,17 @@ def agent_llm(text, timeout=600, fast=False):
         try:
             if name == 'claude':
                 # a one-shot plan doesn't need the biggest model; Sonnet is several times faster for this
-                r = subprocess.run([agents.exe('claude'), '-p', '--model', 'haiku' if fast else os.environ.get('APPLYTWIN_PLAN_MODEL', 'sonnet'), '--output-format', 'text', '--tools', ''], input=text, capture_output=True,
-                                   text=True, encoding='utf-8', errors='replace', timeout=timeout, cwd=store.HOME, **store.NOWIN)
+                base = [agents.exe('claude'), '-p', '--model', 'haiku' if fast else os.environ.get('APPLYTWIN_PLAN_MODEL', 'sonnet'), '--tools', '']
+                env = {**os.environ, **({} if think else {'MAX_THINKING_TOKENS': '0'})}
+                sink = getattr(_SINK, 'fn', None)
+                if sink:   # a build is showing progress: stream, so the timer follows the reply as it's written
+                    ok, reply, err = _claude_stream(base, text, timeout, env, sink)
+                    if ok:
+                        return reply
+                    _llm_log('claude', type('R', (), {'returncode': 1, 'stderr': err, 'stdout': ''})())
+                    continue
+                r = subprocess.run(base + ['--output-format', 'text'], input=text, capture_output=True,
+                                   text=True, encoding='utf-8', errors='replace', timeout=timeout, cwd=store.HOME, env=env, **store.NOWIN)
                 if r.returncode == 0 and r.stdout.strip():
                     return r.stdout
                 _llm_log('claude', r)
@@ -392,7 +419,7 @@ def _llm_log(name, r):
         pass
 
 
-def call_llm(text, timeout=600, fast=False):
+def call_llm(text, timeout=600, fast=False, think=True):
     key = os.environ.get('ANTHROPIC_API_KEY')
     import urllib.request
     if key:
@@ -409,7 +436,7 @@ def call_llm(text, timeout=600, fast=False):
         with urllib.request.urlopen(req, timeout=180) as r:
             out = json.load(r)['choices'][0]['message']['content']
     else:
-        out = agent_llm(text, timeout=timeout, fast=fast)
+        out = agent_llm(text, timeout=timeout, fast=fast, think=think)
         if not out:
             return None
     return _first_json(out)
@@ -638,14 +665,14 @@ def apply(v, plan, jd=''):
     return out, rep
 
 
-AUDIT = """You check resume rewrites for honesty. Each item has the candidate's ORIGINAL bullet (the truth) and a NEW version.
-Flag a NEW version if it claims anything the ORIGINAL does not support, even slightly:
-- more ownership ("ran" or "led" an A/B test the original only "analyzed"; "managed" what was "maintained"; "built" what was "helped build")
-- a purpose, audience, scope, outcome or causal link that is not stated ("to support due diligence", "driving a 1.8% lift" for "showed a 1.8% lift")
-- a dropped qualifier that changes the claim ("top 3 of 17" without "in the New England region"; "estimated" savings stated as real)
-- a number attached to a different thing, or a different kind of test/equipment ("shaker rig" for "rig")
-Rewording, reordering, mirroring the posting's vocabulary for the SAME fact, and cutting words are fine. A tool, title or
-detail stated in the item's "entry" (the same role or project: its title, tech list, other bullets) is supported too.
+AUDIT = """You check resume rewrites. Each item has the candidate's ORIGINAL bullet (the truth) and a NEW version. Resumes
+reframe work to fit a job, and that is fine: a stronger verb that still fits their role ("built" for "wrote", "ran" for
+"analyzed"), the obvious purpose or audience of the work, the posting's vocabulary for the same work, and cutting minor
+qualifiers. Flag ONLY claims a recruiter, interviewer or reference check would catch as false:
+- a new or changed number, metric, percentage, team size, user count or dollar amount, or a number moved to a different thing
+- a job title, employer, degree, award, rank/placement or date that differs from the original or the item's "entry"
+- leading or managing people or teams they only joined or supported
+New tools, methods, technologies, outcomes and purposes are ALLOWED (the candidate chose this); never flag them.
 Reply with ONLY JSON: {"overclaims": [{"id": "<item id>", "why": "<short reason>"}]}
 
 ITEMS:
@@ -923,18 +950,23 @@ def learn_avoid(v):
 # on this computer (Claude/Codex speed differs a lot between people and plans)
 STAGES = [('plan', 'Writing your resume plan'), ('fix', 'Fixing lines the fact checker flagged'),
           ('audit', 'Checking every rewrite is true'), ('fit', 'Fitting one page and making the PDF')]
-DEFAULT_SECS = {'plan': 140, 'fix': 110, 'audit': 25, 'fit': 20}   # Sonnet-speed starting points; each computer learns its own
+DEFAULT_SECS = {'plan': 25, 'fix': 22, 'audit': 25, 'fit': 15}   # Sonnet without extended thinking; each computer learns its own
 PROGRESS = {}
 
 
 def _timings():
     from . import store
     t = store.load('timings.json', {}) or {}
-    return {k: {'avg': float((t.get(k) or {}).get('avg', d)), 'n': int((t.get(k) or {}).get('n', 0)),
+    # a step never measured on this computer uses the starting point, not whatever was stored before it ran once
+    S = {'len': 4400.0, 'rate': 330.0, 'wait': 3.0}   # a plan's length, writing speed (chars/s) and wait before the first word
+    return {k: {'avg': float((t.get(k) or {}).get('avg', d)) if int((t.get(k) or {}).get('n', 0)) else float(d),
+                'n': int((t.get(k) or {}).get('n', 0)),
+                **{x: float((t.get(k) or {}).get(x, S[x])) if int((t.get(k) or {}).get('sn', 0)) else S[x] for x in S},
+                'sn': int((t.get(k) or {}).get('sn', 0)),
                 'p': float((t.get(k) or {}).get('p', 0.6 if k == 'fix' else 1.0))} for k, d in DEFAULT_SECS.items()}
 
 
-def _record(secs):
+def _record(secs, stream=None):
     """Learn each step's typical length (and how often the optional fix step runs) from finished builds."""
     from . import store
     try:
@@ -947,6 +979,11 @@ def _record(secs):
                 r['n'] += 1
             if k == 'fix' and 'plan' in secs:
                 r['p'] = (1 - w) * r['p'] + w * (1.0 if 'fix' in secs else 0.0)
+            if stream and k in stream:   # how long the reply was, how fast it came, how long before it started
+                ws = 0.5 if r['sn'] < 3 else 0.25
+                for x in ('len', 'rate', 'wait'):
+                    r[x] = (1 - ws) * r[x] + ws * stream[k][x] if r['sn'] else stream[k][x]
+                r['sn'] += 1
         store.save('timings.json', t)
     except Exception:
         pass
@@ -956,16 +993,29 @@ class _Track:
     def __init__(self, key, ai):
         import time
         self.key, self.t0, self.secs, self.cur, self.at = key, time.time(), {}, None, time.time()
+        self.chars, self.first, self.stream = 0, None, {}
         self.skip = set() if ai else {'plan', 'fix'}
         PROGRESS[key] = self
         if ai:
             self.stage('plan')
 
+    def written(self, n):
+        import time
+        if self.first is None:
+            self.first = time.time()
+        self.chars = n
+
+    def _close(self, now):
+        if self.cur:
+            self.secs[self.cur] = now - self.at
+            if self.chars > 200 and self.first:
+                self.stream[self.cur] = {'len': self.chars, 'rate': self.chars / max(0.5, now - self.first), 'wait': self.first - self.at}
+        self.chars, self.first = 0, None
+
     def stage(self, name):
         import time
         now = time.time()
-        if self.cur:
-            self.secs[self.cur] = now - self.at
+        self._close(now)
         for k, _ in STAGES:   # steps between the last one and this one didn't happen this time
             if k == name:
                 break
@@ -975,9 +1025,8 @@ class _Track:
 
     def done(self):
         import time
-        if self.cur:
-            self.secs[self.cur] = time.time() - self.at
-        _record(self.secs)
+        self._close(time.time())
+        _record(self.secs, self.stream)
         PROGRESS.pop(self.key, None)
 
     def view(self):
@@ -992,9 +1041,20 @@ class _Track:
                 left += t[k]['avg'] * (t[k]['p'] if k == 'fix' else 1)
         inside = now - self.at
         avg = t[cur]['avg']
-        # past its usual length a step is nearly done, but never "0 seconds" while it is still running
-        left += max(avg - inside, min(20.0, 0.15 * inside + 3))
-        return {"stage": cur, "elapsed": round(now - self.t0, 1), "eta": round(left, 1), "slow": inside > avg * 1.15 + 5,
+        s = t[cur]
+        if cur in ('plan', 'fix') and self.first:   # the reply is being written: time left from what's left to write
+            rate = max(30.0, self.chars / max(0.5, now - self.first))
+            here = max(s['len'] * 1.05 - self.chars, s['len'] * 0.04) / rate
+            slow_now = False
+        elif cur in ('plan', 'fix') and s['sn']:     # waiting for the first word, then the usual length at the usual speed
+            here = max(s['wait'] - inside, 1.5) + s['len'] / s['rate']
+            slow_now = inside > s['wait'] * 1.5 + 8
+        else:   # past its usual length a step is nearly done, but never "0 seconds" while it is still running
+            here = max(avg - inside, min(20.0, 0.15 * inside + 3))
+            slow_now = inside > avg * 1.15 + 5
+        left += here
+        return {"stage": cur, "elapsed": round(now - self.t0, 1), "eta": round(left, 1), "slow": slow_now,
+                "written": self.chars if cur in ('plan', 'fix') else 0,
                 "steps": [{"id": k, "label": lab, "state": 'done' if k in self.secs else 'now' if k == cur else
                            'skipped' if k in self.skip else 'next'} for k, lab in STAGES]}
 
@@ -1007,6 +1067,7 @@ def progress(key):
 def tailor(v, job, jd, mode='auto', plan=None, style=None, out_dir=None):
     """Full pipeline -> {pdf, pages, ats before/after, rewrites}."""
     track = _Track(job.get('id', 'general'), ai=plan is None and mode in ('auto', 'api'))
+    _SINK.fn = track.written   # this thread's model calls report the reply as it's written
     try:
         r = _tailor(v, job, jd, mode, plan, style, out_dir, track)
         track.done()
@@ -1014,6 +1075,8 @@ def tailor(v, job, jd, mode='auto', plan=None, style=None, out_dir=None):
     except Exception:
         PROGRESS.pop(track.key, None)
         raise
+    finally:
+        _SINK.fn = None
 
 
 def _tailor(v, job, jd, mode, plan, style, out_dir, track):
@@ -1029,7 +1092,7 @@ def _tailor(v, job, jd, mode, plan, style, out_dir, track):
                 if left < 90:
                     break
                 try:
-                    plan = call_llm(prompt(v, job, jd, ctx), timeout=min(200, left))   # a full plan takes Sonnet ~2 min
+                    plan = call_llm(prompt(v, job, jd, ctx), timeout=min(200, left), think=False)   # ~20 s without extended thinking
                 except Exception:
                     plan = None
                 if plan:
@@ -1050,7 +1113,7 @@ def _tailor(v, job, jd, mode, plan, style, out_dir, track):
                '\n\nReturn the same JSON plan with each rejected rewrite fixed: keep its facts exactly as the vault states them '
                '(no new numbers, tools or claims), or use the bullet id as-is. Change nothing else.')
         try:
-            plan2 = call_llm(fix, timeout=200)
+            plan2 = call_llm(fix, timeout=200, think=False)
             if plan2:
                 res2, rep2 = apply(v, plan2, jd)
                 if len(rep2['rejected']) < len(rep['rejected']):
