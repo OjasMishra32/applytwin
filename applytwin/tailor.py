@@ -137,7 +137,7 @@ IMPACT = re.compile(r'\b(1st|2nd|3rd|first place|second place|winner|won|finalis
 # bullets a recruiter skips: no scope, no result, chores. Never kept when the same entry has a stronger true one unused.
 WEAK = re.compile(r'^\W*(help(ed|s|ing)?|assist(ed|s|ing)?|attend(ed|s)?|participat(ed|es)|complet(ed|es) (training|onboarding)|'
                   r'responsible for|worked on|did|cleaned|created some|made some|was part of|took part|shadow(ed|s)|learn(ed|s|ing)|'
-                  r'maintain(ed|s)? (shop|lab|the)|answer(ed|s) (customer )?questions|present(ed|s) (my |our |a |the )?final|'
+                  r'maintain(ed|s)? (shop|lab|the)|answer(ed|s|ing)? (\w+ )?questions|checked out|stock(ed|ing) shelves|cashier|present(ed|s) (my |our |a |the )?final|'
                   r'organiz(ed|es) (events|socials)|supported (vehicle )?teardowns|gained|exposed to|familiariz)\b'
                   r'|\b(ITAR|safety|compliance|onboarding|orientation) training\b|\bintern (events?|socials?)\b|'
                   r'\bagile ceremonies\b|\bad[- ]hoc requests\b', re.I)
@@ -683,7 +683,7 @@ def _same_fact(a, b):
     """Two lines stating one fact: most words shared, or the same distinctive figure ('6x', '1e-12', '4B+') with real overlap."""
     wa, wb = _words(ats.plain(a)), _words(ats.plain(b))
     j = len(wa & wb) / (len(wa | wb) or 1)
-    figs = lambda t: {m for m in re.findall(r'\d[\d.,]*\s*(?:x|%|[kmb]\+?|e-?\d+)\b', ats.plain(t).lower())}
+    figs = lambda t: {m for m in re.findall(r'\d[\d.,]*\s*(?:x|%|[kmb]\+?|e-?\d+)\b|\d[\d.,]*\+?\s+[a-z][a-z-]{3,}', ats.plain(t).lower())}
     return j > 0.55 or (j > 0.25 and bool(figs(a) & figs(b)))
 
 
@@ -926,7 +926,7 @@ def tailor(v, job, jd, mode='auto', plan=None, style=None, out_dir=None):
                '\n\nReturn the same JSON plan with each rejected rewrite fixed: keep its facts exactly as the vault states them '
                '(no new numbers, tools or claims), or use the bullet id as-is. Change nothing else.')
         try:
-            plan2 = call_llm(fix, timeout=120)
+            plan2 = call_llm(fix, timeout=200)
             if plan2:
                 res2, rep2 = apply(v, plan2, jd)
                 if len(rep2['rejected']) < len(rep['rejected']):
