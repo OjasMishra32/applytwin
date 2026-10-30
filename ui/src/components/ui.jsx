@@ -126,10 +126,10 @@ export const guessDomain = name => {
   return base ? base + '.com' : ''
 }
 
-export function Avatar({ name, size = 40, domain }) {
+export function Avatar({ name, size = 40, domain, icon }) {
   const [ok, setOk] = useState(true)
   const d = domain || guessDomain(name)
-  const src = d ? `https://www.google.com/s2/favicons?domain=${d}&sz=128` : ''
+  const src = icon || (d ? `https://www.google.com/s2/favicons?domain=${d}&sz=128` : '')
   const r = Math.round(size * 0.28)
   return (
     <div className="logo relative grid shrink-0 place-items-center overflow-hidden bg-white" style={{ width: size, height: size, borderRadius: r, boxShadow: "0 0 0 .5px rgb(0 0 0 / .1), 0 1px 3px rgb(0 0 0 / .06)" }}>
