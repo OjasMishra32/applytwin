@@ -963,10 +963,10 @@ def import_history(csv_path=None, text=None):
             continue
         if idx['status'] is not None and not status:
             continue   # a saved-but-not-applied row
-        st = 'skipped' if re.search(r'saved|wishlist|bookmark|interested|to apply', status, re.I) and not re.search(r'appl', status, re.I) else \
-             'applied' if not status or re.search(r'appl|interview|offer|reject|oa|assessment|screen', status, re.I) else 'skipped'
-        if st == 'skipped' and re.search(r'saved|wishlist|bookmark|to apply', status, re.I):
+        # intent first: "To apply", "Want to apply", "Not applied", "Interested" are plans, not applications
+        if re.search(r"\bnot\b|n't|\bto apply|want|plan|interested|saved|wishlist|bookmark|considering|maybe|later|draft", status, re.I):
             continue   # never applied: leave it in the queue
+        st = 'applied' if not status or re.search(r'appl|submit|interview|offer|reject|\boa\b|assessment|screen|ghost|declin', status, re.I) else 'skipped'
         for m in re.findall(r'(?:token=|/jobs/|/)([0-9a-f]{8}-[0-9a-f-]{27}|\d{5,})', url or ''):
             ids[m] = st
         names[role_key(company, title)] = st

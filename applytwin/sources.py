@@ -111,7 +111,7 @@ def greenhouse(token):
     for j in d.get('jobs', []):
         yield job('greenhouse', j['id'], name, j.get('title'), (j.get('location') or {}).get('name', ''),
                   j.get('absolute_url'), f'https://job-boards.greenhouse.io/embed/job_app?for={token}&token={j["id"]}',
-                  j.get('updated_at', ''), strip_html(j.get('content', '')))
+                  j.get('first_published') or j.get('updated_at', ''), strip_html(j.get('content', '')))   # updated_at moves daily
 
 
 def lever(company):
