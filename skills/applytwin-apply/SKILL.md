@@ -26,11 +26,12 @@ themselves on a careful day.
    - `applytwin_tailor_apply(job_id, plan)` -> returns `pdf` and `tex` (LaTeX source). Check `pages == 1`, `coverage`, `rejected`. If coverage is low and
      the vault has relevant material you left out, revise the plan once. Use the returned `pdf`.
 4. **Prepare answers**: Greenhouse: `applytwin_job_questions(job_id)`. Others: read the form's questions, then
-   `applytwin_answer_questions([{question, options}])`. Anything returned null: collect it, ask the user ONCE
+   `applytwin_answer_questions([{question, options}])`. Results with `action: "write"` are open-ended questions
+   (why this company, what interested you, anything else): write them yourself following `how`, never ask the user and
+   never leave them blank. Anything else returned null is a fact only the user knows: collect those, ask the user ONCE
    for all of them (batch across jobs when you can), then `applytwin_save_answer` each.
 5. **Fill**: open `apply_url`, `applytwin_playbook(<job.ats>)`, and fill every field. Upload the tailored PDF.
-   Write short optional answers (why this company, anything else) from the vault + posting: specific,
-   2-4 sentences, no clichés, no em dashes.
+   Write every open-ended answer (required or optional) from the vault + posting, following the `how` rules from step 4.
 6. **Verify**: read back every field value; fix anything empty or wrong (selects especially).
 7. **Submit or hand off**:
    - `auto_submit` true: submit once, confirm the success page, `applytwin_log_application(job_id, "Applied",
@@ -43,8 +44,7 @@ themselves on a careful day.
      the last 15 minutes, read the code, type it. Never forward, store or show codes anywhere else.
    - otherwise: `applytwin_notify(title="Code needed for <company>", message="Check your email and type it in the open tab", url, job_id)`,
      log "Needs User", leave the tab open, and move on.
-9. **Only-the-user steps** (sign-in, password, account creation, CAPTCHA, arbitration, assessments, long essays they did not
-   pre-approve): `applytwin_notify(...)` with exactly what is needed and the URL, log "Needs User", keep the tab, continue.
+9. **Only-the-user steps** (sign-in, password, account creation, CAPTCHA, arbitration, assessments, essays over ~250 words): `applytwin_notify(...)` with exactly what is needed and the URL, log "Needs User", keep the tab, continue.
 10. **Coming back**: at the end of the run (and whenever the user says they handled something) call `applytwin_pending_jobs`
    and finish each one that is now unblocked, then `applytwin_log_application(..., "Applied")`.
 

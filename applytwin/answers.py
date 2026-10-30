@@ -76,7 +76,14 @@ def default_bank(p):
         ('website', 'Website / portfolio', r'website|portfolio|personal (site|url)', p.get('website', '')),
         ('phone', 'Phone', r'^(phone|mobile|cell)', p.get('phone', '')),
         ('email', 'Email', r'^e-?mail', p.get('email', '')),
-        ('location', 'Current location', r'(?<![a-z])(current )?(location|city)( of residence)?$|where are you (located|based)', p.get('location', '')),
+        # forms that split the address into fields (checked before the combined 'location' question)
+        ('address2', 'Address line 2', r'address line ?2|address ?2\b|apartment|suite|\bunit\b|\bapt\b', p.get('address2', '')),
+        ('address', 'Street address', r'^(home |mailing |current |street |permanent |residential )?address( line ?1| ?1)?\b(?!.*e-?mail)|^street', p.get('address', '')),
+        ('city', 'City', r'^(current )?city\b(?!,? ?(and|&|/) ?state)|^town\b', (p.get('location', '') or '').split(',')[0].strip()),
+        ('state', 'State / province', r'^(state|province|region)( or province| / province)?( of residence)?$', (p.get('location', '').split(',')[1].strip() if ',' in (p.get('location') or '') else '')),
+        ('postal_code', 'ZIP / postal code', r'\bzip\b|postal|post code|postcode', p.get('postal_code', '')),
+        ('country', 'Country', r'^(current )?country( of residence)?$|^country\b(?!.*(citizen|authori))', p.get('country', '')),
+        ('location', 'Current location', r'(?<![a-z])(current )?(location|city)( of residence)?$|city,? ?(and|&|/) ?state|where are you (located|based)', p.get('location', '')),
         ('gender', 'Gender', r'\bgender\b|\bsex\b', s.get('gender', '')),
         ('race', 'Race / ethnicity', r'\brace\b|ethnic', s.get('race', '')),
         ('hispanic', 'Are you Hispanic or Latino?', r'hispanic|latin[oax]', s.get('hispanic', '')),
@@ -93,6 +100,26 @@ def default_bank(p):
 
 def _tokens(s):
     return {w for w in re.findall(r'[a-z0-9]+', (s or '').lower()) if w not in STOP and len(w) > 1}
+
+
+# Questions with no single right answer ("What interested you in CFS?", "Anything else?"): the agent writes these per job.
+OPEN_ENDED = re.compile(r'\bwhy\b|interest(ed|s)? (you|in)|what (draws|drew|attracts|excites|motivates)|tell us (about|why|what)|'
+                        r'\bdescribe\b|\bexplain\b|cover letter|anything else|additional (information|comments)|what makes you|'
+                        r'how (would|will|do) you|share (a|an|your|any)|in your own words|\bmotivat|what do you hope|'
+                        r'what are you (looking|hoping)|walk us through|\bessay\b', re.I)
+
+WRITE_RULES = (
+    "Write this one yourself, for this job only. Read the posting (applytwin_get_job) and the user's vault. "
+    "2-4 sentences and under 90 words unless the form asks for more; stay under any character limit. First person, plain words, "
+    "the way a sharp student writes in five minutes. Name one specific thing about this company or role from the posting and tie "
+    "it to one real thing the user did, with its real numbers. Do not restate the question, do not open with 'I am excited', "
+    "'passionate' or 'thrilled', no 'not only X but Y' or 'it's not X, it's Y', no em dashes, no list of three, no closing line "
+    "that sums up, no buzzwords (leverage, cutting-edge, innovative, synergy, dynamic, journey, impactful). Never invent "
+    "experience, interests or facts. Do not save it with applytwin_save_answer: it is specific to this company.")
+
+
+def open_ended(question):
+    return bool(OPEN_ENDED.search(question or ''))
 
 
 def match(question, bank, options=None):
@@ -118,6 +145,8 @@ def match(question, bank, options=None):
             if j > conf:
                 best, conf = row, j
         conf = min(0.85, conf * 1.3)
+    if (not best or conf < 0.92) and open_ended(q):   # nothing saved fits exactly: write it for this job
+        return {"question": q, "answer": None, "confidence": 0, "key": None, "action": "write", "how": WRITE_RULES}
     if not best or conf < 0.45 or best.get('answer') in (None, ''):
         return {"question": q, "answer": None, "confidence": round(conf, 2), "key": best.get('key') if best else None,
                 "action": "ask the user, then applytwin_save_answer"}
@@ -163,6 +192,10 @@ QUESTIONS = [   # (key, label, group, kind, options, optional, hint)  ... kind: 
     ('email', 'Email', 'You', 'text', None, False, ''),
     ('phone', 'Phone', 'You', 'text', None, False, ''),
     ('location', 'Where you live', 'You', 'text', None, False, 'City, State'),
+    ('address', 'Street address', 'You', 'text', None, False, '123 Main St'),
+    ('address2', 'Apartment, suite or unit', 'You', 'text', None, True, 'Apt 4B'),
+    ('postal_code', 'ZIP or postal code', 'You', 'text', None, False, ''),
+    ('country', 'Country', 'You', 'text', None, False, 'United States'),
     ('linkedin', 'LinkedIn', 'You', 'text', None, True, 'linkedin.com/in/...'),
     ('github', 'GitHub', 'You', 'text', None, True, ''),
     ('website', 'Website or portfolio', 'You', 'text', None, True, ''),

@@ -45,8 +45,11 @@ GET = {
     r'/api/agents': lambda m, qs, b: api.agent_status(),
     r'/api/auth': lambda m, qs, b: cloud.status(),
     r'/api/inbox': lambda m, qs, b: api.inbox_poll(),
+    r'/api/jobs/([\w-]+)/thread': lambda m, qs, b: {"thread": api.thread(m.group(1))},
     r'/api/auth/login': lambda m, qs, b: {"url": cloud.login_url(_q(qs, 'redirect', 'http://localhost:4747/'))},
 }
+_UNKNOWN = set()
+
 POST = {
     r'/api/profile': lambda m, qs, b: api.update_profile(b),
     r'/api/vault': lambda m, qs, b: api.save_vault(b),
@@ -57,6 +60,7 @@ POST = {
     r'/api/scan': lambda m, qs, b: api.scan(b.get('sources'), background=True),
     r'/api/jobs': lambda m, qs, b: api.add_job(b['url'], b.get('title', ''), b.get('company', ''), b.get('description', '')),
     r'/api/jobs/([\w-]+)/skip': lambda m, qs, b: api.skip_job(m.group(1)),
+    r'/api/jobs/([\w-]+)/message': lambda m, qs, b: api.message(m.group(1), b.get('text', '')),
     r'/api/jobs/([\w-]+)/status': lambda m, qs, b: api.set_job_status(m.group(1), b['status']),
     r'/api/jobs/([\w-]+)/tailor': lambda m, qs, b: api.tailor_apply(m.group(1), b.get('plan'), b.get('template'), b.get('mode', 'auto')),
     r'/api/jobs/([\w-]+)/prompt': lambda m, qs, b: api.tailor_prompt(m.group(1)),
@@ -90,7 +94,10 @@ class H(BaseHTTPRequestHandler):
         self.send_header('Content-Length', str(len(data)))
         self.send_header('Cache-Control', 'no-store')
         self.end_headers()
-        self.wfile.write(data)
+        try:
+            self.wfile.write(data)
+        except (BrokenPipeError, ConnectionResetError):
+            pass   # the page went away (reload, closed tab) before the answer arrived; nothing to do
 
     def _route(self, table, body=None):
         u = urllib.parse.urlparse(self.path)
@@ -110,6 +117,9 @@ class H(BaseHTTPRequestHandler):
         qs = urllib.parse.parse_qs(u.query)
         if u.path.startswith('/api/'):
             if self._route(GET) is None:
+                if u.path not in _UNKNOWN:   # say it once per path, not on every poll
+                    _UNKNOWN.add(u.path)
+                    print(f'Unknown request: GET {u.path} (an old tab? reload it)', flush=True)
                 self._send(404, {"error": "ApplyTwin is switching to a new version. Try again in a few seconds."})
             return
         if u.path == '/preview':
@@ -271,7 +281,7 @@ def serve(port=4747, open_browser=True):
     # on start: re-apply the current matching rules to saved jobs (so fixes like the skip list reach existing queues),
     # then refresh jobs if the last scan is old
     from . import install
-    threading.Thread(target=lambda: (install.refresh_skills(), api.rescore(), api.scan_if_stale()), daemon=True).start()
+    threading.Thread(target=lambda: (install.refresh_skills(), install.refresh_browser(), api.rescore(), api.scan_if_stale()), daemon=True).start()
     threading.Thread(target=_update_loop, daemon=True).start()
     threading.Thread(target=_code_watch, daemon=True).start()
     from . import telemetry

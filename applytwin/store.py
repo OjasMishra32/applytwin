@@ -147,6 +147,8 @@ create table if not exists applications(
 create table if not exists claims(job_id text primary key, who text, at real);
 create table if not exists inbox(id integer primary key autoincrement, kind text, title text, message text, url text, job_id text,
   at real, resolved real);
+create table if not exists thread(id integer primary key autoincrement, job_id text, role text, text text, at real);
+create index if not exists thread_job on thread(job_id);
 """
 
 

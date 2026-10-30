@@ -222,7 +222,10 @@ def html_to_pdf(doc, out_pdf):
         src = os.path.join(td, 'resume.html')
         with open(src, 'w', encoding='utf-8') as f:
             f.write(doc)
-        cmd = [chrome(), '--headless=new', '--disable-gpu', '--no-sandbox', '--no-pdf-header-footer',
+        # --use-mock-keychain / --password-store=basic: a fresh Chrome profile otherwise asks the macOS keychain (or the
+        # Linux keyring) for its password store on every launch, which pops "A keychain cannot be found" over and over
+        cmd = [chrome(), '--headless=new', '--disable-gpu', '--no-sandbox', '--no-pdf-header-footer', '--use-mock-keychain',
+               '--password-store=basic', '--no-first-run', '--no-default-browser-check', '--disable-extensions', '--disable-sync',
                '--print-to-pdf-no-header', f'--user-data-dir={td}/profile', f'--print-to-pdf={out_pdf}', 'file://' + src]
         subprocess.run(cmd, capture_output=True, timeout=90)
     if not os.path.exists(out_pdf):

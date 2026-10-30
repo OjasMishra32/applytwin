@@ -151,6 +151,28 @@ def main():
         time.sleep(0.2)
     store.save('profile.json', {**store.profile(), "apply": {**store.profile()['apply'], "stuck_minutes": 20}})
 
+    # talking to the twin about one application: instant answers, "I submitted it", and real requests that reach the agent
+    j3 = sources.job('manual', 'https://jobs.lever.co/acme/9999', 'Acme', 'Quant Intern', '', 'https://jobs.lever.co/acme/9999')
+    store.execute('insert or replace into jobs(id,source,company,title,url,apply_url,ats,found_at,fit,status) values(?,?,?,?,?,?,?,?,?,?)',
+                  (j3['id'], 'manual', 'Acme', 'Quant Intern', j3['url'], j3['url'], 'lever', time.time(), 80, 'new'))
+    api.notify('Acme needs a CAPTCHA', 'Solve it in the open tab, then submit', job_id=j3['id'])
+    api.log_application(j3['id'], 'Needs User', 'Filled; blocked by hCaptcha')
+    t1 = api.message(j3['id'], 'did you submit this?')['thread']
+    check('"did you submit this?" gets an instant, true answer', t1[-1]['role'] == 'twin' and t1[-1]['text'].startswith('No, it isn'), t1[-1]['text'][:60])
+    api.message(j3['id'], 'use my "CMU" project for the why-us answer & resubmit')
+    for _ in range(100):
+        if not api.run_status()['running']:
+            break
+        time.sleep(0.2)
+    got = open(os.path.join(os.environ['APPLYTWIN_HOME'], 'claude_stdin.txt'), encoding='utf-8').read()
+    check('a request about one application reaches the agent with that job and your words', j3['id'] in got and 'use my "CMU" project' in got and 'applytwin_reply' in got)
+    api.reply(j3['id'], 'Updated the answer and submitted it.')
+    check("the twin's reply shows in that application's conversation", api.thread(j3['id'])[-1]['text'] == 'Updated the answer and submitted it.')
+    t2 = api.message(j3['id'], 'I submitted it myself')['thread']
+    check('"I submitted it" marks it applied and clears it from Needs you',
+          t2[-1]['text'] == 'Marked as applied.' and not any(r['job_id'] == j3['id'] for r in api.pending_jobs()) and
+          not any(i['job_id'] == j3['id'] for i in api.inbox()))
+
     # roles already applied to elsewhere (found in email) stay out of the queue, even ones a later scan finds
     r = api.import_applied([{'company': 'Initech', 'title': 'Software Engineer Intern - Summer 2027'},
                             {'company': 'Globex', 'title': 'Data Analyst Intern', 'url': 'https://boards.greenhouse.io/globex/jobs/7654321'}])

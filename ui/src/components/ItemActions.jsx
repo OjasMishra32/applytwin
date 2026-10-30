@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { api } from '../lib/api'
 
@@ -38,7 +38,16 @@ export function ItemActions({ item, onDone, compact }) {
   const skip = () => run('skip', () => api(`/api/jobs/${job}/skip`, {}), { title: 'Skipped', body: 'Your twin won\'t apply to this one.' })
   const btn = 'h-8 rounded-full px-3.5 text-[12.5px] font-semibold transition disabled:opacity-50'
   const primary = btn + ' bg-signal text-white hover:bg-[#2b95ff]', secondary = btn + ' bg-white/[.08] text-white hover:bg-white/[.13]'
-  return (
+  const said = async text => {
+    setBusy('said')
+    try {
+      const r = await api(`/api/jobs/${job}/message`, { text })
+      const last = r.thread.at(-1)?.text || ''
+      if (/^(Marked as applied|Skipped)/.test(last)) { toast.success(last); onDone?.() }
+    } catch (e) { toast.error(e.message) }
+    setBusy('')
+  }
+  return (<>
     <div className={'flex flex-wrap items-center gap-2 ' + (compact ? 'mt-2' : '')}>
       {kind === 'ready' && job && <>
         <button disabled={!!busy} onClick={() => finish(true)} className={primary}>{busy === 'submit' ? 'Starting…' : 'Submit it'}</button>
@@ -50,8 +59,64 @@ export function ItemActions({ item, onDone, compact }) {
       </>}
       {kind === 'question' && job && <button disabled={!!busy} onClick={() => finish(false)} className={secondary}>{busy === 'refill' ? 'Starting…' : 'Answered, finish it'}</button>}
       {kind === 'other' && item.url && <a href={item.url} target="_blank" rel="noreferrer" className={secondary + ' inline-flex items-center'}>Open</a>}
+      {job && (kind === 'ready' || kind === 'signin' || /captcha|submit/i.test(`${item.title} ${item.message || ''} ${item.notes || ''}`)) &&
+        <button disabled={!!busy} onClick={() => said('I submitted it')} className={secondary}>I submitted it</button>}
       {job && kind !== 'other' && <button disabled={!!busy} onClick={skip} className={secondary}>{busy === 'skip' ? 'Skipping…' : 'Skip this job'}</button>}
-      {typeof item.id === 'number' && <button onClick={async () => { await api(`/api/inbox/${item.id}/resolve`, {}); onDone?.() }} className="h-8 px-2 text-[12.5px] text-muted hover:text-white">Dismiss</button>}
+      {(typeof item.id === 'number' || job) && <button onClick={async () => {
+        if (typeof item.id === 'number') await api(`/api/inbox/${item.id}/resolve`, {})
+        else await api(`/api/jobs/${job}/skip`, {})   // a job still waiting on you: dismissing it means don't apply
+        onDone?.()
+      }} className="h-8 px-2 text-[12.5px] text-muted hover:text-white">Dismiss</button>}
+    </div>
+    {job && <Talk job={job} onDone={onDone} />}
+  </>)
+}
+
+/* A conversation with your twin about this one application: ask whether it went through, tell it you submitted it yourself,
+   or tell it what to change. Simple things are answered instantly; the rest goes to your agent, which replies here. */
+function Talk({ job, onDone }) {
+  const [msgs, setMsgs] = useState([])
+  const [t, setT] = useState('')
+  const [busy, setBusy] = useState(false)
+  const box = useRef(null)
+  useEffect(() => {
+    let live = true
+    const load = () => api(`/api/jobs/${job}/thread`).then(r => { if (live) setMsgs(r.thread) }).catch(() => {})
+    load(); const i = setInterval(load, 5000)
+    return () => { live = false; clearInterval(i) }
+  }, [job])
+  useEffect(() => { if (box.current) box.current.scrollTop = box.current.scrollHeight }, [msgs.length])
+  const first = msgs.findIndex(m => m.role === 'you')
+  const shown = first < 0 ? [] : msgs.slice(first)
+  const send = async e => {
+    e.preventDefault()
+    const text = t.trim()
+    if (!text || busy) return
+    setBusy(true); setT('')
+    try {
+      const r = await api(`/api/jobs/${job}/message`, { text })
+      setMsgs(r.thread)
+      const last = r.thread.at(-1)?.text || ''
+      if (/^(Marked as applied|Skipped)/.test(last)) { toast.success(last); onDone?.() }
+    } catch (err) { toast.error(err.message); setT(text) }
+    setBusy(false)
+  }
+  return (
+    <div className="mt-3">
+      {shown.length > 0 && (
+        <div ref={box} className="mb-2 max-h-56 space-y-1.5 overflow-y-auto">
+          {shown.map((m, i) => (
+            <div key={i} className={'flex ' + (m.role === 'you' ? 'justify-end' : 'justify-start')}>
+              <div className={'max-w-[85%] rounded-[14px] px-3 py-1.5 text-[13px] leading-snug ' +
+                (m.role === 'you' ? 'bg-signal text-white' : 'bg-white/[.08] text-white/90')}>{m.text}</div>
+            </div>))}
+        </div>)}
+      <form onSubmit={send} className="flex items-center gap-2">
+        <input value={t} onChange={e => setT(e.target.value)} placeholder="Message your twin about this one, like: did you submit it?"
+          className="h-9 min-w-0 flex-1 rounded-full bg-white/[.06] px-3.5 text-[13px] text-white outline-none placeholder:text-faint focus:ring-2 focus:ring-signal" />
+        <button disabled={busy || !t.trim()} className="h-9 rounded-full bg-white/[.1] px-3.5 text-[12.5px] font-semibold text-white transition hover:bg-white/[.16] disabled:opacity-40">
+          {busy ? 'Sending…' : 'Send'}</button>
+      </form>
     </div>
   )
 }

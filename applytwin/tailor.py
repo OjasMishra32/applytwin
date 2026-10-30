@@ -226,8 +226,8 @@ RESUME WRITING GUIDE (follow it):
 POSTING: {job.get('title', '')} at {job.get('company', '')} ({job.get('location', '')})
 {jd[:9000]}
 
-CAREER VAULT (entry ids are the "id" fields; bullet n is the nth item of "bullets"):
-{json.dumps({k: v[k] for k in v if k not in ('titles',)}, ensure_ascii=False)[:30000]}
+CAREER VAULT (entry ids are the "id" fields; every bullet is shown with its exact id, like "drift.0": use those ids as given):
+{json.dumps(_with_bullet_ids(v), ensure_ascii=False)[:30000]}
 """
 
 
@@ -290,6 +290,32 @@ def call_llm(text, timeout=600):
 
 # ---------------------------------------------------------------- apply a plan
 
+def _with_bullet_ids(v):
+    """The vault as the model sees it: each bullet labeled with its id, so nobody has to count (counting from 1 instead of 0
+    once shifted every bullet on a resume)."""
+    out = {k: v[k] for k in v if k != 'titles'}
+    for sec in ENTRY_SECS:
+        out[sec] = [{**e, 'bullets': [{'id': f"{e['id']}.{i}", 'text': b} for i, b in enumerate(e.get('bullets', []))]}
+                    for e in v.get(sec, [])]
+    return out
+
+
+def _words(s):
+    return set(re.findall(r'[a-z0-9]+', (s or '').lower()))
+
+
+def _closest(bullets, text):
+    """Index of the vault bullet a rewrite came from, by shared words (ids can be off by one; the words can't)."""
+    w = _words(text)
+    best, score = None, 0.0
+    for i, b in enumerate(bullets):
+        bw = _words(b)
+        s = len(w & bw) / (len(w | bw) or 1)
+        if s > score:
+            best, score = i, s
+    return best, score
+
+
 def apply(v, plan, jd=''):
     """Vault + plan -> concrete resume dict, plus a report of accepted/rejected rewrites."""
     v = ensure_ids(copy.deepcopy(v))
@@ -300,6 +326,12 @@ def apply(v, plan, jd=''):
     if plan.get('headline'):
         out['basics']['headline'] = [h for h in plan['headline'] if h in head] or head
     out['education'] = v.get('education', [])
+    # a plan that numbers bullets from 1 never uses .0 and points one past the end somewhere: shift it back
+    refs = [r for sec in ENTRY_SECS for c in (plan.get(sec) or []) if isinstance(c, dict) for r in (c.get('bullets') or [])]
+    nums = [(m.group(1), int(m.group(2))) for r in refs
+            for m in [re.match(r'(.+)\.(\d+)$', str(r.get('from') if isinstance(r, dict) else r))] if m]
+    allb = {e['id']: len(e.get('bullets', [])) for sec in ENTRY_SECS for e in v.get(sec, [])}
+    one_based = bool(nums) and all(n >= 1 for _, n in nums) and any(n == allb.get(i, -1) for i, n in nums)
     for sec in ENTRY_SECS:
         byid = {e['id']: e for e in v.get(sec, [])}
         chosen = plan.get(sec)
@@ -318,11 +350,23 @@ def apply(v, plan, jd=''):
                         [f'{cid}.{i}' for i in range(len(e.get('bullets', [])))]):
                 src_id, text = (ref.get('from'), ref.get('text')) if isinstance(ref, dict) else (ref, None)
                 m = re.match(r'(.+)\.(\d+)$', str(src_id or ''))
-                if not m or m.group(1) not in byid or int(m.group(2)) >= len(byid[m.group(1)].get('bullets', [])):
+                owner = byid.get(m.group(1)) if m else e
+                if owner is None:
+                    owner = e
+                obl = owner.get('bullets', [])
+                if not obl:
                     continue
-                orig = byid[m.group(1)]['bullets'][int(m.group(2))]
+                k = (int(m.group(2)) - (1 if one_based else 0)) if m else -1
+                if text:   # a rewrite: find the bullet it came from by its words
+                    near, score = _closest(obl, text)
+                    if near is not None and (not 0 <= k < len(obl) or score > len(_words(text) & _words(obl[k])) / (len(_words(text) | _words(obl[k])) or 1)):
+                        k = near
+                if not 0 <= k < len(obl):
+                    continue
+                orig = obl[k]
+                src_id = f"{owner['id']}.{k}"
                 if text and text.strip() != orig:
-                    src = byid[m.group(1)]
+                    src = owner
                     etxt = ' '.join([src.get('title', ''), src.get('org', ''), src.get('name', ''), src.get('tagline', ''),
                                      ' '.join(src.get('tech', []))] + src.get('bullets', []) + src.get('alts', []))
                     why = check_rewrite(orig, text, vt, jd, etxt)
@@ -331,7 +375,16 @@ def apply(v, plan, jd=''):
                         text = None
                     else:
                         rep['rewrites'].append({"bullet": src_id, "from": orig, "to": text})
-                bl.append(text or orig)
+                if (text or orig) not in bl:
+                    bl.append(text or orig)
+            # never ship a thin entry: roles keep at least 2 bullets and projects/leadership at least 1 when the vault has
+            # them (the renderer trims to one page afterwards, so this never overflows)
+            least = 2 if sec == 'experience' else 1
+            for b in e.get('bullets', []):
+                if len(bl) >= least:
+                    break
+                if b not in bl and not any(_closest([b], x)[1] > 0.5 for x in bl):
+                    bl.append(b)
             e2['bullets'] = bl
             lst.append(e2)
         out[sec] = lst

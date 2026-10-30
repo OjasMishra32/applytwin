@@ -50,7 +50,11 @@ def _copy_skills(dest):
 
 BROWSER_PROFILE = os.path.join(store.HOME, 'browser')
 # on Windows npx is npx.cmd, which agents can't launch by bare name
-PLAYWRIGHT = [shutil.which('npx') or 'npx' if platform.system() == 'Windows' else 'npx', '-y', '@playwright/mcp@latest', '--user-data-dir', BROWSER_PROFILE]
+# --sandbox: Playwright turns Chrome's sandbox off by default, which makes Chrome show an "unsupported command-line flag:
+# --no-sandbox" warning on every launch and leaves sites less isolated. Linux keeps the default: many distros block the
+# sandbox for apps like this, and Chrome would not start.
+PLAYWRIGHT = [shutil.which('npx') or 'npx' if platform.system() == 'Windows' else 'npx', '-y', '@playwright/mcp@latest', '--user-data-dir', BROWSER_PROFILE] \
+    + ([] if platform.system() == 'Linux' else ['--sandbox'])
 
 
 def install_claude():
@@ -108,6 +112,30 @@ def install():
     print(install_claude())
     print(install_codex())
     print('\nDone. In Claude Code or Codex, say: "set me up with applytwin" to onboard, then "twin: apply to my top 10".')
+
+
+def refresh_browser():
+    """Bring the twin's browser setup in Claude Code and Codex up to date when it was registered by an older version
+    (it only gets written at install time)."""
+    try:
+        cj = os.path.expanduser('~/.claude.json')
+        cur = (json.load(open(cj, encoding='utf-8')).get('mcpServers') or {}).get('playwright') if os.path.exists(cj) else None
+        claude = shutil.which('claude')
+        if claude and cur and BROWSER_PROFILE in (cur.get('args') or []) and cur.get('args') != PLAYWRIGHT[1:]:
+            subprocess.run([claude, 'mcp', 'remove', '--scope', 'user', 'playwright'], capture_output=True, timeout=60)
+            subprocess.run([claude, 'mcp', 'add', '--scope', 'user', 'playwright', '--'] + PLAYWRIGHT, capture_output=True, timeout=60)
+    except Exception:
+        pass
+    try:
+        cfg = os.path.expanduser('~/.codex/config.toml')
+        if os.path.exists(cfg):
+            txt = open(cfg, encoding='utf-8').read()
+            m = re.search(r'(\[mcp_servers\.playwright\]\n(?:(?!\n\[).)*?\nargs = )\[[^\n]*\]', txt, re.S)
+            want = '[' + ', '.join(json.dumps(x) for x in PLAYWRIGHT[1:]) + ']'
+            if m and json.dumps(BROWSER_PROFILE) in m.group(0) and not m.group(0).endswith(want):
+                open(cfg, 'w', encoding='utf-8').write(txt[:m.start()] + m.group(1) + want + txt[m.end():])
+    except Exception:
+        pass
 
 
 def refresh_skills():

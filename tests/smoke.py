@@ -76,6 +76,25 @@ _bank = _an.default_bank({**store.profile(), 'location': 'Gainesville, FL'})
 _q = [_an.match(x, _bank) for x in ('Race/Ethnicity', 'Current city')]
 res.append(ok((_q[0] or {}).get('answer') != 'Gainesville, FL' and (_q[1] or {}).get('answer') == 'Gainesville, FL',
               'Race/Ethnicity is never answered with your city'))
+store.execute("insert or replace into jobs(id,source,company,title,url,apply_url,ats,found_at,fit,status) values('pend1','t','Acme','Intern','u','u','lever',0,90,'new')")
+api.log_application('pend1', 'Needs User', 'sign-in needed')
+_before = any(r['job_id'] == 'pend1' for r in api.pending_jobs())
+api.skip_job('pend1')
+res.append(ok(_before and not any(r['job_id'] == 'pend1' for r in api.pending_jobs()), 'dismissing a job that needs you clears it'))
+_w = [_an.match(x, _bank) for x in ('Please tell us what interested you to apply to CFS', 'Anything else we should know?', 'How did you hear about us?')]
+res.append(ok(_w[0].get('action') == 'write' and _w[1].get('action') == 'write' and _w[2].get('action') != 'write' and 'em dash' in _w[0]['how'],
+              'open-ended questions get written for each job, facts still come from your answers'))
+# a plan that numbers bullets from 1 (what models naturally do) must not shift or drop bullets on everyone's resumes
+from applytwin import tailor as _tl
+_v = _tl.ensure_ids(json.load(open(os.path.join(ROOT, 'examples', 'resume.example.json'))))
+_roles = [e for e in _v['experience'] if len(e.get('bullets', [])) >= 2][:2]
+_plan = {"experience": [{"id": e['id'], "bullets": [f"{e['id']}.{i + 1}" for i in range(len(e['bullets']))]} for e in _roles]}
+_res, _ = _tl.apply(_v, _plan)
+_ok1 = all(r['bullets'] == e['bullets'] for r, e in zip(_res['experience'], _roles))
+_plan2 = {"experience": [{"id": e['id'], "bullets": [{"from": f"{e['id']}.{len(e['bullets'])}", "text": e['bullets'][-1]}]} for e in _roles]}
+_res2, _ = _tl.apply(_v, _plan2)
+_ok2 = all(len(r['bullets']) >= 2 and e['bullets'][-1] in r['bullets'] for r, e in zip(_res2['experience'], _roles))
+res.append(ok(_ok1 and _ok2, 'bullets numbered from 1 still land right, and no role is left with fewer than 2'))
 from applytwin import telemetry as _tm
 res.append(ok(not _tm.enabled() and _tm.ping() is False and len(_tm.install_id()) == 36, 'install count is off in tests and uses only a random ID'))
 

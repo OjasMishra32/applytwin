@@ -83,7 +83,7 @@ def answer_questions(questions, job_id=None):
             out.append(ans.match(q, bank))
     profile_keys = {r['key'] for r in ans.default_bank(store.profile())}
     for r in out:
-        if r.get('answer') is None:
+        if r.get('answer') is None and r.get('action') != 'write':   # open-ended ones the agent writes; never ask the user
             known = r.get('key') in profile_keys
             title = f"Add your answer: {r['question'][:80]}"
             if not store.rows('select 1 from inbox where title=? and resolved is null', (title,)):
@@ -509,17 +509,110 @@ def _next_followup():
         f = later.pop(0)
         store.save('followups.json', later)
         try:
-            start_run(f['agent'], len(f['job_ids']), prompt=finish_prompt(f['job_ids'], f['submit']))
+            start_run(f['agent'], len(f['job_ids']), prompt=f.get('prompt') or finish_prompt(f['job_ids'], f['submit']))
             return True
         except Exception as e:
             notify("Couldn't finish an application", str(e), kind='error')
     return False
 
 
+# ------------------------------------------------------------------ talking to your twin about one application
+
+def thread(job_id):
+    return store.rows('select role, text, at from thread where job_id=? order by id', (job_id,))
+
+
+def _say(job_id, role, text):
+    if job_id and text:
+        store.execute('insert into thread(job_id, role, text, at) values(?,?,?,?)', (job_id, role, text.strip()[:2000], time.time()))
+
+
+def reply(job_id, text):
+    """The agent answers the user about one application (shown under that item in Needs you)."""
+    _say(job_id, 'twin', text)
+    if store.profile()['apply'].get('notify_desktop', True) and time.time() - _app_seen[0] > 60:
+        from .install import notify as desk
+        j = (store.rows('select company from jobs where id=?', (job_id,)) or [{'company': ''}])[0]
+        desk(f"ApplyTwin: {j['company']}".strip(), text[:180])
+    return {"ok": True}
+
+
+def _latest(job_id):
+    return (store.rows('select status, notes, at from applications where job_id=? order by at desc limit 1', (job_id,)) or [None])[0]
+
+
+def _status_answer(job_id):
+    a = _latest(job_id)
+    if not a:
+        return "I haven't started this one yet."
+    when = time.strftime('%b %-d at %-I:%M %p', time.localtime(a['at'])) if os.name != 'nt' else time.strftime('%b %d at %I:%M %p', time.localtime(a['at']))
+    if a['status'] == 'Applied':
+        return f"Yes. It was submitted {when}."
+    if a['status'] == 'Skipped':
+        return "No, it's skipped. Say \"apply to it\" if you want me to go back to it."
+    why = (a['notes'] or '').strip()
+    return ("No, it isn't submitted yet. " + (why + ' ' if why else '') +
+            "If you submitted it yourself, say \"I submitted it\". To have me finish it, say \"submit it\".")
+
+
+def message_prompt(job_id, text):
+    j = (store.rows('select id, company, title, apply_url, url from jobs where id=?', (job_id,)) or [{}])[0]
+    a = _latest(job_id) or {}
+    convo = '\n'.join(f"{'User' if r['role'] == 'you' else 'You'}: {r['text']}" for r in thread(job_id)[-8:])
+    return ("Use the applytwin-apply skill. This is about ONE application only: "
+            f"{j.get('company')} {j.get('title')} (job {job_id}, {j.get('apply_url') or j.get('url')}). "
+            f"Its latest status: {a.get('status', 'not started')}: {a.get('notes') or ''}\n"
+            f"Your conversation with the user about it so far:\n{convo}\n\n"
+            "Do what the user's last message asks, for this application only. That can mean reopening it in your browser, "
+            "changing or adding an answer, finishing it, or submitting it. Submit only if they clearly asked you to or "
+            "profile.apply.auto_submit is true. Log the outcome with applytwin_log_application. Then answer them with "
+            "applytwin_reply(job_id, text): one or two plain sentences on what you did and what, if anything, they still need "
+            "to do. If you could not do it, say why in that reply. Never invent facts.")
+
+
+def message(job_id, text):
+    """You wrote to your twin about one application. Simple things are handled right away; anything else goes to the
+    agent for that application, and its answer shows up in the same conversation."""
+    text = (text or '').strip()
+    if not text:
+        return {"thread": thread(job_id)}
+    _say(job_id, 'you', text)
+    t = text.lower()
+    asking = '?' in t
+    if re.search(r"did (you|it|i) (submit|apply|send|go through|finish)|is (it|this) (submitted|done|in|sent)|status|where (are|is) (we|it|this)", t):
+        _say(job_id, 'twin', _status_answer(job_id))
+    elif not asking and re.search(r"\bi('ve| have)? (already |just )?(submitted|applied|sent|finished|did it)|\b(it'?s|its) (submitted|done|in|sent)\b|^(done|submitted)\b", t):
+        log_application(job_id, 'Applied', 'You submitted it yourself')
+        store.execute('update jobs set status=? where id=?', ('applied', job_id))
+        store.execute('update inbox set resolved=? where job_id=? and resolved is null', (time.time(), job_id))
+        _say(job_id, 'twin', 'Marked as applied.')
+    elif not asking and re.search(r"\b(skip( it| this)?|don'?t apply|not interested|forget (it|this)|remove (it|this))\b", t):
+        skip_job(job_id)
+        _say(job_id, 'twin', "Skipped. I won't apply to this one.")
+    else:
+        submit = not asking and bool(re.fullmatch(r"(please )?(submit|send|go ahead and submit|go ahead)( it| this)?( now)?[.!]*", t))
+        r = finish_jobs([job_id], submit=True) if submit else _run_or_queue(job_id, message_prompt(job_id, text))
+        _say(job_id, 'twin', ("Queued. I'm in the middle of a run and will do this right after, then reply here." if r.get('queued')
+                              else ("Submitting it now. I'll reply here when it's done." if submit else "On it. I'll reply here when it's done.")))
+    return {"thread": thread(job_id)}
+
+
+def _run_or_queue(job_id, prompt):
+    agent = store.profile()['apply'].get('agent') or 'claude'
+    if _run['proc'] and _run['proc'].poll() is None:
+        later = store.load('followups.json', [])
+        later.append({"job_ids": [job_id], "submit": False, "agent": agent, "prompt": prompt})
+        store.save('followups.json', later)
+        return {"queued": True}
+    return start_run(agent, 1, prompt=prompt)
+
+
 def skip_job(job_id, why='Skipped by you'):
     """Never apply to this one (the Skip button on anything that needs you)."""
     store.execute("update jobs set status='skipped' where id=?", (job_id,))
     store.execute('update inbox set resolved=? where job_id=? and resolved is null', (time.time(), job_id))
+    if any(r['job_id'] == job_id for r in pending_jobs()):   # it was waiting on you: close that out too
+        store.log_application(job_id, 'Skipped', why)
     return {"ok": True}
 
 
@@ -529,7 +622,10 @@ def open_in_twin_browser(url):
     from . import install
     # mid-run this is fine too: Chrome passes the page to the twin's open window as a new tab in the same profile
     os.makedirs(install.BROWSER_PROFILE, exist_ok=True)
-    subprocess.Popen([render.chrome(), f'--user-data-dir={install.BROWSER_PROFILE}', '--no-first-run', '--no-default-browser-check', url],
+    # same keychain flags Playwright uses for this profile: with the real keychain Chrome can't read the logins the twin
+    # saved (and macOS asks for keychain access)
+    subprocess.Popen([render.chrome(), f'--user-data-dir={install.BROWSER_PROFILE}', '--no-first-run', '--no-default-browser-check',
+                      '--use-mock-keychain', '--password-store=basic', url],
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return {"opened": True}
 
@@ -679,6 +775,7 @@ def notify(title, message='', url='', job_id='', kind='needs_you'):
     """Tell the user something needs them (a code, a sign-in, a CAPTCHA, a question). In-app inbox, plus a notification:
     the open app shows its own (click it to answer); if the app isn't open, a system notification says where to go."""
     store.execute('insert into inbox(kind,title,message,url,job_id,at) values(?,?,?,?,?,?)', (kind, title, message, url, job_id, time.time()))
+    _say(job_id, 'twin', f"{title}. {message}".strip(' .') + '.' if message else title)
     if store.profile()['apply'].get('notify_desktop', True) and time.time() - _app_seen[0] > 60:
         from .install import notify as desk
         desk('ApplyTwin: ' + title, 'Open ApplyTwin (localhost:4747) to handle it. ' + (message or url))
