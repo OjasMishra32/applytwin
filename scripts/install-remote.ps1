@@ -74,7 +74,20 @@ Write-Host "`nChecking your setup" -ForegroundColor White
 & $Py "$Dir\bin\applytwin" doctor
 $global:LASTEXITCODE = 0   # doctor reports missing steps with a non-zero code; that's advice, not a failed install
 Write-Host "`n* Free for every student. If it helps you, star it: https://github.com/OjasMishra32/applytwin" -ForegroundColor Yellow
-Write-Host "`nOpening ApplyTwin at http://localhost:4747  (Ctrl+C to stop, 'applytwin app' to open it again)" -ForegroundColor White
 if ($env:APPLYTWIN_NO_APP) { return }
-if ($env:APPLYTWIN_NO_OPEN) { & $Py "$Dir\bin\applytwin" app --no-open } else { & $Py "$Dir\bin\applytwin" app }
+
+# Run like a normal app: start quietly at login (so localhost:4747 always works and daily scans happen), a Start menu entry
+$Pyw = Join-Path (Split-Path $Py) 'pythonw.exe'; if (-not (Test-Path $Pyw)) { $Pyw = $Py }
+$sh = New-Object -ComObject WScript.Shell
+$startup = Join-Path ([Environment]::GetFolderPath('Startup')) 'ApplyTwin.lnk'
+$lnk = $sh.CreateShortcut($startup); $lnk.TargetPath = $Pyw; $lnk.Arguments = "`"$Dir\bin\applytwin`" app --no-open"; $lnk.WindowStyle = 7; $lnk.Save()
+Ok "ApplyTwin starts by itself when you sign in"
+$menu = Join-Path ([Environment]::GetFolderPath('Programs')) 'ApplyTwin.url'
+Set-Content $menu "[InternetShortcut]`r`nURL=http://localhost:4747" -Encoding ASCII
+Ok "ApplyTwin is in your Start menu"
+Start-Process $Pyw -ArgumentList "`"$Dir\bin\applytwin`" app --no-open" -WindowStyle Hidden
+Start-Sleep 3
+Start-Process 'http://localhost:4747'
+Write-Host "`nApplyTwin is running at http://localhost:4747" -ForegroundColor White
+Write-Host "  Open it any time: ApplyTwin in the Start menu, that address, or type: applytwin"
 }

@@ -32,11 +32,11 @@ DEFAULT_PROFILE = {   # nothing about the person is assumed: unanswered fields s
     "salary_expectation": "", "sms_ok": None, "ai_review_ok": None,
     "eeo": {"gender": "", "race": "", "hispanic": "", "veteran": "", "disability": "", "pronouns": ""},
     "search": {
-        "kind": "internship",                       # internship | new-grad | full-time
-        "season": "",
-        "roles": ["software engineer", "machine learning", "data science", "quant"],
+        "kind": "",                                 # internship | co-op | new-grad | full-time (asked in setup)
+        "season": "",                               # one or more terms, e.g. "Summer 2027, Fall 2027"
+        "roles": [], "arrangement": [],
         "include": [], "exclude": ["phd", "mba", "master", "senior", "staff", "principal", "manager"],
-        "locations": ["United States", "Remote"],
+        "locations": [],
         "min_fit": 65,
         "companies_priority": [], "companies_skip": [],
     },
@@ -96,12 +96,7 @@ def next_summer():
 
 def profile():
     p = load('profile.json', DEFAULT_PROFILE)
-    # defaults that depend on today's date, so a new install is never stuck on a past cycle
     p.setdefault('search', {})
-    if not p['search'].get('season'):
-        p['search']['season'] = f'Summer {next_summer()}'
-    if not p.get('earliest_start'):
-        p['earliest_start'] = f'May {next_summer()}'
     return p
 
 

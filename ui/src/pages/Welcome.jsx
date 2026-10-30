@@ -1,157 +1,266 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { toast } from 'sonner'
-import { ArrowLeft, Check, Sparkles } from 'lucide-react'
+import { ArrowLeft, Check, Copy, FileText, Loader2 } from 'lucide-react'
 import { api } from '../lib/api'
 import { useApp } from '../App'
-import { Hero3D } from '../components/Hero3D'
 import { Sky } from '../components/Sky'
-import { GoogleG } from '../components/Shell'
-import { Button, Drop, NumberTicker, Segmented, Switch, soft } from '../components/ui'
+import { Drop, NumberTicker } from '../components/ui'
 import { Chips, ROLE_SUGGEST } from './Settings'
 import { ProfileQuestions, missing, useQuestions } from '../components/ProfileQuestions'
 
-const DREAM_SUGGEST = ['Google', 'Apple', 'Meta', 'Microsoft', 'Jane Street', 'Citadel', 'Goldman Sachs', 'McKinsey', 'OpenAI', 'Anthropic', 'NVIDIA', 'Stripe']
+/* Setup, the way Apple does it: one clear question per screen, big choices, a gentle slide between screens, and you
+   can't move on until the screen is answered. Everything here is used, unchanged, on every application. */
+
+const DREAM_SUGGEST = ['Google', 'Apple', 'Microsoft', 'Jane Street', 'Citadel', 'Goldman Sachs', 'J.P. Morgan', 'McKinsey', 'Deloitte',
+  'OpenAI', 'Anthropic', 'NVIDIA', 'Stripe', 'Mayo Clinic', 'Pfizer', 'Disney']
+const KINDS = [['internship', 'Internship', 'A summer (or other term) internship'], ['co-op', 'Co-op', 'A paid term away from classes'],
+  ['new-grad', 'New grad', 'Your first full-time role after graduating'], ['full-time', 'Full-time', 'You already have work experience']]
+const ARRANGE = [['onsite', 'On-site'], ['hybrid', 'Hybrid'], ['remote', 'Remote']]
+const SPRING = { type: 'spring', stiffness: 260, damping: 30 }
 
 export default function Welcome() {
-  const { profile, refresh, go, setState, auth, signIn } = useApp()
-  const [step, setStep] = useState(0)
+  const { profile, refresh, go, setState } = useApp()
+  const [i, setI] = useState(0)
+  const [dir, setDir] = useState(1)
+  const [p, setP] = useState(() => structuredClone(profile))
   const [imp, setImp] = useState(null)
   const [busy, setBusy] = useState(false)
-  const [p, setP] = useState(() => structuredClone(profile))
+  const [agents, setAgents] = useState(null)
   const [scan, setScan] = useState(null)
   const [queue, setQueue] = useState(null)
-  const s = p.search
-  const ss = (k, v) => setP({ ...p, search: { ...s, [k]: v } })
-  const sa = (k, v) => setP({ ...p, apply: { ...p.apply, [k]: v } })
   const qs = useQuestions()
-  const left = missing(qs, p)
+  const s = p.search || {}
+  const ss = (k, v) => setP(x => ({ ...x, search: { ...x.search, [k]: v } }))
+  const sa = (k, v) => setP(x => ({ ...x, apply: { ...x.apply, [k]: v } }))
+  const now = new Date(), year = +((s.season || '').match(/20\d\d/) || [now.getFullYear() + (now.getMonth() >= 7 ? 1 : 0)])[0]   // from August, next summer's cycle
+  const terms = [`Summer ${year}`, `Fall ${year}`, `Spring ${year + 1}`, `Winter ${year}`, `Summer ${year + 1}`]
+  const picked = (s.season || '').split(',').map(x => x.trim()).filter(Boolean)
+  const intern = ['internship', 'co-op'].includes(s.kind)
+  const groupLeft = g => missing((qs || []).filter(q => q.group === g), p).length
+  useEffect(() => { api('/api/agents').then(setAgents).catch(() => setAgents({})) }, [])
 
+  const save = () => api('/api/profile', p)
   const upload = async body => {
     setBusy(true)
     try {
       const r = await api('/api/import', body); setImp(r)
       if (r.vault) setState(st => ({ ...st, vault: r.vault }))
-      const fresh = await api('/api/state'); setP(pp => ({ ...structuredClone(fresh.profile), search: { ...fresh.profile.search, roles: r.suggest_roles?.length ? r.suggest_roles : fresh.profile.search.roles } }))
-      setStep(1)
+      const fresh = (await api('/api/state')).profile
+      setP(x => ({ ...structuredClone(fresh), search: { ...fresh.search, roles: fresh.search.roles?.length ? fresh.search.roles : (r.suggest_roles || []) } }))
     } catch (e) { toast.error(e.message) }
     setBusy(false)
   }
   const build = async () => {
-    await api('/api/profile', p); setStep(4)
-    await api('/api/scan', {})
+    await save(); await api('/api/scan', {})
     const tick = async () => {
       const r = await api('/api/scan'); setScan(r.stats || {})
       if (r.running) return setTimeout(tick, 900)
-      setQueue(await api('/api/queue?n=5')); await refresh(); setStep(5)
+      setQueue(await api('/api/queue?n=5')); await refresh(); next()
     }
     tick()
   }
-  const pages = [
-    <div key="0" className="grid items-center gap-10 md:grid-cols-[1.05fr_1fr]">
-      <div className="text-white">
-        <div className="flex items-center gap-3 text-[17px] font-medium text-white/80">Hi, I'm your twin.<span className="rounded-full bg-white/10 px-3 py-1 text-[13px] font-semibold text-white ring-1 ring-white/20">Free to use</span></div>
-        <h1 className="mt-3 text-[72px] font-bold leading-[0.95] tracking-[-0.045em]">Give me your resume.<br /><span className="text-white/55">I'll get you hired.</span></h1>
-        <p className="mt-6 max-w-[460px] text-[19px] leading-[1.45] text-white/80">I'll find every open role in your field, write the ideal resume for each one from everything you've done, and apply for you. You only step in when it matters.</p>
-        {!auth?.signed_in && <button onClick={signIn} className="mt-8 flex h-12 items-center gap-3 rounded-full bg-white px-6 text-[16px] font-medium text-[#0b1020] transition hover:bg-white/90">
-          <GoogleG className="size-5" />Continue with Google</button>}
-        <div className="mt-5 max-w-[460px]">{busy ? <div className="card grid place-items-center py-14 text-ink">
-          <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1.1, ease: 'linear' }}><Sparkles className="size-8 text-signal" /></motion.div>
-          <div className="mt-3 text-[14px] text-muted">Reading your resume like a recruiter…</div></div>
-          : <div><div className="rounded-[20px] bg-[#111526] ring-1 ring-white/10"><Drop onFile={f => upload({ name: f.name, data: f.data })} onText={() => { const t = prompt('Paste your resume or LinkedIn text'); if (t) upload({ text: t }) }} /></div></div>}</div>
-        <button onClick={() => setStep(1)} className="mt-4 text-[14px] text-white/75 hover:text-white">Skip, I'll add it later</button>
-      </div>
-      <Hero3D name={profile.name || 'You'} />
-    </div>,
 
-    <div key="1" className="mx-auto max-w-[720px]">
-      <div className="card p-8 md:p-10">
-        <div className="text-[15px] font-semibold text-signal">Step 1 of 3 · What you want</div>
-        <h2 className="mt-2 text-[40px] font-bold leading-[1.05] tracking-[-0.035em] text-ink">{imp?.name ? `Nice to meet you, ${imp.name.split(' ')[0]}.` : 'What are you going for?'}</h2>
-        {imp && <p className="mt-2 text-[14px] text-muted">{imp.message}</p>}
-        <div className="mt-8 space-y-7">
-          <Q n="1" t="What kind of role?"><Segmented id="k" value={s.kind} onChange={v => ss('kind', v)} options={[['internship', 'Internship'], ['new-grad', 'New grad'], ['full-time', 'Full-time']]} />
-            <input className="uline left mt-3 max-w-[220px]" value={s.season} onChange={e => ss('season', e.target.value)} placeholder="Summer 2027" /></Q>
-          <Q n="2" t="Which roles?" sub="I suggested these from your resume."><Chips value={s.roles} onChange={v => ss('roles', v)} placeholder="Add a role" suggestions={ROLE_SUGGEST} /></Q>
-          <Q n="3" t="Dream companies?" sub="I'll apply here first, the moment they post."><Chips value={s.companies_priority} onChange={v => ss('companies_priority', v)} placeholder="Type a company and press Enter" suggestions={DREAM_SUGGEST} /></Q>
-          <Q n="4" t="Where?"><Chips value={s.locations} onChange={v => ss('locations', v)} placeholder="United States, Remote, a city…" suggestions={['United States', 'Remote', 'New York', 'San Francisco', 'Seattle', 'Boston', 'Chicago', 'Austin']} /></Q>
-        </div>
-        <div className="mt-9 flex items-center justify-between"><Button variant="ghost" onClick={() => setStep(0)}><ArrowLeft className="size-4" />Back</Button>
-          <Button size="lg" onClick={async () => { await api('/api/profile', p); setStep(2) }} arrow disabled={!s.roles?.length}>Next</Button></div>
-      </div>
-    </div>,
+  // every screen: what it asks, whether it's answered, and what Continue does
+  const screens = useMemo(() => [
+    { id: 'hello', ok: true, cta: 'Get started' },
+    { id: 'resume', ok: !!imp && !busy, cta: 'Continue' },
+    { id: 'kind', ok: !!s.kind, cta: 'Continue' },
+    { id: 'when', ok: intern ? picked.length > 0 : !!p.earliest_start, cta: 'Continue' },
+    { id: 'roles', ok: (s.roles || []).length > 0, cta: 'Continue' },
+    { id: 'where', ok: (s.locations || []).length > 0 && (s.arrangement || []).length > 0, cta: 'Continue' },
+    { id: 'companies', ok: true, cta: 'Continue' },
+    { id: 'You', ok: groupLeft('You') === 0, cta: 'Continue' },
+    { id: 'School', ok: groupLeft('School') === 0, cta: 'Continue' },
+    { id: 'Work authorization', ok: groupLeft('Work authorization') === 0, cta: 'Continue' },
+    { id: 'Standard questions', ok: groupLeft('Standard questions') === 0, cta: 'Continue' },
+    { id: 'Voluntary self-identification', ok: groupLeft('Voluntary self-identification') === 0, cta: 'Continue' },
+    { id: 'apply', ok: true, cta: 'Continue' },
+    { id: 'agent', ok: true, cta: 'Find my jobs' },
+    { id: 'scan', ok: false, cta: null },
+    { id: 'done', ok: true, cta: 'Start applying' },
+  ], [imp, busy, s, p, qs])
+  const cur = screens[i]
+  const next = () => { setDir(1); setI(x => Math.min(screens.length - 1, x + 1)) }
+  const back = () => { setDir(-1); setI(x => Math.max(0, x - 1)) }
+  const onContinue = async () => {
+    if (cur.id === 'agent') { next(); return build() }
+    if (cur.id === 'done') return go('agents')
+    if (i > 1) await save()
+    next()
+  }
 
-    <div key="answers" className="mx-auto max-w-[760px]">
-      <div className="card p-8 md:p-10">
-        <div className="text-[15px] font-semibold text-signal">Step 2 of 3 · Your application answers</div>
-        <h2 className="mt-2 text-[34px] font-bold leading-[1.08] tracking-[-0.035em] text-ink">Answer these once. Your twin uses them on every form.</h2>
-        <p className="mt-2 text-[14px] text-muted">{imp?.filled?.length ? `${imp.filled.length} filled in from your resume; check them.` : 'Nothing is guessed.'} Answer the rest (you can decline the self-identification questions). You can change any of it later in Settings.</p>
-        <div className="mt-7"><ProfileQuestions qs={qs} p={p} setP={setP} showMissing filled={imp?.filled || []} /></div>
-        <div className="mt-9 flex flex-wrap items-center justify-between gap-3">
-          <Button variant="ghost" onClick={() => setStep(1)}><ArrowLeft className="size-4" />Back</Button>
-          <div className="flex items-center gap-3">
-            {left.length > 0 && <span className="text-[13px] text-[#ff9f0a]">{left.length} left to answer</span>}
-            <Button size="lg" onClick={async () => { await api('/api/profile', p); setStep(3) }} arrow disabled={!qs || left.length > 0}>Next</Button>
-          </div>
-        </div>
+  const body = {
+    hello: <Center>
+      <motion.div initial={{ scale: .8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ ...SPRING, delay: .1 }}
+        className="mx-auto grid size-20 place-items-center rounded-[24px] bg-white text-[38px] shadow-[0_20px_60px_rgb(0_0_0/.35)]">
+        <svg width="44" height="44" viewBox="0 0 64 64"><defs><linearGradient id="wg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#38bdf8" /><stop offset="1" stopColor="#a78bfa" /></linearGradient></defs>
+          <rect x="4" y="4" width="38" height="38" rx="12" fill="url(#wg)" /><rect x="22" y="22" width="38" height="38" rx="12" fill="#0b1020" fillOpacity=".85" /></svg></motion.div>
+      <H>Hi. Let's set up your twin.</H>
+      <Sub>About five minutes. You answer everything once; after that it finds jobs, writes the right resume for each one and applies, on its own.</Sub>
+    </Center>,
+    resume: <Center wide>
+      <H>Start with your resume.</H>
+      <Sub>It reads everything you've done, and fills in every answer it can. You'll check them later.</Sub>
+      <div className="mx-auto mt-8 max-w-[520px] text-left">
+        {busy ? <div className="grid place-items-center rounded-[20px] bg-white/[.04] py-14 ring-1 ring-white/10"><Loader2 className="size-7 animate-spin text-signal" />
+          <div className="mt-3 text-[14px] text-muted">Reading your resume…</div></div>
+          : imp ? <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="rounded-[20px] bg-white/[.05] p-5 ring-1 ring-white/10">
+            <div className="flex items-center gap-3"><div className="grid size-10 place-items-center rounded-[12px] bg-good/15 text-good"><Check className="size-5" /></div>
+              <div><div className="text-[16px] font-semibold text-white">{imp.name || 'Got it'}</div><div className="text-[13px] text-muted">{imp.message}</div></div></div>
+            {imp.filled?.length > 0 && <div className="mt-3 text-[13px] text-[#64d2ff]">Filled in {imp.filled.length} answers from it.</div>}
+            <button onClick={() => setImp(null)} className="mt-3 text-[13px] text-muted hover:text-white">Use a different file</button>
+          </motion.div>
+          : <Drop onFile={f => upload({ name: f.name, data: f.data })} onText={() => { const t = prompt('Paste your resume or LinkedIn text'); if (t) upload({ text: t }) }} />}
       </div>
-    </div>,
-
-    <div key="permissions" className="mx-auto max-w-[720px]">
-      <div className="card p-8 md:p-10">
-        <div className="text-[15px] font-semibold text-signal">Step 3 of 3 · How your twin applies</div>
-        <h2 className="mt-2 text-[34px] font-bold leading-[1.08] tracking-[-0.035em] text-ink">Set it once, then let it run.</h2>
-        <p className="mt-2 text-[14px] text-muted">Your twin follows these on every run, without checking with you. It never types passwords, solves CAPTCHAs or creates accounts; those come to you as a notification.</p>
-        <div className="mt-7 divide-y divide-line overflow-hidden rounded-[16px] bg-white/[.035] ring-1 ring-white/[.06]">
-          <Tog l="Submit applications on its own" hint="On: it applies start to finish. Off: it fills every form and stops so you press Submit." v={p.apply.auto_submit} f={v => sa('auto_submit', v)} />
-          <Tog l="Read verification codes from my email" hint="When a site emails a code, your agent finds it in your inbox and enters it. Off: you get a notification." v={p.apply.email_codes === 'agent'} f={v => sa('email_codes', v ? 'agent' : 'notify')} />
-          <Tog l="Desktop notifications" hint="Ping me when something needs me." v={p.apply.notify_desktop !== false} f={v => { sa('notify_desktop', v); if (v && typeof Notification !== 'undefined' && Notification.permission === 'default') Notification.requestPermission() }} />
-          <div className="flex items-center justify-between gap-4 px-4 py-3"><div className="text-[14px] text-fg">Applications per day, at most</div>
-            <select value={p.apply.daily_limit} onChange={e => sa('daily_limit', +e.target.value)} className="h-9 rounded-[10px] bg-white/[.06] px-3 text-[14px] text-white">
-              {[10, 20, 40, 60, 100, 150].map(x => <option key={x} value={x} className="text-black">{x}</option>)}</select></div>
-          <div className="flex items-center justify-between gap-4 px-4 py-3"><div><div className="text-[14px] text-fg">Per company, at most</div><div className="text-[12px] text-muted">Many companies flag repeat applicants.</div></div>
-            <select value={p.apply.per_company_cap} onChange={e => sa('per_company_cap', +e.target.value)} className="h-9 rounded-[10px] bg-white/[.06] px-3 text-[14px] text-white">
-              {[1, 2, 3, 5, 10].map(x => <option key={x} value={x} className="text-black">{x}</option>)}</select></div>
-          <div className="flex items-center justify-between gap-4 px-4 py-3"><div className="text-[14px] text-fg">Applies with</div>
-            <Segmented id="agentpick" value={p.apply.agent || 'claude'} onChange={v => sa('agent', v)} options={[['claude', 'Claude Code'], ['codex', 'Codex']]} /></div>
-        </div>
-        <div className="mt-9 flex items-center justify-between"><Button variant="ghost" onClick={() => setStep(2)}><ArrowLeft className="size-4" />Back</Button>
-          <Button size="lg" onClick={build} arrow>Build my queue</Button></div>
+    </Center>,
+    kind: <Center>
+      <H>What are you applying for?</H>
+      <Sub>Pick one. You can change it any time in Settings.</Sub>
+      <Tiles items={KINDS.map(([v, l, d]) => ({ v, l, d }))} value={[s.kind]} onPick={v => ss('kind', v)} />
+    </Center>,
+    when: intern ? <Center>
+      <H>When?</H>
+      <Sub>Pick every term you'd take. Roles for other terms stay out of your queue.</Sub>
+      <Tiles items={terms.map(t => ({ v: t, l: t }))} value={picked} multi
+        onPick={v => ss('season', (picked.includes(v) ? picked.filter(x => x !== v) : [...picked, v]).join(', '))} />
+    </Center> : <Center>
+      <H>When can you start?</H>
+      <Sub>A month and year is enough.</Sub>
+      <input autoFocus value={p.earliest_start || ''} onChange={e => setP(x => ({ ...x, earliest_start: e.target.value }))} placeholder="June 2027"
+        className="mx-auto mt-8 block h-14 w-full max-w-[360px] rounded-[16px] bg-white/[.07] px-5 text-center text-[20px] text-white outline-none ring-1 ring-white/10 focus:ring-2 focus:ring-signal" />
+    </Center>,
+    roles: <Center wide>
+      <H>Which roles?</H>
+      <Sub>{imp?.suggest_roles?.length ? 'We picked these from your resume. Add anything, in any field.' : 'Pick some, or type any role in any field.'}</Sub>
+      <div className="mx-auto mt-8 max-w-[600px] text-left"><Chips value={s.roles || []} onChange={v => ss('roles', v)} placeholder="Type a role and press Enter" suggestions={ROLE_SUGGEST} /></div>
+    </Center>,
+    where: <Center wide>
+      <H>Where?</H>
+      <Sub>Places you'd work, and how.</Sub>
+      <Tiles items={ARRANGE.map(([v, l]) => ({ v, l }))} value={s.arrangement || []} multi small
+        onPick={v => { const a = s.arrangement || []; const n = a.includes(v) ? a.filter(x => x !== v) : [...a, v]; ss('arrangement', n); setP(x => ({ ...x, search: { ...x.search, arrangement: n }, onsite_ok: n.some(y => y !== 'remote') || x.onsite_ok })) }} />
+      <div className="mx-auto mt-6 max-w-[600px] text-left"><Chips value={s.locations || []} onChange={v => ss('locations', v)} placeholder="United States, a city, Remote…"
+        suggestions={['United States', 'Remote', 'New York', 'San Francisco', 'Seattle', 'Boston', 'Chicago', 'Austin', 'Los Angeles', 'Washington, DC']} /></div>
+    </Center>,
+    companies: <Center wide>
+      <H>Any dream companies?</H>
+      <Sub>Optional. Your twin applies to these first, the moment they post.</Sub>
+      <div className="mx-auto mt-8 max-w-[600px] space-y-5 text-left">
+        <Chips value={s.companies_priority || []} onChange={v => ss('companies_priority', v)} placeholder="Type a company and press Enter" suggestions={DREAM_SUGGEST} />
+        <div><div className="mb-2 text-[13px] text-muted">Never apply to</div><Chips value={s.companies_skip || []} onChange={v => ss('companies_skip', v)} placeholder="Companies to skip (optional)" /></div>
       </div>
-    </div>,
-
-    <div key="scan" className="mx-auto max-w-[680px] text-center text-white">
-      <div className="text-[17px] font-medium text-white/80">Hold tight.</div>
-      <h2 className="mt-3 text-[60px] font-bold leading-[1] tracking-[-0.045em]">Reading every job board<br /><span className="text-white/55">for you.</span></h2>
-      <div className="card mt-10 p-8 text-ink">
-        <div className="text-[88px] font-semibold leading-none tracking-[-0.05em] tabular-nums">{(scan?.fetched || 0).toLocaleString()}</div>
-        <div className="mt-1 text-[14px] text-muted">postings read from {scan?.done || 0} of {scan?.sources || '…'} sources</div>
-        <div className="mt-6 h-1.5 overflow-hidden rounded-full bg-white/[.06]"><motion.div className="h-full rounded-full bg-signal"
-          animate={{ width: `${scan?.sources ? Math.max(4, 100 * scan.done / scan.sources) : 4}%` }} transition={soft} /></div>
-        <div className="mt-4 text-[14px] text-muted"><b className="text-ink">{(scan?.matched || 0).toLocaleString()}</b> strong matches so far</div>
+    </Center>,
+    apply: <Center wide>
+      <H>How should your twin apply?</H>
+      <Sub>It follows these on every run. It never types passwords, solves CAPTCHAs or creates accounts; those come to you.</Sub>
+      <div className="mx-auto mt-8 max-w-[600px] divide-y divide-white/[.06] overflow-hidden rounded-[18px] bg-white/[.04] text-left ring-1 ring-white/10">
+        <Toggle l="Submit applications on its own" d="Off: it fills every form and stops so you press Submit." v={!!p.apply.auto_submit} f={v => sa('auto_submit', v)} />
+        <Toggle l="Read verification codes from my email" d="Off: it notifies you to type the code." v={p.apply.email_codes === 'agent'} f={v => sa('email_codes', v ? 'agent' : 'notify')} />
+        <Toggle l="Notify me when it needs me" d="A notification you can click to handle it." v={p.apply.notify_desktop !== false}
+          f={v => { sa('notify_desktop', v); if (v && typeof Notification !== 'undefined' && Notification.permission === 'default') Notification.requestPermission() }} />
+        <Pick l="Applications per day, at most" v={p.apply.daily_limit} opts={[10, 20, 40, 60, 100, 150]} f={v => sa('daily_limit', v)} />
+        <Pick l="Per company, at most" v={p.apply.per_company_cap} opts={[1, 2, 3, 5, 10]} f={v => sa('per_company_cap', v)} />
       </div>
-    </div>,
-
-    <div key="done" className="mx-auto max-w-[680px] text-center">
-      <motion.div initial={{ scale: .4, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', stiffness: 260, damping: 14 }}
+    </Center>,
+    agent: <Center wide>
+      <H>Which agent should apply?</H>
+      <Sub>It runs on the plan you already pay for. No API keys.</Sub>
+      <div className="mx-auto mt-8 grid max-w-[600px] gap-3 text-left sm:grid-cols-2">
+        {[['claude', 'Claude Code', 'claude', 'then type /login'], ['codex', 'Codex', 'codex login', '']].map(([k, l, cmd, extra]) => {
+          const st = agents?.[k], sel = (p.apply.agent || 'claude') === k
+          return (
+            <button key={k} onClick={() => sa('agent', k)} className={'rounded-[18px] p-5 text-left ring-1 transition ' + (sel ? 'bg-white/[.09] ring-2 ring-signal' : 'bg-white/[.04] ring-white/10 hover:bg-white/[.07]')}>
+              <div className="flex items-center justify-between"><span className="text-[17px] font-semibold text-white">{l}</span>{sel && <Check className="size-5 text-signal" />}</div>
+              <div className="mt-1 text-[13px]" style={{ color: !st ? '#98a2c3' : st.signed_in ? '#30d158' : '#ff9f0a' }}>
+                {!st ? 'Checking…' : !st.installed ? 'Not installed' : st.signed_in ? 'Signed in, ready' : 'Installed, signed out'}</div>
+              {st && !st.signed_in && <div className="mt-3 text-[12.5px] text-muted">{st.installed ? <>In a terminal run <code className="text-white">{cmd}</code> {extra}</>
+                : <>Install: <code className="text-white">npm i -g {k === 'claude' ? '@anthropic-ai/claude-code' : '@openai/codex'}</code></>}</div>}
+            </button>)
+        })}
+      </div>
+      {agents && !Object.values(agents).some(a => a.signed_in) && <p className="mt-4 text-[13px] text-[#ff9f0a]">Sign in to one before you press Start; you can finish setup now.</p>}
+    </Center>,
+    scan: <Center>
+      <H>Finding every job that fits you…</H>
+      <div className="mt-8 text-[64px] font-semibold leading-none tracking-[-0.05em] text-white tabular-nums">{(scan?.fetched || 0).toLocaleString()}</div>
+      <Sub>postings read from {scan?.done || 0} of {scan?.sources || '…'} sources</Sub>
+      <div className="mx-auto mt-6 h-1.5 max-w-[360px] overflow-hidden rounded-full bg-white/[.08]">
+        <motion.div className="h-full rounded-full bg-signal" animate={{ width: `${scan?.sources ? Math.max(4, 100 * scan.done / scan.sources) : 4}%` }} transition={SPRING} /></div>
+    </Center>,
+    done: <Center>
+      <motion.div initial={{ scale: .5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', stiffness: 300, damping: 16 }}
         className="mx-auto grid size-20 place-items-center rounded-full bg-good text-white"><Check className="size-10" strokeWidth={3} /></motion.div>
-      <h2 className="mt-7 text-[68px] font-bold leading-[0.95] tracking-[-0.045em] text-white"><NumberTicker value={queue?.total || 0} /> roles queued.</h2>
-      <p className="mt-4 text-[18px] text-white/80">{queue?.dream ? `${queue.dream} at your dream companies, first in line. ` : ''}Every one gets its own tailored resume.</p>
-      <div className="mt-8 flex justify-center gap-3"><Button size="lg" variant="dark" className="bg-white text-[#0b1020] hover:bg-white/90" onClick={() => go('agents')} arrow>Start applying</Button><Button size="lg" variant="glass" onClick={() => go('home')}>Look around</Button></div>
-    </div>,
-  ]
+      <H><NumberTicker value={queue?.total || 0} /> roles ready.</H>
+      <Sub>{queue?.dream ? `${queue.dream} at your dream companies, first in line. ` : ''}Every one gets its own resume. Press Start and your twin takes it from here.</Sub>
+    </Center>,
+  }
+  const group = qs && ['You', 'School', 'Work authorization', 'Standard questions', 'Voluntary self-identification'].includes(cur.id)
+  const groupCopy = { You: ['About you', 'From your resume where we could. Check them.'], School: ['Your school', 'Forms ask these on almost every application.'],
+    'Work authorization': ['Work authorization', 'Answered exactly as you say, on every form.'], 'Standard questions': ['A few standard questions', 'The ones most forms ask.'],
+    'Voluntary self-identification': ['Voluntary self-identification', 'Optional for employers, so "Decline" is always a fine answer. Nothing is chosen for you.'] }
+
   return (
-    <div className="relative min-h-screen">
-      <Sky height={step >= 1 && step <= 3 ? 460 : 980} />
-      <div className="relative mx-auto max-w-[1240px] px-6 pb-24 pt-28">
-        <AnimatePresence mode="wait"><motion.div key={step} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -12 }} transition={{ duration: .35, ease: [0.2, 0.8, 0.2, 1] }}>{pages[step]}</motion.div></AnimatePresence>
+    <div className="relative min-h-screen overflow-hidden">
+      <Sky height={520} />
+      <div className="fixed inset-x-0 top-0 z-20 h-[3px] bg-white/[.06]">
+        <motion.div className="h-full bg-signal" animate={{ width: `${(100 * i) / (screens.length - 1)}%` }} transition={SPRING} /></div>
+      <div className="relative mx-auto flex min-h-screen max-w-[760px] flex-col px-6 pb-32 pt-12">
+        {i > 0 && cur.id !== 'scan' && cur.id !== 'done' && <button onClick={back} className="mb-4 flex w-fit items-center gap-1 text-[14px] text-white/70 hover:text-white"><ArrowLeft className="size-4" />Back</button>}
+        <AnimatePresence mode="popLayout" custom={dir} initial={false}>
+          <motion.div key={cur.id} custom={dir} variants={{ in: d => ({ x: d * 60, opacity: 0 }), at: { x: 0, opacity: 1 }, out: d => ({ x: d * -60, opacity: 0 }) }}
+            initial="in" animate="at" exit="out" transition={SPRING} className="flex-1">
+            {group ? <Center wide>
+              <H>{groupCopy[cur.id][0]}</H><Sub>{groupCopy[cur.id][1]}</Sub>
+              <div className="mx-auto mt-8 max-w-[640px] text-left"><ProfileQuestions qs={qs} p={p} setP={setP} groups={[cur.id]} showMissing filled={imp?.filled || []} /></div>
+            </Center> : body[cur.id]}
+          </motion.div>
+        </AnimatePresence>
       </div>
+      {cur.cta && <div className="fixed inset-x-0 bottom-0 z-20 bg-gradient-to-t from-paper via-paper/90 to-transparent pb-8 pt-10">
+        <div className="mx-auto flex max-w-[760px] flex-col items-center gap-2 px-6">
+          <motion.button whileTap={{ scale: .97 }} onClick={onContinue} disabled={!cur.ok}
+            className="h-12 w-full max-w-[360px] rounded-full bg-signal text-[16px] font-semibold text-white transition disabled:opacity-35">{cur.cta}</motion.button>
+          {!cur.ok && group && <div className="text-[13px] text-[#ff9f0a]">{groupLeft(cur.id)} left to answer</div>}
+          {cur.id === 'resume' && !imp && <button onClick={next} className="text-[13px] text-white/60 hover:text-white">I don't have one handy</button>}
+          {cur.id === 'companies' && <div className="text-[13px] text-white/50">You can skip this one.</div>}
+        </div>
+      </div>}
     </div>
   )
 }
-const Q = ({ n, t, sub, children }) => (
-  <div className="grid gap-3 md:grid-cols-[180px_1fr]"><div><div className="text-[13px] tabular-nums text-faint">{n}.</div><div className="text-[16px] font-semibold text-ink">{t}</div>
-    {sub && <div className="text-[12.5px] text-muted">{sub}</div>}</div><div>{children}</div></div>)
-const Tog = ({ l, hint, v, f }) => (
-  <div className="flex items-center justify-between gap-4 px-4 py-3"><div><div className="text-[14px] text-fg">{l}</div>{hint && <div className="text-[12px] text-muted">{hint}</div>}</div><Switch checked={!!v} onChange={f} /></div>)
+
+const Center = ({ children, wide }) => <div className={'mx-auto pt-[6vh] text-center ' + (wide ? 'max-w-[680px]' : 'max-w-[560px]')}>{children}</div>
+const H = ({ children }) => <h1 className="mt-6 text-[clamp(30px,5vw,44px)] font-bold leading-[1.08] tracking-[-0.035em] text-white">{children}</h1>
+const Sub = ({ children }) => <p className="mx-auto mt-3 max-w-[480px] text-[16px] leading-relaxed text-white/65">{children}</p>
+
+function Tiles({ items, value, onPick, multi, small }) {
+  return (
+    <div className={'mx-auto mt-8 grid gap-3 text-left ' + (small ? 'max-w-[480px] grid-cols-3' : 'max-w-[560px] sm:grid-cols-2')}>
+      {items.map(({ v, l, d }) => {
+        const on = value.includes(v)
+        return (
+          <motion.button key={v} whileTap={{ scale: .98 }} onClick={() => onPick(v)}
+            className={'relative rounded-[18px] px-5 py-4 ring-1 transition ' + (on ? 'bg-white/[.1] ring-2 ring-signal' : 'bg-white/[.04] ring-white/10 hover:bg-white/[.07]') + (small ? ' text-center' : '')}>
+            <div className={'font-semibold text-white ' + (small ? 'text-[15px]' : 'text-[17px]')}>{l}</div>
+            {d && <div className="mt-0.5 text-[13px] text-muted">{d}</div>}
+            <AnimatePresence>{on && !small && <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} transition={SPRING}
+              className="absolute right-4 top-4 grid size-5 place-items-center rounded-full bg-signal text-white"><Check className="size-3" strokeWidth={3} /></motion.span>}</AnimatePresence>
+          </motion.button>)
+      })}
+      {multi && <div className="col-span-full text-center text-[12.5px] text-faint">Pick as many as you like</div>}
+    </div>
+  )
+}
+
+const Toggle = ({ l, d, v, f }) => (
+  <button onClick={() => f(!v)} className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left hover:bg-white/[.03]">
+    <div><div className="text-[15px] text-white">{l}</div><div className="text-[12.5px] text-muted">{d}</div></div>
+    <span className={'relative h-[30px] w-[50px] shrink-0 rounded-full transition ' + (v ? 'bg-good' : 'bg-white/15')}>
+      <motion.span layout transition={SPRING} className={'absolute top-[3px] size-6 rounded-full bg-white shadow ' + (v ? 'left-[23px]' : 'left-[3px]')} /></span>
+  </button>)
+
+const Pick = ({ l, v, opts, f }) => (
+  <div className="flex items-center justify-between gap-4 px-5 py-4"><div className="text-[15px] text-white">{l}</div>
+    <div className="flex gap-1">{opts.map(o => <button key={o} onClick={() => f(o)}
+      className={'h-8 min-w-9 rounded-full px-2.5 text-[13px] transition ' + (v === o ? 'bg-white font-semibold text-[#0b1020]' : 'text-white/70 hover:bg-white/[.08]')}>{o}</button>)}</div></div>)

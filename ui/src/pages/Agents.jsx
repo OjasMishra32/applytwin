@@ -7,6 +7,7 @@ import { parseRun } from '../lib/runlog'
 import { useApp, Page } from '../App'
 import { Avatar, Segmented, burst, spring } from '../components/ui'
 import { REPO_URL } from '../lib/star'
+import { ItemActions } from '../components/ItemActions'
 
 /* Autopilot, Apple-style: one quiet hero that says what your twin is doing, grouped lists for everything else. */
 
@@ -150,8 +151,12 @@ export default function Agents() {
               <AnimatePresence initial={false}>
                 {inbox.items.map(i => <NeedsYou key={'i' + i.id} item={i} onDone={refresh} />)}
                 {pending.map(p => (
-                  <Row key={'p' + p.job_id} href={p.url} left={<Avatar name={p.company} size={32} />} title={p.title} sub={p.notes || p.company}
-                    right={<span className="text-[13px]" style={{ color: BLUE }}>Open</span>} />))}
+                  <div key={'p' + p.job_id} className="px-4 py-3.5">
+                    <div className="flex items-center gap-3.5"><Avatar name={p.company} size={32} />
+                      <div className="min-w-0 flex-1"><div className="truncate text-[14.5px] text-white">{p.company} · {p.title}</div>
+                        <div className="line-clamp-2 text-[12.5px] text-muted">{p.notes}</div></div></div>
+                    <div className="mt-2 pl-[46px]"><ItemActions item={{ ...p, id: 'p' + p.job_id }} onDone={refresh} /></div>
+                  </div>))}
               </AnimatePresence>
               {!needs && <div className="flex items-center gap-2 px-4 py-4 text-[14px] text-muted"><Check className="size-4" style={{ color: GREEN }} />Nothing right now.</div>}
             </Group>
@@ -250,12 +255,9 @@ function NeedsYou({ item, onDone }) {
           <div className="text-[14.5px] font-medium text-white">{item.title}</div>
           <div className="mt-0.5 text-[13px] leading-relaxed text-muted">{question || item.message}</div>
         </div>
-        <div className="flex shrink-0 items-center gap-3 pt-0.5 text-[13px]">
-          {item.url && <a href={item.url} target="_blank" rel="noreferrer" style={{ color: BLUE }}>Open</a>}
-          {question ? <button onClick={() => setOpen(!open)} style={{ color: BLUE }}>{open ? 'Cancel' : 'Answer'}</button>
-            : <button onClick={finish} disabled={busy} className="text-muted hover:text-white">Done</button>}
-        </div>
+        {question && <button onClick={() => setOpen(!open)} className="shrink-0 pt-0.5 text-[13px]" style={{ color: BLUE }}>{open ? 'Cancel' : 'Answer'}</button>}
       </div>
+      {!open && <div className="mt-2"><ItemActions item={item} onDone={onDone} /></div>}
       <AnimatePresence initial={false}>{open && (
         <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
           <textarea autoFocus value={text} onChange={e => setText(e.target.value)} rows={4} placeholder="Your answer, in your words."

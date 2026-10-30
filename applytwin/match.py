@@ -148,7 +148,9 @@ def fit(job, prof, vault_terms=None):
         return 0, 'company on skip list'
     if any(x and re.search(r'\b%s' % re.escape(x.lower()), t) for x in s.get('exclude', [])):
         return 0, 'excluded keyword in title'
-    kind = s.get('kind', 'internship')
+    kind = s.get('kind') or 'internship'
+    if kind == 'co-op':   # co-ops are internships for matching; the term picks which ones
+        kind = 'internship'
     if kind == 'internship':
         if not INTERN.search(title):
             return 0, 'not an internship'
@@ -187,24 +189,28 @@ def fit(job, prof, vault_terms=None):
     if any(x and x.lower() in t for x in s.get('include', [])):
         score += 10
         why.append('include keyword')
-    season = (s.get('season') or '').lower()
-    yr = re.search(r'20\d\d', season)
-    if yr:
+    season = (s.get('season') or '').lower()   # one or more terms, e.g. "Summer 2027, Fall 2027"
+    want_years = set(re.findall(r'20\d\d', season))
+    if want_years:
         years = set(re.findall(r'20\d\d', title))
         if not years and job.get('source') == 'community':
             years = set(re.findall(r'20\d\d', job.get('description', '')[:80]))
-        if years and yr.group() not in years:
+        if years and not years & want_years:
             return 0, f'wrong cycle ({", ".join(sorted(years))})'
-        if yr.group() in title:
+        if years & want_years:
             score += 8
-            why.append(yr.group())
+            why.append(', '.join(sorted(years & want_years)))
     # a title that names a different term (a Spring or January co-op when you're after Summer) isn't your cycle
-    want = re.search(r'summer|spring|fall|autumn|winter', season)
-    if want and kind == 'internship' and not s.get('any_term'):
-        terms = set(re.findall(r'\b(summer|spring|fall|autumn|winter)\b', t)) | (
+    norm = lambda x: 'fall' if x == 'autumn' else x
+    want_terms = {norm(x) for x in re.findall(r'summer|spring|fall|autumn|winter', season)}
+    if want_terms and kind == 'internship' and not s.get('any_term'):
+        terms = {norm(x) for x in re.findall(r'\b(summer|spring|fall|autumn|winter)\b', t)} | (
             {'winter'} if re.search(r'\b(jan(uary)?|feb(ruary)?)\b\.? ?20\d\d|\(jan', t) else set())
-        if terms and want.group() not in terms and not ({want.group()} & {'fall', 'autumn'} and terms & {'fall', 'autumn'}):
-            return 0, f"{'/'.join(sorted(terms))} term, you want {want.group()}"
+        if terms and not terms & want_terms:
+            return 0, f"{'/'.join(sorted(terms))} term, you want {'/'.join(sorted(want_terms))}"
+    arr = set(s.get('arrangement') or [])   # on-site / hybrid / remote
+    if arr == {'remote'} and not re.search(r'remote|anywhere|distributed', f"{job.get('location', '')} {title}", re.I):
+        return 0, 'not remote'
     if re.search(r'\bhigh[- ]school\b', title, re.I) and prof.get('school'):
         return 0, 'high school program'
     es = re.search(r'20\d\d', prof.get('earliest_start') or '')

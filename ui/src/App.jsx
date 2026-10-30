@@ -68,7 +68,7 @@ export default function App() {
   const Page = PAGES[route.page]
   return (
     <Ctx.Provider value={{ ...state, refresh, go, jobs, loadJobs, startScan, scan, setState, auth, signIn, signOut }}>
-      <TopBar page={route.page} go={go} onPalette={() => setPalette(true)} matched={state.stats?.matched} auth={auth} signIn={signIn} signOut={signOut} />
+      {route.page !== 'welcome' && <TopBar page={route.page} go={go} onPalette={() => setPalette(true)} matched={state.stats?.matched} auth={auth} signIn={signIn} signOut={signOut} />}
       <Palette open={palette} setOpen={setPalette} go={go} jobs={jobs} actions={actions} />
       <motion.main key={route.page} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.25, ease: 'easeOut' }} className="relative min-h-full">
         <Page arg={route.arg} />

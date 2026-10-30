@@ -103,6 +103,19 @@ def main():
         check(f'{agent}: Autopilot instructions delivered intact', got == want and ('"' in want or "'" in want), f'{len(got)} chars')
         check(f'{agent}: run output logged', f'{agent} received' in log)
 
+    # finishing one specific application (Refill / Submit it / I signed in, finish it) reaches the agent with that job
+    from applytwin import sources
+    j = sources.job('manual', 'https://jobs.lever.co/acme/1234', 'Acme', 'Software Engineer Intern', '', 'https://jobs.lever.co/acme/1234')
+    store.execute('insert or replace into jobs(id,source,company,title,url,apply_url,ats,found_at,fit,status) values(?,?,?,?,?,?,?,?,?,?)',
+                  (j['id'], 'manual', 'Acme', 'Software Engineer Intern', j['url'], j['url'], 'lever', time.time(), 80, 'new'))
+    api.finish_jobs([j['id']], submit=True, agent='claude')
+    for _ in range(100):
+        if not api.run_status()['running']:
+            break
+        time.sleep(0.2)
+    got = open(os.path.join(os.environ['APPLYTWIN_HOME'], 'claude_stdin.txt'), encoding='utf-8').read()
+    check('finish one application: the agent gets that job and the submit go-ahead', j['id'] in got and 'SUBMIT each one' in got)
+
     # in-app tailoring on the subscription (no API key) returns the agent's JSON
     agents._cache.clear()
     store.save('profile.json', {**store.profile(), "apply": {**store.profile()['apply'], "agent": "codex"}})

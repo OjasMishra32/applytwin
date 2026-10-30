@@ -64,6 +64,8 @@ POST = {
     r'/api/import': lambda m, qs, b: api.import_resume(b.get('name', ''), b.get('data'), b.get('text')),
     r'/api/run': lambda m, qs, b: api.start_run(b.get('agent', 'claude'), int(b.get('n', 25))),
     r'/api/run/stop': lambda m, qs, b: api.stop_run(),
+    r'/api/finish': lambda m, qs, b: api.finish_jobs(b.get('job_ids') or [], bool(b.get('submit'))),
+    r'/api/open-twin': lambda m, qs, b: api.open_in_twin_browser(b['url']),
     r'/api/history': lambda m, qs, b: api.import_history(text=b.get('text', '')),
     r'/api/auth': lambda m, qs, b: cloud.set_session(b['access_token'], b['refresh_token'], b.get('expires_in', 3600)),
     r'/api/auth/logout': lambda m, qs, b: cloud.logout(),

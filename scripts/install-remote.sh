@@ -52,7 +52,16 @@ ok "ApplyTwin $(cat "$DIR/VERSION" 2>/dev/null || echo '') in $DIR"
 python3 -m pip install --quiet --user pypdf >/dev/null 2>&1 || true   # optional: lets the ATS check read PDFs
 
 mkdir -p "$HOME/.local/bin" && ln -sf "$DIR/bin/applytwin" "$HOME/.local/bin/applytwin"
-case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) warn "Add ~/.local/bin to your PATH to run 'applytwin' from anywhere." ;; esac
+case ":$PATH:" in
+  *":$HOME/.local/bin:"*) ;;
+  *) # make the `applytwin` command work in every new terminal
+     rcs="$HOME/.bashrc $HOME/.profile"; [ "$(uname)" = Darwin ] && rcs="$HOME/.zprofile $rcs" && touch "$HOME/.zprofile"
+     for rc in $rcs; do
+       [ -f "$rc" ] || continue
+       grep -qs 'applytwin: .local/bin' "$rc" || printf '\nexport PATH="$HOME/.local/bin:$PATH"   # applytwin: .local/bin\n' >> "$rc"
+     done
+     ok "Added the applytwin command to your PATH (new terminals)" ;;
+esac
 
 echo; b "Connecting your agents"
 python3 "$DIR/bin/applytwin" install-agents || warn "Could not connect an agent yet. Run 'applytwin install-agents' after installing Claude Code or Codex."
@@ -60,6 +69,54 @@ echo; b "Checking your setup"
 python3 "$DIR/bin/applytwin" doctor || true
 echo
 printf '\033[33m★\033[0m Free for every student. If it helps you, star it: https://github.com/OjasMishra32/applytwin\n\n'
-b "Opening ApplyTwin at http://localhost:4747  (Ctrl+C to stop, 'applytwin app' to open it again)"
 [ -n "${APPLYTWIN_NO_APP:-}" ] && exit 0
-exec python3 "$DIR/bin/applytwin" app ${APPLYTWIN_NO_OPEN:+--no-open} </dev/null
+
+# Run like a normal app: start quietly at login (so localhost:4747 always works and daily scans happen) and add an icon.
+PY="$(command -v python3)"
+mkdir -p "$HOME/.applytwin"
+case "$(uname)" in
+  Darwin)
+    PL="$HOME/Library/LaunchAgents/tech.twinly.applytwin.plist"
+    mkdir -p "$(dirname "$PL")"
+    cat > "$PL" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>tech.twinly.applytwin</string>
+  <key>ProgramArguments</key><array><string>$PY</string><string>$DIR/bin/applytwin</string><string>app</string><string>--no-open</string></array>
+  <key>EnvironmentVariables</key><dict><key>PATH</key><string>$HOME/.local/bin:$PATH</string></dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
+  <key>StandardOutPath</key><string>$HOME/.applytwin/server.log</string><key>StandardErrorPath</key><string>$HOME/.applytwin/server.log</string>
+</dict></plist>
+PLIST
+    launchctl bootout "gui/$(id -u)" "$PL" 2>/dev/null || true
+    launchctl bootstrap "gui/$(id -u)" "$PL" && ok "ApplyTwin starts by itself when you log in"
+    mkdir -p "$HOME/Applications"
+    osacompile -o "$HOME/Applications/ApplyTwin.app" -e 'open location "http://localhost:4747"' >/dev/null 2>&1 && ok "ApplyTwin is in your Applications (find it with Spotlight)"
+    sleep 2; open "http://localhost:4747" ;;
+  *)
+    if command -v systemctl >/dev/null && systemctl --user show-environment >/dev/null 2>&1; then
+      mkdir -p "$HOME/.config/systemd/user"
+      cat > "$HOME/.config/systemd/user/applytwin.service" <<UNIT
+[Unit]
+Description=ApplyTwin
+[Service]
+Environment=PATH=$HOME/.local/bin:$PATH
+ExecStart=$PY $DIR/bin/applytwin app --no-open
+Restart=always
+[Install]
+WantedBy=default.target
+UNIT
+      systemctl --user daemon-reload && systemctl --user enable --now applytwin >/dev/null 2>&1 && ok "ApplyTwin starts by itself when you log in"
+    else
+      nohup "$PY" "$DIR/bin/applytwin" app --no-open >"$HOME/.applytwin/server.log" 2>&1 &
+    fi
+    mkdir -p "$HOME/.local/share/applications"
+    printf '[Desktop Entry]\nType=Application\nName=ApplyTwin\nExec=xdg-open http://localhost:4747\nTerminal=false\nCategories=Office;\n' \
+      > "$HOME/.local/share/applications/applytwin.desktop"
+    sleep 2; (xdg-open "http://localhost:4747" >/dev/null 2>&1 &) ;;
+esac
+echo
+b "ApplyTwin is running at http://localhost:4747"
+echo "  Open it any time: the ApplyTwin app icon, that address, or type: applytwin"

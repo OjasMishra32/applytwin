@@ -456,7 +456,39 @@ def agent_status():
     return {n: agents.status(n) for n in agents.NAMES}
 
 
-def start_run(agent='claude', n=25, model=None):
+def finish_prompt(job_ids, submit=False):
+    rows = [store.rows('select id, company, title, apply_url, url from jobs where id=?', (j,)) for j in job_ids]
+    lines = '; '.join(f"{r[0]['company']} {r[0]['title']} (job {r[0]['id']}, {r[0]['apply_url'] or r[0]['url']})" for r in rows if r)
+    act = ("SUBMIT each one: I reviewed them and asked you to submit these specific applications, so submit once, confirm the "
+           "success page, and log it Applied." if submit else
+           "Stop on the review screen with everything filled and leave that tab open for me; log Needs User with 'ready to submit'.")
+    return ("Use the applytwin-apply skill. Finish these specific applications only, in your browser: " + lines + ". "
+            "For each: the job is already claimed; reuse its tailored resume (applytwin_get_job shows it; tailor with "
+            "applytwin_tailor_prompt/applytwin_tailor_apply only if there is none), open the application, follow applytwin_playbook "
+            "for its ATS, fill every field from applytwin_answer_questions, upload the resume. If a sign-in is still required, I signed "
+            "in in your browser profile; if it still asks, applytwin_notify me and move on. " + act + " Never invent facts.")
+
+
+def finish_jobs(job_ids, submit=False, agent=None):
+    """Re-open and finish specific applications in the twin's browser (refill a form that was closed, continue after a
+    sign-in, or submit one you approved)."""
+    agent = agent or store.profile()['apply'].get('agent') or 'claude'
+    return start_run(agent, len(job_ids), prompt=finish_prompt(job_ids, submit))
+
+
+def open_in_twin_browser(url):
+    """Open a page in the twin's own browser profile, so a sign-in you do there is the one the twin uses."""
+    import subprocess
+    from . import install
+    if _run['proc'] and _run['proc'].poll() is None:
+        raise RuntimeError('Your twin is using its browser right now. Wait for the run to finish, then open it.')
+    os.makedirs(install.BROWSER_PROFILE, exist_ok=True)
+    subprocess.Popen([render.chrome(), f'--user-data-dir={install.BROWSER_PROFILE}', '--no-first-run', '--no-default-browser-check', url],
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return {"opened": True}
+
+
+def start_run(agent='claude', n=25, model=None, prompt=None):
     import shutil
     import subprocess
     if _run['proc'] and _run['proc'].poll() is None:
@@ -467,7 +499,7 @@ def start_run(agent='claude', n=25, model=None):
     st = agents.status(agent, fresh=True)
     if not st['signed_in']:
         raise RuntimeError(f"{st['label']} is signed out. Run `{agents.LOGIN[agent]}` in a terminal, then press Launch again.")
-    prompt = run_prompt(n)
+    prompt = prompt or run_prompt(n)
     if agent == 'claude':
         # runs on the user's own Claude subscription; only ApplyTwin's tools and a browser are pre-approved, so it never stalls on a prompt
         tools = ('mcp__plugin_applytwin_applytwin,mcp__applytwin,mcp__playwright,mcp__claude-in-chrome,'
@@ -486,7 +518,7 @@ def start_run(agent='claude', n=25, model=None):
     proc.stdin.close()
     _run.update(proc=proc, agent=agent, log=logf)
     import threading
-    threading.Thread(target=_watch_run, args=(proc, agent, logf, n, model), daemon=True).start()
+    threading.Thread(target=_watch_run, args=(proc, agent, logf, n, model, prompt), daemon=True).start()
     return run_status()
 
 
@@ -494,7 +526,7 @@ AUTH_ERRORS = ('failed to authenticate', 'oauth session expired', 'not logged in
                'unauthorized', 'status 401')
 
 
-def _watch_run(proc, agent, logf, n, model):
+def _watch_run(proc, agent, logf, n, model, prompt=None):
     # when the agent exits early because its own sign-in lapsed, tell the user how to fix it instead of failing silently
     proc.wait()
     tail = open(logf).read()[-3000:].lower() if os.path.exists(logf) else ''
@@ -503,7 +535,7 @@ def _watch_run(proc, agent, logf, n, model):
         # the configured model isn't on this plan or CLI: retry once on one the CLI lists
         agents.FALLBACK_MODEL[0] = True
         fb = (agents.codex_model_args() or [None, 'gpt-5.6-sol'])[1]
-        return start_run(agent, n, model=fb)
+        return start_run(agent, n, model=fb, prompt=prompt)
     if any(e in tail for e in AUTH_ERRORS):
         fix = 'run `claude` in a terminal and type /login' if agent == 'claude' else 'run `codex login` in a terminal'
         notify(f'Sign in to {name}', f'Your {name} login expired: {fix}, then press Launch again.', kind='signin')

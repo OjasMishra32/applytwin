@@ -5,6 +5,7 @@ import { Bell, Search, Settings2, Sparkles } from 'lucide-react'
 import { cn } from '../lib/utils'
 import { spring } from './ui'
 import { StarButton } from '../lib/star'
+import { ItemActions } from './ItemActions'
 
 export const NAV = [['home', 'Today'], ['jobs', 'Jobs'], ['studio', 'Resume'], ['answers', 'Answers'], ['board', 'Applications'], ['agents', 'Autopilot']]
 
@@ -87,10 +88,7 @@ function Inbox() {
               <div key={i.id} className="rounded-[12px] px-3 py-2.5 hover:bg-white/[.04]">
                 <div className="text-[13.5px] font-medium text-white">{i.title}</div>
                 {i.message && <div className="mt-0.5 text-[12.5px] text-muted">{i.message}</div>}
-                <div className="mt-2 flex gap-2">
-                  {i.url && <a href={i.url} target="_blank" rel="noreferrer" className="rounded-full bg-signal px-3 py-1 text-[12px] font-semibold text-white">Open</a>}
-                  <button onClick={() => done(i.id)} className="rounded-full bg-white/[.08] px-3 py-1 text-[12px] font-medium text-ink">Done</button>
-                </div>
+                <ItemActions item={i} compact onDone={() => setD(x => ({ ...x, items: x.items.filter(y => y.id !== i.id) }))} />
               </div>))}
           </div>
         </motion.div>)}</AnimatePresence>

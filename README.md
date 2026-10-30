@@ -43,6 +43,11 @@ irm apply.twinly.tech/install.ps1 | iex            # Windows, in PowerShell
 That's it. It installs ApplyTwin in `~/.applytwin-app` (`%USERPROFILE%\.applytwin-app` on Windows), connects it to Claude Code and Codex, checks your setup and opens
 the app at http://localhost:4747. Run it again any time to update.
 
+**After that it runs like a normal app.** It starts by itself when you log in, so it's always at
+http://localhost:4747. Open it from the ApplyTwin icon (Applications / Spotlight on Mac, the Start menu on Windows,
+your app menu on Linux), that address, or by typing `applytwin` in a terminal. Your jobs refresh twice a day and the
+app updates itself.
+
 **No API keys.** ApplyTwin runs on the Claude Code or Codex plan you already pay for: resume tailoring, imports and the
 apply loop all go through your own `claude` or `codex` command line. You need:
 
