@@ -57,6 +57,12 @@ def vault_text(v):
 MAGNITUDE = re.compile(r'\b(thousand|million|billion|trillion|\d+[kmb]\b|\d+x\b|percent)', re.I)
 
 
+IRREGULAR_PAST = set('''ran led built won wrote made grew taught drove began held found took gave cut set sold spent brought bought
+chose drew flew fought kept lost met paid rode rose saw sent shot spoke stood struck thought threw understood wore became
+broke dealt fed felt hit hung knew laid left lent let meant put read sought shut sat slept split spread stuck swept told
+withdrew undertook oversaw overcame upheld'''.split())
+
+
 def _forms(w):
     """Inflections of a verb, to recognise 'Ship' as 'shipped' or 'Build' as 'built' in the vault."""
     irregular = {'build': ['built'], 'lead': ['led'], 'run': ['ran'], 'write': ['wrote', 'written'], 'win': ['won'],
@@ -100,8 +106,9 @@ def check_rewrite(orig, new, vault_txt, jd, entry_txt=None):
     caps = {w for w in caps if not (len(w) >= 6 and w[:6].lower() in stems)}
     # a capitalized verb that starts a bullet ("Ship", "Lead") is the same word as "shipped"/"leading" in the vault,
     # and an acronym already inside a vault word ("OS" in macOS/iOS) is not a new name
-    caps = {w for w in caps if not any(f in vlow for f in _forms(w.lower()))
-            and not (w.isupper() and any(x.endswith(w) and x != w for x in vw))}
+    caps = {w for w in caps if not any(f in vlow for f in _forms(w.lower())) and w.lower() not in IRREGULAR_PAST
+            and not (w.isupper() and any(x.endswith(w) and x != w for x in vw))
+            and not ('-' in w and w.split('-')[0].lower() in vlow)}
     if caps:
         return 'adds names/tools not in your vault: ' + ', '.join(sorted(caps))
     jdw = {w.lower() for w in words(jd)}
@@ -633,12 +640,14 @@ def tailor(v, job, jd, mode='auto', plan=None, style=None, out_dir=None):
     out_dir = out_dir or store.path('resumes', job.get('id', 'general'))
     name = (re.sub(r'[^\w]+', '_', res['basics'].get('name', 'Resume') or '', flags=re.UNICODE).strip('_') or 'Resume') + '_Resume.pdf'
     pdf = os.path.join(out_dir, name)
-    r = render.render(res, style, pdf)
+    kws = ats.keywords(jd)
+    worth = lambda b: _kw_score(ats.plain(b), kws) + (2 if IMPACT.search(b) else 0)   # what to keep when trimming to fit
+    r = render.render(res, style, pdf, worth=worth)
     if r['pages'] == 1 and not r['dropped'] and style != 'latex':   # room left on the page: fill it with real material
         added = _fill_page(v, res, jd, style, pdf + '.probe.pdf')
         if added:
             rep['added'] = added
-            r = render.render(res, style, pdf)
+            r = render.render(res, style, pdf, worth=worth)
         for f in (pdf + '.probe.pdf',):
             if os.path.exists(f):
                 os.remove(f)

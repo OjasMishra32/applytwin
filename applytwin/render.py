@@ -251,15 +251,16 @@ def pdf_text(pdf):
         return None
 
 
-def render(r, style, out_pdf, one_page=True):
-    """Render, shrinking type a few steps and then trimming the lowest-priority bullets until it fits one page."""
+def render(r, style, out_pdf, one_page=True, worth=None):
+    """Render, shrinking type a little and then trimming the lowest-priority lines until it fits one page. worth(text) scores
+    a bullet for this job (higher = keep); without it, bullets are trimmed from the end of each list."""
     import copy
     r = copy.deepcopy(r)
     dropped = []
     if style == 'latex':
         from . import latex
         try:
-            return _fit(r, out_pdf, one_page, dropped, lambda rr, k: latex.compile_tex(latex.build_tex(rr, k), out_pdf), (1.0, .96, .92))
+            return _fit(r, out_pdf, one_page, dropped, lambda rr, k: latex.compile_tex(latex.build_tex(rr, k), out_pdf), (1.0, .96, .92), worth)
         except RuntimeError:
             style = 'classic'
     # keep the type readable: shrink only a little, then cut the weakest lines; go smaller only if cutting runs out
@@ -270,7 +271,7 @@ def render(r, style, out_pdf, one_page=True):
             return {"pdf": out_pdf, "pages": n, "scale": k, "dropped": dropped}
     for k, budget in ((.95, 12), (.92, 12), (.9, 30)):
         for _ in range(budget):
-            victim = _drop_one(r)
+            victim = _drop_one(r, worth)
             if not victim:
                 break
             dropped.append(victim)
@@ -286,14 +287,14 @@ def fits(r, style, k, out_pdf):
     return page_count(out_pdf) == 1
 
 
-def _fit(r, out_pdf, one_page, dropped, make, steps):
+def _fit(r, out_pdf, one_page, dropped, make, steps, worth=None):
     for k in steps:
         make(r, k)
         n = page_count(out_pdf)
         if n == 1 or not one_page:
             return {"pdf": out_pdf, "pages": n, "scale": k, "dropped": dropped}
     for _ in range(30):
-        v = _drop_one(r)
+        v = _drop_one(r, worth)
         if not v:
             break
         dropped.append(v)
@@ -303,12 +304,19 @@ def _fit(r, out_pdf, one_page, dropped, make, steps):
     return {"pdf": out_pdf, "pages": page_count(out_pdf), "scale": steps[-1], "dropped": dropped}
 
 
-def _drop_one(r):
+def _drop_one(r, worth=None):
     """Cut the least valuable line first. Entries arrive most-relevant first (the tailor orders them), so we
     trim from the end of each section, in this order: extra bullets on later entries, then the least relevant
     whole roles/projects/skill lines, and only as a last resort papers or the top entries."""
     def bullet(sec, keep, start=0):
         items = r.get(sec) or []
+        if worth:   # the least relevant bullet for this job, across every entry that can spare one
+            cands = [(worth(b), idx, bi) for idx in range(start, len(items)) if len(items[idx].get('bullets', [])) > keep
+                     for bi, b in enumerate(items[idx]['bullets'])]
+            if cands:
+                _, idx, bi = min(cands)
+                return f"{sec}: {ats_plain(items[idx]['bullets'].pop(bi))[:60]}"
+            return None
         for idx in range(len(items) - 1, start - 1, -1):
             if len(items[idx].get('bullets', [])) > keep:
                 return f"{sec}: {ats_plain(items[idx]['bullets'].pop())[:60]}"
