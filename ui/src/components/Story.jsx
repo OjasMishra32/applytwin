@@ -40,8 +40,8 @@ export function Story() {
   const sent = Math.round(clamp((t - 0.7) / 0.28) * 1284)
 
   return (
-    <section ref={ref} className="relative" style={{ height: '420vh' }}>
-      <div className="sticky top-0 h-screen overflow-hidden">
+    <section ref={ref} className="relative h-[300svh] md:h-[420vh]">
+      <div className="sticky top-0 h-[100svh] overflow-hidden">
         <div className="absolute inset-0" style={{ background: 'radial-gradient(60% 50% at 50% 58%, rgb(40 80 220 / .28), transparent 70%)' }} />
         <div className="absolute inset-x-0 top-[11vh] text-center">
           {[[h0, 'Everything', "you've ever done."], [h1, 'Rewritten', 'for each job.'], [h2, 'Sent.', 'Everywhere.']].map(([st, a, b]) => (
@@ -65,8 +65,8 @@ export function Story() {
                   opacity: t < 0.34 ? clamp(k * 5) * clamp(r * 20) : 0 }}>{s}</div>)
           })}
 
-          <motion.div style={{ ...card, x: '-50%', y: '-50%' }} className="absolute left-1/2 top-[34%] w-[min(640px,88vw)] rounded-[16px] bg-white p-8 text-left shadow-[0_40px_100px_rgb(0_0_0/.5)]">
-            <div className="flex items-baseline justify-between"><div className="text-[22px] font-semibold tracking-[-0.03em] text-[#0b1020]">Northwind Labs</div>
+          <motion.div style={{ ...card, x: '-50%', y: '-50%' }} className="absolute left-1/2 top-[34%] w-[min(640px,90vw)] rounded-[16px] bg-white p-6 text-left sm:p-8 shadow-[0_40px_100px_rgb(0_0_0/.5)]">
+            <div className="flex flex-col gap-0.5 sm:flex-row sm:items-baseline sm:justify-between"><div className="text-[22px] font-semibold tracking-[-0.03em] text-[#0b1020]">Northwind Labs</div>
               <div className="text-[13px] text-[#6b7280]">Software Engineering Intern</div></div>
             <div className="mt-1 h-px bg-black/10" />
             <ul className="mt-4 space-y-3">

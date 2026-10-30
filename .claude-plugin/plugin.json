@@ -2,9 +2,18 @@
   "name": "applytwin",
   "version": "0.1.0",
   "description": "ApplyTwin: finds internships and jobs across thousands of career pages, tailors a fact-checked one-page resume for every posting, and applies through your browser with your approval.",
-  "author": {"name": "ApplyTwin"},
-  "license": "MIT",
-  "keywords": ["jobs", "internships", "resume", "ats", "auto-apply", "career"],
+  "author": {
+    "name": "ApplyTwin"
+  },
+  "license": "PolyForm-Strict-1.0.0",
+  "keywords": [
+    "jobs",
+    "internships",
+    "resume",
+    "ats",
+    "auto-apply",
+    "career"
+  ],
   "skills": "./skills/",
   "mcpServers": "./.mcp.json"
 }

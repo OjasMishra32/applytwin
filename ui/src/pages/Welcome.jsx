@@ -46,7 +46,7 @@ export default function Welcome() {
   const pages = [
     <div key="0" className="grid items-center gap-10 md:grid-cols-[1.05fr_1fr]">
       <div className="text-white">
-        <div className="flex items-center gap-3 text-[17px] font-medium text-white/80">Hi, I'm your twin.<span className="rounded-full bg-white/10 px-3 py-1 text-[13px] font-semibold text-white ring-1 ring-white/20">Free and open source</span></div>
+        <div className="flex items-center gap-3 text-[17px] font-medium text-white/80">Hi, I'm your twin.<span className="rounded-full bg-white/10 px-3 py-1 text-[13px] font-semibold text-white ring-1 ring-white/20">Free to use</span></div>
         <h1 className="mt-3 text-[72px] font-bold leading-[0.95] tracking-[-0.045em]">Give me your resume.<br /><span className="text-white/55">I'll get you hired.</span></h1>
         <p className="mt-6 max-w-[460px] text-[19px] leading-[1.45] text-white/80">I'll find every open role in your field, write the ideal resume for each one from everything you've done, and apply for you. You only step in when it matters.</p>
         {!auth?.signed_in && <button onClick={signIn} className="mt-8 flex h-12 items-center gap-3 rounded-full bg-white px-6 text-[16px] font-medium text-[#0b1020] transition hover:bg-white/90">

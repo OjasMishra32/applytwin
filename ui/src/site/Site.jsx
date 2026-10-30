@@ -23,7 +23,7 @@ const FAQ = [
   ['Will it submit applications without me?', 'Only if you turn that on. By default it fills every form and stops on the review screen, so you press submit.'],
   ['What will it never do?', 'Type your passwords, solve CAPTCHAs, create accounts, accept legal agreements, or invent a single fact about you. Those come back to you as a notification.'],
   ['Is it only for software jobs?', 'No. It learns what a strong resume looks like in your field, whether that is nursing, finance, design, research or engineering, and tailors to each posting.'],
-  ['What does it cost?', 'Nothing. ApplyTwin is free and open source under the MIT license.'],
+  ['What does it cost?', 'Nothing. ApplyTwin is free to use for students and job seekers.'],
 ]
 
 export default function Site() {
@@ -37,7 +37,7 @@ export default function Site() {
       <header className="glass fixed inset-x-0 top-0 z-50 border-b border-white/[.06]">
         <div className="mx-auto flex h-14 max-w-[1180px] items-center justify-between px-5">
           <a href="#" className="flex items-center gap-2 text-[15px] font-semibold text-white"><Logo />ApplyTwin</a>
-          <nav className="flex items-center gap-5 text-[13.5px] text-white/70">
+          <nav className="flex items-center gap-4 text-[13.5px] text-white/70 sm:gap-5">
             <a href="#how" className="hidden hover:text-white sm:block">How it works</a>
             <a href="#faq" className="hidden hover:text-white sm:block">Questions</a>
             <a href="/app" className="hover:text-white">Your account</a>
@@ -51,7 +51,7 @@ export default function Site() {
         <div className="relative mx-auto grid max-w-[1180px] items-center gap-6 px-5 pt-32 md:grid-cols-[1.1fr_1fr]">
           <motion.div style={{ y: heroY, opacity: heroO }} className="min-w-0 text-white">
             <motion.span initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={soft}
-              className="inline-block rounded-full bg-white/10 px-3 py-1 text-[13px] font-semibold ring-1 ring-white/20">Free and open source</motion.span>
+              className="inline-block rounded-full bg-white/10 px-3 py-1 text-[13px] font-semibold ring-1 ring-white/20">Free to use</motion.span>
             <h1 className="mt-4 text-[clamp(48px,7vw,80px)] font-bold leading-[0.95] tracking-[-0.045em]">
               <Words text="You apply once." /><br />
               <Words text="Your twin" delay={0.25} className="serif-i text-[#9cc8ff]" /> <Words text="does the rest." delay={0.4} />
@@ -94,13 +94,13 @@ export default function Site() {
             <div className="text-[clamp(64px,11vw,160px)] font-bold leading-[0.85] tracking-[-0.06em] text-white">Get <span className="serif-i text-[#9cc8ff]">hired.</span></div>
             <p className="mx-auto mt-6 max-w-[520px] text-[18px] text-muted">Paste this into your terminal. Your twin starts on its first applications in a few minutes.</p>
             <div className="mx-auto mt-10 min-w-0 max-w-[560px] text-left"><InstallBox /></div>
-            <p className="mt-4 text-[14px] text-white/60">100% free. Open source. Your data stays on your computer.</p>
+            <p className="mt-4 text-[14px] text-white/60">100% free. Your data stays on your computer.</p>
           </div>
         </Reveal>
       </section>
 
       <footer className="mx-auto flex max-w-[1180px] flex-wrap items-center justify-between gap-3 border-t border-white/[.06] px-5 py-8 text-[13px] text-faint">
-        <span className="flex items-center gap-2"><Logo size={16} />ApplyTwin, from Twinly · MIT license</span>
+        <span className="flex items-center gap-2"><Logo size={16} />© 2026 Ojasva Mishra · ApplyTwin, from Twinly</span>
         <span>Runs on your own Claude Code or Codex.</span>
       </footer>
     </div>
@@ -111,11 +111,11 @@ function InstallBox() {
   const [ok, setOk] = useState(false)
   const copy = () => { navigator.clipboard.writeText(INSTALL); setOk(true); setTimeout(() => setOk(false), 1600) }
   return (
-    <button onClick={copy} className="group flex w-full items-center gap-3 rounded-[16px] bg-black/55 px-4 py-3.5 text-left ring-1 ring-white/15 backdrop-blur transition hover:ring-white/30">
-      <span className="select-none font-mono text-[14px] text-white/40">$</span>
-      <span className="min-w-0 flex-1 break-words font-mono text-[13px] leading-snug text-white sm:text-[14px]">{INSTALL}</span>
-      <span className="flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-[12.5px] font-semibold text-white" style={{ background: ok ? GREEN : BLUE }}>
-        {ok ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}{ok ? 'Copied' : 'Copy'}</span>
+    <button onClick={copy} aria-label="Copy the install command" className="group flex w-full items-center gap-2.5 rounded-[16px] bg-black/55 py-3.5 pl-4 pr-3 text-left ring-1 ring-white/15 backdrop-blur transition hover:ring-white/30 sm:gap-3">
+      <span className="hidden select-none font-mono text-[14px] text-white/40 sm:inline">$</span>
+      <span className="min-w-0 flex-1 font-mono text-[12.5px] leading-snug text-white sm:text-[14px]">{INSTALL}</span>
+      <span className="grid size-8 shrink-0 place-items-center rounded-full text-white sm:flex sm:size-auto sm:items-center sm:gap-1.5 sm:px-3 sm:py-1 sm:text-[12.5px] sm:font-semibold" style={{ background: ok ? GREEN : BLUE }}>
+        {ok ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}<span className="hidden sm:inline">{ok ? 'Copied' : 'Copy'}</span></span>
     </button>
   )
 }

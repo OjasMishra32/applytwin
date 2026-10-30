@@ -98,3 +98,10 @@ Python standard library only (`pypdf` is optional, for PDF text checks). `applyt
 match, ats, tailor, render, answers, api, server, mcp and cli modules; `web/` is vanilla JS. Skills are in
 `skills/`, ATS playbooks in `playbooks/`, agent instructions in [AGENTS.md](AGENTS.md).
 Run `python3 tests/smoke.py`.
+
+## License
+
+Copyright (c) 2026 Ojasva Mishra. ApplyTwin is free to use under the [PolyForm Strict License 1.0.0](LICENSE): you may
+install and run it for any noncommercial purpose, but you may not copy, modify, redistribute or sell it, or build other
+works from it. For any other use, ask first.
+Bundled third-party code (`applytwin/_vendor/pypdf`) stays under its own BSD license.

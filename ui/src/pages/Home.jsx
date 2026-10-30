@@ -33,7 +33,7 @@ export default function Home() {
         <motion.div className="text-white" style={{ y: heroY, opacity: heroO }}>
           <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={soft} className="flex flex-wrap items-center gap-3 text-[17px] font-medium text-white/80">
             <span>{greet}{first ? `, ${first}` : ''}.</span>
-            <span className="rounded-full bg-white/10 px-3 py-1 text-[13px] font-semibold text-white ring-1 ring-white/20">Free and open source</span>
+            <span className="rounded-full bg-white/10 px-3 py-1 text-[13px] font-semibold text-white ring-1 ring-white/20">Free to use</span>
           </motion.div>
           <motion.h1 initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ ...soft, delay: 0.05 }}
             className="mt-3 text-[76px] font-bold leading-[0.95] tracking-[-0.045em]">

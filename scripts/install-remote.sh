@@ -5,7 +5,7 @@
 set -euo pipefail
 
 BASE="${APPLYTWIN_URL:-https://apply.twinly.tech}"
-REPO="OjasMishra32/applytwin"   # the open-source repo
+REPO="OjasMishra32/applytwin"   # the ApplyTwin repo
 # newest commit on main that passed CI (falls back to main if GitHub's API is unreachable)
 SHA="$(python3 - "$REPO" <<'PY' 2>/dev/null || true
 import json, sys, urllib.request
