@@ -20,11 +20,11 @@ themselves on a careful day.
    authorization/sponsorship, degree level, location, citizenship/clearance. If the user clearly doesn't
    qualify, `applytwin_log_application(job_id, "Skipped", "<reason>")` and move on.
 3. **Tailor** (if `apply.tailor_every_resume`):
-   - `applytwin_tailor_prompt(job_id)` -> follow its instructions and write the JSON plan yourself. Choose the
-     entries and bullets that prove the posting's requirements, mirror its exact terms only where the vault
-     backs them, and lead with the strongest evidence.
-   - `applytwin_tailor_apply(job_id, plan)` -> returns `pdf` and `tex` (LaTeX source). Check `pages == 1`, `coverage`, `rejected`. If coverage is low and
-     the vault has relevant material you left out, revise the plan once. Use the returned `pdf`.
+   - `applytwin_tailor_apply(job_id)` with NO plan. A dedicated writer builds the resume (focused plan, honesty
+     check, one-page fit); it started when you claimed the job, so do steps 4-5 first and call this when you reach the
+     upload field. It returns `pdf` and `tex`. Use the returned `pdf`.
+   - Write your own plan (`applytwin_tailor_prompt` then `applytwin_tailor_apply(job_id, plan)`) only when the user
+     asked for a specific change to this resume.
 4. **Prepare answers**: Greenhouse: `applytwin_job_questions(job_id)`. Others: read the form's questions, then
    `applytwin_answer_questions([{question, options}])`. Results with `action: "write"` are open-ended questions
    (why this company, what interested you, anything else): write them yourself following `how`, never ask the user and

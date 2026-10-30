@@ -8,7 +8,9 @@ description: "Build the best possible tailored one-page resume for a specific jo
 1. Get the job: a ApplyTwin `job_id`, or `applytwin_add_job(url, title, company, description)` for a pasted posting
    (paste the description text when you can: it makes tailoring far better).
 2. `applytwin_ats_report(job_id)` to see the vault's raw coverage and which hard skills are missing.
-3. `applytwin_tailor_prompt(job_id)` and write the plan like a top recruiter in this field would:
+3. `applytwin_tailor_apply(job_id)` with no plan: ApplyTwin's dedicated writer builds the resume (focused plan, honesty
+   check, one-page fit). Show it to the user. Only if they want something changed, or it misses the posting's #1
+   requirement, write your own plan: `applytwin_tailor_prompt(job_id)`, written like a top recruiter in this field would:
    - **Top third wins.** The first role and its first bullet must hit the posting's #1 requirement.
    - **Fill one page with the strongest material.** A student resume is usually 4-6 entries and 14-18 bullets:
      the current/most relevant roles get 2-4 bullets, projects and leadership 1-2. A half-empty page reads as thin;

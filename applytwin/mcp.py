@@ -31,8 +31,8 @@ TOOLS = [
     ("applytwin_add_job", "Track a job by URL (and optional pasted description) that the scrapers did not find.", S(url=STR, title=STR, company=STR, description=STR), lambda a: api.add_job(a['url'], a.get('title', ''), a.get('company', ''), a.get('description', ''))),
     ("applytwin_job_questions", "Greenhouse only: the application's questions with suggested answers from the bank, before opening the form.", S(job_id=STR), lambda a: api.job_questions(a['job_id'])),
     ("applytwin_ats_report", "ATS report: posting keyword coverage (matched/missing hard skills) + resume lint. Pass job_id or jd_text; omit both to lint the vault.", S(job_id=STR, jd_text=STR), lambda a: api.ats_report(a.get('job_id'), a.get('jd_text'))),
-    ("applytwin_tailor_prompt", "Returns the expert tailoring prompt for a job (vault + posting + rules). Write the JSON plan it asks for, then call applytwin_tailor_apply.", S(job_id=STR), lambda a: api.tailor_prompt(a['job_id'])),
-    ("applytwin_tailor_apply", "Build the tailored one-page PDF for a job. Pass your plan from applytwin_tailor_prompt (best), or omit plan for the automatic heuristic. Returns pdf path, ATS coverage, rejected rewrites (fact guard).", S(job_id=STR, plan={"type": "object"}, template=STR), lambda a: api.tailor_apply(a['job_id'], a.get('plan'), a.get('template'), 'agent' if a.get('plan') else 'heuristic')),
+    ("applytwin_tailor_prompt", "The tailoring prompt for a job (vault + posting + rules). Only for writing a custom plan when the user asked for a specific change; normally call applytwin_tailor_apply(job_id) with no plan instead.", S(job_id=STR), lambda a: api.tailor_prompt(a['job_id'])),
+    ("applytwin_tailor_apply", "The tailored one-page resume PDF for a job. Call it with NO plan: a dedicated writer (focused AI plan, honesty check, one-page fit) builds it, started when you claimed the job, so it is usually ready by the time you reach the upload field. Pass a plan only for a change the user asked for. Returns pdf path, ATS coverage, positioning.", S(job_id=STR, plan={"type": "object"}, template=STR), lambda a: api.tailor_apply(a['job_id'], a.get('plan'), a.get('template'), 'agent' if a.get('plan') else 'auto')),
     ("applytwin_render_resume", "Render the master (untailored) resume or a quick heuristic tailor (job_id) in a template: classic, harvard, modern, banking, finance, minimal, compact, accent.", S(template=STR, job_id=STR), lambda a: api.render_resume(a.get('template'), a.get('job_id'))),
     ("applytwin_templates", "List resume templates and what each is best for.", S(), lambda a: api.templates()),
     ("applytwin_answer_questions", "Answer application questions from the user's bank. questions: strings or {question, options[]}. Answers with confidence < 0.45 come back null: ask the user, then applytwin_save_answer.", S(questions={"type": "array"}, job_id=STR), lambda a: api.answer_questions(a.get('questions', []), a.get('job_id'))),
@@ -97,7 +97,7 @@ def main():
             reply(i, {"protocolVersion": req.get('params', {}).get('protocolVersion', '2025-06-18'),
                       "capabilities": {"tools": {}}, "serverInfo": {"name": "applytwin", "version": "0.1.0"},
                       "instructions": "ApplyTwin runs the user's job search. Start with applytwin_setup_status. To apply: applytwin_next_jobs -> "
-                                      "applytwin_claim -> applytwin_get_job -> applytwin_tailor_prompt/applytwin_tailor_apply -> applytwin_playbook(ats) -> "
+                                      "applytwin_claim -> applytwin_get_job -> applytwin_tailor_apply(job_id, no plan) -> applytwin_playbook(ats) -> "
                                       "fill the form in the browser using applytwin_answer_questions -> submit only if profile.apply.auto_submit "
                                       "-> applytwin_log_application. Never type passwords, solve CAPTCHAs, create accounts or invent facts."})
         elif m == 'ping':

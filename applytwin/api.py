@@ -301,7 +301,39 @@ def claim(job_id, who='agent'):
         return {"claimed": False, "reason": "Today's application limit is reached. Stop the run here."}
     if j and store.company_count(j['company']) >= p['apply'].get('per_company_cap', 3):
         return {"claimed": False, "reason": "The per-company cap for this company is reached. Skip it."}
-    return {"claimed": store.claim(job_id, who)}
+    ok = store.claim(job_id, who)
+    if ok:
+        pretailor(job_id)   # the resume is written while the agent opens and fills the application
+    return {"claimed": ok}
+
+
+_tailoring = {}   # job_id -> {"thread", "result", "error"}: dedicated resume builds running in the background
+
+
+def pretailor(job_id):
+    """Start the full resume pipeline for a job in the background (a focused AI plan, honesty check, page fit), unless
+    one is already running or a current resume exists. The agent picks it up with applytwin_tailor_apply(job_id)."""
+    t = _tailoring.get(job_id)
+    if t and (t['thread'].is_alive() or t.get('result')):
+        return
+    saved = store.path('resumes', job_id, 'tailor.json')
+    try:
+        d = json.load(open(saved, encoding='utf-8'))
+        if d.get('pipeline', 0) >= tailor.PIPELINE and d.get('mode') == 'api':
+            return
+    except Exception:
+        pass
+    slot = {"result": None, "error": None}
+
+    def work():
+        try:
+            j = get_job(job_id)
+            slot['result'] = tailor.tailor(get_vault(), j, j.get('description', ''), mode='auto')
+        except Exception as e:
+            slot['error'] = str(e)
+    slot['thread'] = threading.Thread(target=work, daemon=True)
+    _tailoring[job_id] = slot
+    slot['thread'].start()
 
 
 def on_start():
@@ -435,15 +467,29 @@ def tailor_prompt(job_id):
     return {"job": {k: j[k] for k in ('id', 'company', 'title', 'location', 'apply_url')},
             "prompt": tailor.prompt(get_vault(), j, j.get('description', ''), learn.context_for(j)),
             "template": learn.context_for(j)['template'],
-            "then": "call applytwin_tailor_apply(job_id, plan) with the JSON plan"}
+            "then": "Usually skip this: applytwin_tailor_apply(job_id) with no plan returns the dedicated writer's resume, which "
+                    "is better. Write a plan only if the user asked you to change something specific."}
 
 
 def tailor_apply(job_id, plan=None, template=None, mode='auto'):
+    """The tailored resume for a job. Without a plan: the dedicated writer's build (started at claim; waited for if still
+    running), which is the best quality. With a plan: built from that plan."""
     j = get_job(job_id)
     if not j:
         return {"error": "unknown job"}
     if isinstance(plan, str):
         plan = json.loads(plan)
+    if plan is None and mode in ('auto', 'api'):
+        pretailor(job_id)
+        slot = _tailoring.get(job_id)
+        if slot:
+            slot['thread'].join(timeout=420)
+            if slot.get('result') and (not template or slot['result'].get('style') == template):
+                return slot['result']
+        else:   # a current dedicated build is already saved
+            d = json.load(open(store.path('resumes', job_id, 'tailor.json'), encoding='utf-8'))
+            if not template or d.get('style') == template:
+                return tailor.tailor(get_vault(), j, j.get('description', ''), plan=d['plan'], style=d.get('style'), mode='agent')
     return tailor.tailor(get_vault(), j, j.get('description', ''), mode=mode, plan=plan, style=template)
 
 
@@ -539,7 +585,7 @@ _run = {"proc": None, "agent": None, "log": None, "stopped": False}
 
 def run_prompt(n):
     return (f"Use the applytwin-apply skill. Apply to the next {n} jobs in my ApplyTwin queue (applytwin_queue / applytwin_next_jobs), "
-            "dream companies first. For every job: claim it, tailor a resume (applytwin_tailor_prompt then applytwin_tailor_apply), "
+            "dream companies first. For every job: claim it, get its tailored resume with applytwin_tailor_apply(job_id) and NO plan (a dedicated writer builds it while you open the application), "
             "open the application in the browser, follow applytwin_playbook for its ATS, answer from applytwin_answer_questions, "
             "submit only if my profile allows auto_submit, and log the result with applytwin_log_application. "
             "If a site asks for an emailed verification code: if my profile.apply.email_codes is 'agent', read the newest code from that company "
@@ -564,8 +610,8 @@ def finish_prompt(job_ids, submit=False):
            "success page, and log it Applied." if submit else
            "Stop on the review screen with everything filled and leave that tab open for me; log Needs User with 'ready to submit'.")
     return ("Use the applytwin-apply skill. Finish these specific applications only, in your browser: " + lines + ". "
-            "For each: the job is already claimed; reuse its tailored resume (applytwin_get_job shows it; tailor with "
-            "applytwin_tailor_prompt/applytwin_tailor_apply only if there is none), open the application, follow applytwin_playbook "
+            "For each: the job is already claimed; reuse its tailored resume (applytwin_get_job shows it; if there is none, "
+            "applytwin_tailor_apply(job_id) with no plan), open the application, follow applytwin_playbook "
             "for its ATS, fill every field from applytwin_answer_questions, upload the resume. If a sign-in is still required, I signed "
             "in in your browser profile; if it still asks, applytwin_notify me and move on. " + act + " Never invent facts.")
 
