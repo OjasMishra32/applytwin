@@ -10,6 +10,7 @@ self-update can swap the app folder while the app is running.
 """
 import json
 import os
+os.environ["APPLYTWIN_NO_TELEMETRY"] = "1"   # tests never count as installs
 import shutil
 import subprocess
 import sys

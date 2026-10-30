@@ -273,7 +273,9 @@ def serve(port=4747, open_browser=True):
     from . import install
     threading.Thread(target=lambda: (install.refresh_skills(), api.rescore(), api.scan_if_stale()), daemon=True).start()
     threading.Thread(target=_update_loop, daemon=True).start()
-    threading.Thread(target=_code_watch, daemon=True).start()   # keep updating while it runs for days
+    threading.Thread(target=_code_watch, daemon=True).start()
+    from . import telemetry
+    telemetry.start()   # anonymous install count (random ID, OS, version); off in Settings   # keep updating while it runs for days
     print(f'ApplyTwin is running at {url}  (data in {store.HOME})', flush=True)
     if open_browser:
         import webbrowser

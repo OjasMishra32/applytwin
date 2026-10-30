@@ -6,7 +6,7 @@ import json
 import sys
 import traceback
 
-from . import api
+from . import api, store
 
 S = lambda **props: {"type": "object", "properties": props}
 STR, NUM, BOOL = {"type": "string"}, {"type": "number"}, {"type": "boolean"}
@@ -57,6 +57,27 @@ def reply(i, result=None, error=None):
     sys.stdout.flush()
 
 
+STEPS = {'claim': 'Opening the posting', 'get_job': 'Opening the posting', 'tailor_prompt': 'Tailoring your resume',
+         'tailor_apply': 'Tailoring your resume', 'render_resume': 'Tailoring your resume', 'ats_report': 'Checking your resume',
+         'playbook': 'Filling the application', 'answer_questions': 'Filling the application', 'job_questions': 'Filling the application',
+         'save_answer': 'Filling the application', 'notify': 'Asking you something', 'log_application': 'Logging it',
+         'next_jobs': 'Picking the next job', 'queue': 'Picking the next job', 'pending_jobs': 'Picking the next job'}
+
+
+def _activity(name, args):
+    """What the agent is doing right now, for the Autopilot page (and the stuck-run timer)."""
+    try:
+        import time
+        step = STEPS.get((name or '').replace('applytwin_', ''))
+        if not step:
+            return
+        cur = store.load('activity.json', {}) or {}
+        job = args.get('job_id') or (cur.get('job_id') if step not in ('Picking the next job',) else '')
+        store.save('activity.json', {"step": step, "job_id": job or '', "at": time.time()})
+    except Exception:
+        pass
+
+
 def main():
     for line in sys.stdin:
         line = line.strip()
@@ -87,6 +108,7 @@ def main():
                 reply(i, error={"code": -32602, "message": "unknown tool"})
                 continue
             try:
+                _activity(p.get('name'), p.get('arguments') or {})
                 out = t[3](p.get('arguments') or {})
                 reply(i, {"content": [{"type": "text", "text": json.dumps(out, default=str, ensure_ascii=False)[:180000]}]})
             except Exception as e:

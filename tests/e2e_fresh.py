@@ -8,6 +8,7 @@ install-agents (Claude Code + Codex configs), the web server's endpoints, and th
 """
 import json
 import os
+os.environ["APPLYTWIN_NO_TELEMETRY"] = "1"   # tests never count as installs
 import shutil
 import subprocess
 import sys

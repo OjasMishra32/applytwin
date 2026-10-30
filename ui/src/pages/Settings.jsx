@@ -89,6 +89,7 @@ export default function Settings() {
         <Group title="ApplyTwin">
           <Row label="Update automatically" hint="Installs each tested version on start and every hour, never mid-run."><div className="flex justify-end"><Switch checked={a.auto_update !== false} onChange={v => sa('auto_update', v)} /></div></Row>
           <UpdateRow />
+          <Row label="Count my install" hint="Sends a random ID, your OS and the ApplyTwin version once a day, so we know how many people use it. Never your name, resume or applications."><div className="flex justify-end"><Switch checked={a.telemetry !== false} onChange={v => sa('telemetry', v)} /></div></Row>
         </Group>
       </div>
     </Page></div>

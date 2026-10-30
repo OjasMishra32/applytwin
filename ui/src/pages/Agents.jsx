@@ -66,9 +66,10 @@ export default function Agents() {
   const stop = async () => { setRun(await api('/api/run/stop', {})); toast('Stopped. Your queue keeps its place.') }
   const step = d => setN(SIZES[Math.max(0, Math.min(SIZES.length - 1, SIZES.indexOf(n) + d))] ?? 25)
 
-  const headline = running ? live.step || 'Getting ready'
+  const now = run?.now
+  const headline = running ? now?.step || live.step || 'Getting ready'
     : session.length ? `${session.length} handled.` : `${(q?.total ?? 0).toLocaleString()} roles ready.`
-  const subline = running ? `${session.length} of ${total} done${session[0] ? ` · last: ${session[0].company}` : ''}`
+  const subline = running ? (now?.company ? `${now.company.replace(/^\W+/, '')} · ${now.title} · ` : '') + `${session.length} of ${total} done`
     : session.length ? `${session.filter(a => a.status === 'Needs User').length} waiting on you, ${session.filter(a => a.status === 'Skipped').length} skipped.`
     : q?.dream ? `${q.dream} at your dream companies.` : 'Every open role that fits you.'
 
@@ -90,6 +91,7 @@ export default function Agents() {
                 </AnimatePresence>
               </div>
               <div className="mt-1 text-[15px] text-muted">{subline}</div>
+              {running && <div className="mt-2 text-[13px] text-faint">Watch it live in the Chrome window your twin opened. Don't close that window; it's the twin's.</div>}
               {running && (
                 <div className="mt-6 h-[5px] max-w-[460px] overflow-hidden rounded-full bg-white/[.08]">
                   <motion.div className="h-full rounded-full" style={{ background: BLUE }} initial={{ width: 0 }}

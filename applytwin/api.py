@@ -584,7 +584,7 @@ def _kill(proc):
 
 def _last_activity(since):
     """When the agent last made progress: claimed a job, logged one, or asked the user for something."""
-    t = [since]
+    t = [since, (store.load('activity.json', {}) or {}).get('at', 0)]
     for q in ('select max(at) m from claims', 'select max(at) m from applications', 'select max(at) m from inbox'):
         t.append((store.rows(q) or [{}])[0].get('m') or 0)
     return max(t)
@@ -658,7 +658,12 @@ def run_status():
     log = ''
     if _run['log'] and os.path.exists(_run['log']):
         log = open(_run['log'], encoding='utf-8', errors='replace').read()[-6000:]
-    return {"running": bool(p and p.poll() is None), "agent": _run['agent'], "log": log,
+    now = None
+    a = store.load('activity.json', {}) or {}
+    if p and p.poll() is None and a.get('at', 0) >= _run.get('started', 0):
+        j = (store.rows('select company, title, apply_url, url from jobs where id=?', (a.get('job_id') or '',)) or [{}])[0]
+        now = {"step": a.get('step'), "company": j.get('company', ''), "title": j.get('title', ''), "url": j.get('apply_url') or j.get('url') or '', "at": a['at']}
+    return {"running": bool(p and p.poll() is None), "agent": _run['agent'], "log": log, "now": now,
             "exit": None if not p or p.poll() is None else p.returncode}
 
 

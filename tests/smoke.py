@@ -1,5 +1,6 @@
 """End-to-end smoke test on a throwaway APPLYTWIN_HOME: vault -> render every template -> tailor + fact guard -> answers -> MCP."""
 import json, os, subprocess, sys, tempfile
+os.environ["APPLYTWIN_NO_TELEMETRY"] = "1"   # tests never count as installs
 for _s in (sys.stdout, sys.stderr):   # Windows consoles default to cp1252, which can't print emoji
     try:
         _s.reconfigure(encoding='utf-8', errors='replace')
@@ -68,6 +69,9 @@ _st.save('enc_test.json', {"t": "June 2025 – Aug. 2025, it’s Zoë"})
 res.append(ok(_st.load('enc_test.json')['t'] == "June 2025 – Aug. 2025, it’s Zoë", 'dashes and apostrophes survive a save'))
 open(_st.path('enc_old.json'), 'wb').write('{"t": "a – b"}'.encode('cp1252'))
 res.append(ok(_st.load('enc_old.json')['t'] == "a – b", 'old Windows-encoded files still load'))
+
+from applytwin import telemetry as _tm
+res.append(ok(not _tm.enabled() and _tm.ping() is False and len(_tm.install_id()) == 36, 'install count is off in tests and uses only a random ID'))
 
 print(f'\n{sum(res)}/{len(res)} passed')
 sys.exit(0 if all(res) else 1)
