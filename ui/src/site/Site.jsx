@@ -82,7 +82,7 @@ export default function Site() {
             <Step n="01" title="Finds the roles." text="It checks more than 600 company career sites and the student-run internship lists, and keeps only what fits your field, your cycle and your cities.">
               <Roles />
             </Step>
-            <Step n="02" title="A new resume for every job." text="Your strongest true experience, reordered and reworded for each posting, fitted to one clean page. A fact checker rejects anything you didn't tell it.">
+            <Step n="02" title="A new resume for every job." text="Your strongest experience, reordered and rewritten in each posting's language, fitted to one clean page. Your numbers, titles and employers never change.">
               <Stack />
             </Step>
             <Step n="03" title="Fills the whole form." text="Work authorization, graduation date, address, even the short essays. You answer once during setup. It answers everywhere after that.">
@@ -227,13 +227,14 @@ function OneToMany() {
 /* Each step: the words on the left stay put while its live piece of the app scrolls by on the right. */
 function Step({ n, title, text, children }) {
   return (
-    <div className="grid gap-8 border-t border-[var(--line)] py-12 sm:py-16 md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] md:gap-16">
-      <Reveal className="md:sticky md:top-24 md:self-start">
+    <div className="grid items-center gap-8 border-t border-[var(--line)] py-12 sm:py-20 md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] md:gap-16">
+      <Reveal>
         <div className="mono text-[13px] faint">{n}</div>
         <h3 className="display-l mt-3 text-[clamp(30px,3.6vw,48px)]">{title}</h3>
         <p className="mt-3 max-w-[440px] text-[17px] leading-[1.5] muted">{text}</p>
       </Reveal>
-      <Reveal delay={0.08} className="tile flex min-h-[240px] items-end sm:min-h-[340px] overflow-hidden px-5 pt-10 sm:px-10 sm:pt-14">{children}</Reveal>
+      <Reveal delay={0.08} className="tile flex min-h-[300px] items-center justify-center overflow-hidden p-5 sm:min-h-[420px] sm:p-12">
+        <div className="w-full max-w-[480px]">{children}</div></Reveal>
     </div>
   )
 }
@@ -501,7 +502,7 @@ function Roles() {
   const r = [['Stripe', 'stripe.com', 'Software Engineer Intern', 'San Francisco'], ['Two Sigma', 'twosigma.com', 'Quantitative Research Intern', 'New York'],
     ['Anduril', 'anduril.com', 'Autonomy Engineer Intern', 'Costa Mesa']]
   return (
-    <div ref={ref} className="sheet w-full overflow-hidden rounded-b-none [&>*+*]:border-t [&>*+*]:border-[var(--line)]">
+    <div ref={ref} className="sheet w-full overflow-hidden [&>*+*]:border-t [&>*+*]:border-[var(--line)]">
       {r.map(([c, d, t, l], i) => (
         <motion.div key={c} initial={{ opacity: 0, x: -24 }} animate={seen ? { opacity: 1, x: 0 } : {}} transition={{ duration: 0.8, ease: EASE, delay: 0.15 + i * 0.18 }}
           className="flex items-center gap-3 px-4 py-3">
@@ -522,7 +523,7 @@ function Stack() {
       {cards.map(([c, d, f], i) => {
         const front = i === cards.length - 1
         return (
-          <motion.div key={c} className={'sheet rounded-b-none px-5 ' + (front ? 'relative pb-6 pt-4' : 'absolute inset-x-0 pb-6 pt-[7px]')}
+          <motion.div key={c} className={'sheet px-5 ' + (front ? 'relative pb-6 pt-4' : 'absolute inset-x-0 pb-6 pt-[7px]')}
             initial={front ? { y: 30, opacity: 0 } : { top: 96, scale: 0.94, opacity: 0 }}
             animate={seen ? (front ? { y: 0, opacity: 1 } : { top: i * 32, scale: 0.91 + i * 0.03, opacity: 1 }) : {}}
             transition={{ duration: 0.9, ease: EASE, delay: front ? 0 : 0.35 + (cards.length - 2 - i) * 0.16 }}
@@ -543,16 +544,43 @@ function Stack() {
 
 function Form() {
   const [ref, seen] = useSeen()
-  const f = [['Authorized to work in the US?', 'Yes'], ['Expected graduation', 'May 2028'], ['Street address', '1 University Ave'],
-    ['What interests you about us?', 'Your GPU kernels team…']]
+  const f = [['Are you authorized to work in the US?', 'Yes'], ['Expected graduation', 'May 2028'], ['Street address', '1 University Ave, Gainesville, FL'],
+    ['What interests you about NVIDIA?', 'Your GPU kernels team ships the code I profile every day…']]
+  const [shown, setShown] = useState(0)   // characters typed so far, across the four answers
+  const total = f.reduce((n, [, a]) => n + a.length, 0)
+  useEffect(() => {
+    if (!seen) return
+    let n = 0
+    const t = setInterval(() => { n += 2; setShown(Math.min(n, total)); if (n >= total) clearInterval(t) }, 28)
+    return () => clearInterval(t)
+  }, [seen, total])
+  let before = 0
   return (
-    <div ref={ref} className="sheet w-full overflow-hidden rounded-b-none [&>*+*]:border-t [&>*+*]:border-[var(--line)]">
-      {f.map(([q, a], i) => (
-        <div key={q} className="flex items-center justify-between gap-4 px-4 py-3 text-[14px]">
-          <span className="muted">{q}</span>
-          <motion.span className="truncate font-medium" initial={{ opacity: 0, x: 8 }} animate={seen ? { opacity: 1, x: 0 } : {}}
-            transition={{ duration: 0.6, ease: EASE, delay: 0.3 + i * 0.45 }}>{a}</motion.span>
-        </div>))}
+    <div ref={ref} className="sheet w-full overflow-hidden">
+      <div className="flex items-center gap-3 border-b border-[var(--line)] px-5 py-3.5">
+        <Avatar name="NVIDIA" domain="nvidia.com" size={26} />
+        <div className="min-w-0 flex-1"><div className="truncate text-[14px] font-semibold">Deep Learning Software Intern</div>
+          <div className="text-[12px] muted">NVIDIA · Workday</div></div>
+        <span className="text-[12px] font-medium" style={{ color: 'var(--green)' }}>{shown >= total ? 'Filled' : 'Filling…'}</span>
+      </div>
+      <div className="space-y-3.5 px-5 py-5">
+        {f.map(([q, a]) => {
+          const start = before; before += a.length
+          const n = Math.max(0, Math.min(a.length, shown - start)), typing = n > 0 && n < a.length
+          return (
+            <div key={q}>
+              <div className="text-[12.5px] muted">{q}</div>
+              <div className={'mt-1.5 flex h-[38px] items-center rounded-[10px] border px-3 text-[14px] transition-colors ' +
+                (typing ? 'border-[var(--blue)]' : 'border-[var(--line)]')}>
+                <span className="truncate">{a.slice(0, n)}</span>{typing && <span className="ml-px h-[17px] w-[1.5px] animate-pulse bg-[var(--blue)]" />}
+              </div>
+            </div>)
+        })}
+      </div>
+      <div className="flex justify-end border-t border-[var(--line)] px-5 py-3.5">
+        <span className={'rounded-full px-4 py-1.5 text-[13px] font-medium transition-colors duration-500 ' +
+          (shown >= total ? 'bg-[var(--blue)] text-white' : 'bg-[var(--bg-2)] faint')}>Review and submit</span>
+      </div>
     </div>
   )
 }
@@ -570,6 +598,20 @@ function Ask() {
             <div className="text-[14px] leading-snug">Code needed for Stripe. Check your email and type it in the open tab.</div>
           </div>
         </div>
+      </motion.div>
+      {/* while it waits on you, it keeps going */}
+      <motion.div initial={{ y: 16, opacity: 0 }} animate={seen ? { y: 0, opacity: 1 } : {}} transition={{ duration: 0.8, ease: EASE, delay: 1.1 }}
+        className="sheet mx-auto mt-4 max-w-[400px] overflow-hidden rounded-[18px]">
+        <div className="flex items-center justify-between px-4 pt-3.5 text-[12px]">
+          <span className="font-medium" style={{ color: 'var(--green)' }}>Meanwhile, next job</span><span className="faint">2 of 25</span>
+        </div>
+        <div className="flex items-center gap-3 px-4 pb-3.5 pt-2.5">
+          <Avatar name="Figma" domain="figma.com" size={26} />
+          <div className="min-w-0 flex-1"><div className="truncate text-[14px] font-medium">Software Engineer Intern</div>
+            <div className="text-[12.5px] muted">Figma · Filling the application</div></div>
+        </div>
+        <div className="h-[3px] bg-[var(--bg-2)]"><motion.div className="h-full bg-[var(--blue)]" initial={{ width: '8%' }}
+          animate={seen ? { width: '64%' } : {}} transition={{ duration: 2.4, ease: EASE, delay: 1.4 }} /></div>
       </motion.div>
     </div>
   )
