@@ -98,7 +98,7 @@ function JobSheet({ id, onClose, onChange }) {
           <Dialog.Overlay asChild><motion.div className="fixed inset-0 z-40 bg-black/25 backdrop-blur-[2px]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} /></Dialog.Overlay>
           <Dialog.Content asChild aria-describedby={undefined}>
             <motion.div initial={{ x: '105%' }} animate={{ x: 0 }} exit={{ x: '105%' }} transition={{ type: 'spring', stiffness: 260, damping: 32 }}
-              className="fixed bottom-3 right-3 top-3 z-50 w-[min(780px,calc(100vw-24px))] overflow-y-auto rounded-[18px] bg-[#0b1124] ring-1 ring-white/10 p-7 shadow-[0_40px_100px_rgb(0_0_0/.28)] outline-none">
+              className="fixed bottom-3 right-3 top-3 z-50 w-[min(780px,calc(100vw-24px))] overflow-y-auto rounded-[18px] bg-[#1c1c1e] ring-1 ring-white/10 p-7 shadow-[0_40px_100px_rgb(0_0_0/.28)] outline-none">
               <Dialog.Title className="sr-only">{job?.title || 'Job'}</Dialog.Title>
               <button onClick={onClose} className="absolute right-5 top-5 grid size-9 place-items-center rounded-full bg-white/[.05] text-muted transition hover:text-ink"><X className="size-4" /></button>
               {!job ? <div className="space-y-3 pt-6"><div className="skel h-12 w-2/3" /><div className="skel h-40" /><div className="skel h-64" /></div> : <>
@@ -185,7 +185,7 @@ function AddJob({ open, setOpen }) {
     <Dialog.Root open={open} onOpenChange={setOpen}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-black/25 backdrop-blur-[2px]" />
-        <Dialog.Content aria-describedby={undefined} className="fixed left-1/2 top-1/2 z-50 w-[min(560px,92vw)] -translate-x-1/2 -translate-y-1/2 rounded-[18px] bg-[#0b1124] ring-1 ring-white/10 p-7 shadow-[0_40px_100px_rgb(0_0_0/.28)] outline-none">
+        <Dialog.Content aria-describedby={undefined} className="fixed left-1/2 top-1/2 z-50 w-[min(560px,92vw)] -translate-x-1/2 -translate-y-1/2 rounded-[18px] bg-[#1c1c1e] ring-1 ring-white/10 p-7 shadow-[0_40px_100px_rgb(0_0_0/.28)] outline-none">
           <Dialog.Title className="font-display text-[32px] font-semibold tracking-[-0.035em] text-ink">Add any job</Dialog.Title>
           <p className="mb-5 text-[14px] text-muted">Paste the link. Pasting the description too makes the resume sharper.</p>
           <div className="space-y-4">

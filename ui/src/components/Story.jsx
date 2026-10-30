@@ -34,9 +34,9 @@ function MiniCard({ c, peek }) {
     <div className={'rounded-[16px] bg-white text-left ' + (peek ? 'px-5 pb-6 pt-[6px]' : 'p-4') + ' shadow-[0_30px_80px_rgb(0_0_0/.45)] ring-1 ring-black/[.04] sm:px-8'}>
       <div className="flex items-center gap-3">
         <Avatar name={c.company} domain={c.domain} size={peek ? 22 : 30} />
-        <div className="min-w-0 flex-1"><div className={(peek ? 'text-[15px]' : 'text-[17px]') + ' font-semibold tracking-[-0.03em] text-[#0b1020]'}>{c.company}</div></div>
+        <div className="min-w-0 flex-1"><div className={(peek ? 'text-[15px]' : 'text-[17px]') + ' font-semibold tracking-[-0.03em] text-[#1d1d1f]'}>{c.company}</div></div>
         <div className="hidden text-[13px] text-[#6b7280] sm:block">{c.role}</div>
-        <div className={(peek ? 'text-[15px]' : 'text-[17px]') + ' font-semibold tabular-nums tracking-[-0.03em] text-[#0b1020]'}>{c.fit}%</div>
+        <div className={(peek ? 'text-[15px]' : 'text-[17px]') + ' font-semibold tabular-nums tracking-[-0.03em] text-[#1d1d1f]'}>{c.fit}%</div>
       </div>
     </div>)
 }
@@ -82,7 +82,7 @@ export function Story() {
             const k = clamp((t - 0.02 - i * 0.012) / 0.24)
             const r = Math.pow(1 - k, 3)
             return (
-              <div key={s} className="absolute left-1/2 top-[41%] whitespace-nowrap rounded-full border border-white/15 bg-[#111a3d] px-4 py-2 text-[14px] font-medium text-white shadow-[0_10px_30px_rgb(0_0_0/.45)]"
+              <div key={s} className="absolute left-1/2 top-[41%] whitespace-nowrap rounded-full border border-white/15 bg-[#2c2c2e] px-4 py-2 text-[14px] font-medium text-white shadow-[0_10px_30px_rgb(0_0_0/.45)]"
                 style={{ transform: `translate(-50%,-50%) translate(${Math.cos(a) * rx * r}px, ${Math.sin(a) * ry * r}px) scale(${0.25 + 0.75 * r})`,
                   opacity: t < 0.34 ? clamp(k * 5) * clamp(r * 20) : 0 }}>{s}</div>)
           })}
@@ -103,7 +103,7 @@ export function Story() {
           <motion.div style={{ ...card, x: '-50%', y: '-50%', zIndex: 2 }} className="absolute left-1/2 top-[41%] w-[min(640px,90vw)] rounded-[16px] bg-white p-6 text-left sm:p-8 shadow-[0_40px_100px_rgb(0_0_0/.5)]">
             <div className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3"><Avatar name={FRONT.company} domain={FRONT.domain} size={34} />
-                <div className="text-[22px] font-semibold tracking-[-0.03em] text-[#0b1020]">{FRONT.company}</div></div>
+                <div className="text-[22px] font-semibold tracking-[-0.03em] text-[#1d1d1f]">{FRONT.company}</div></div>
               <div className="text-[13px] text-[#6b7280]">{FRONT.role}</div></div>
             <div className="mt-3 h-px bg-black/10" />
             <ul className="mt-4 space-y-3">
@@ -114,7 +114,7 @@ export function Story() {
                     <span className="relative mt-[8px] size-1.5 shrink-0 rounded-full transition-colors duration-300" style={{ background: k >= 0.5 ? '#0a84ff' : '#c7cad3' }} />
                     <span className="relative grid flex-1">
                       <span className="col-start-1 row-start-1 text-[#9ca3af]" style={{ opacity: 1 - k, transform: `translateY(${-k * 6}px)` }}>{a}</span>
-                      <span className="col-start-1 row-start-1 text-[#0b1020]" style={{ opacity: k, transform: `translateY(${(1 - k) * 6}px)` }}>{b}</span>
+                      <span className="col-start-1 row-start-1 text-[#1d1d1f]" style={{ opacity: k, transform: `translateY(${(1 - k) * 6}px)` }}>{b}</span>
                     </span>
                   </li>)
               })}
@@ -123,11 +123,11 @@ export function Story() {
               {KEYWORDS.map((w, i) => {
                 const k = clamp((t - 0.44 - i * 0.035) / 0.08)
                 return <span key={w} className="rounded-full px-3 py-1 text-[13px] font-semibold"
-                  style={{ transform: `scale(${0.85 + 0.15 * k})`, opacity: k, background: '#0b1020', color: '#fff' }}>{w}</span>
+                  style={{ transform: `scale(${0.85 + 0.15 * k})`, opacity: k, background: '#1d1d1f', color: '#fff' }}>{w}</span>
               })}
             </div>
             <div className="mt-5 flex items-center justify-between text-[13px] text-[#6b7280]"><span>Keyword match for this job</span>
-              <span className="text-[30px] font-semibold tabular-nums tracking-[-0.04em] text-[#0b1020]">{Math.round(41 + 57 * clamp((t - 0.42) / 0.22))}%</span></div>
+              <span className="text-[30px] font-semibold tabular-nums tracking-[-0.04em] text-[#1d1d1f]">{Math.round(41 + 57 * clamp((t - 0.42) / 0.22))}%</span></div>
           </motion.div>
 
           {SENT.map(([c, d, ic], i) => {
@@ -138,7 +138,7 @@ export function Story() {
               <div key={c} className="absolute left-1/2 top-[22%] w-[min(170px,13vw)] rounded-[14px] bg-white p-3 shadow-[0_30px_70px_rgb(0_0_0/.55)]"
                 style={{ opacity: k > 0 ? clamp(k * 3) : 0,
                   transform: `translate(-50%,-50%) translate(${spread * fan * e}px, ${(row * 150 + Math.abs(spread) * 14) * e}px) rotate(${spread * 4 * e}deg) scale(${0.5 + 0.5 * e})` }}>
-                <div className="flex items-center gap-2"><Avatar name={c} domain={d} icon={ic} size={26} /><span className="text-[13px] font-semibold leading-[1.15] text-[#0b1020]">{c}</span></div>
+                <div className="flex items-center gap-2"><Avatar name={c} domain={d} icon={ic} size={26} /><span className="text-[13px] font-semibold leading-[1.15] text-[#1d1d1f]">{c}</span></div>
                 <div className="mt-2.5 space-y-1.5">{[90, 70, 82].map((w, j) => <div key={j} className="h-[4px] rounded-full bg-[#4c8dff]/35" style={{ width: `${w}%` }} />)}</div>
                 <div className="mt-2.5 text-[11px] font-semibold text-[#16a34a]" style={{ opacity: k >= 1 ? 1 : 0 }}>✓ Applied</div>
               </div>)
@@ -162,7 +162,7 @@ export function LogoWall({ companies }) {
         {rows.map((r, i) => (
           <div key={i} className="flex w-max gap-4" style={{ animation: `marquee ${50 + i * 12}s linear infinite ${i % 2 ? 'reverse' : ''}` }}>
             {[...r, ...r, ...r].map((c, j) => (
-              <div key={j} className="flex items-center gap-3 rounded-[16px] border border-white/10 bg-[#0c1330] px-4 py-3">
+              <div key={j} className="flex items-center gap-3 rounded-[16px] border border-white/10 bg-[#2c2c2e] px-4 py-3">
                 <Avatar name={c} size={34} /><span className="whitespace-nowrap text-[15px] font-medium text-white/90">{c}</span></div>))}
           </div>))}
       </div>
@@ -180,20 +180,20 @@ export function StoryMobile() {
         <p className="mt-3 text-[16px] text-white/65">Give it your resume, old ones, anything. Your twin keeps all of it.</p>
         <div className="mt-6 flex flex-wrap gap-2">
           {SCRAPS.slice(0, 8).map((x, i) => <motion.span key={x} initial={{ opacity: 0, scale: .9 }} whileInView={{ opacity: 1, scale: 1 }} viewport={{ once: true }}
-            transition={{ delay: i * .05 }} className="rounded-full border border-white/15 bg-[#111a3d] px-3.5 py-2 text-[13.5px] text-white">{x}</motion.span>)}
+            transition={{ delay: i * .05 }} className="rounded-full border border-white/15 bg-[#2c2c2e] px-3.5 py-2 text-[13.5px] text-white">{x}</motion.span>)}
         </div>
       </motion.section>
       <motion.section {...fade}>
         <h2 className="text-[40px] font-bold leading-[0.98] tracking-[-0.045em] text-white">Rewritten <span className="serif-i text-[#9cc8ff]">for each job.</span></h2>
         <div className="mt-6 rounded-[16px] bg-white p-5 shadow-[0_30px_80px_rgb(0_0_0/.5)]">
           <div className="flex items-center gap-2.5"><Avatar name={FRONT.company} domain={FRONT.domain} size={28} />
-            <div className="text-[19px] font-semibold tracking-[-0.03em] text-[#0b1020]">{FRONT.company}</div></div>
+            <div className="text-[19px] font-semibold tracking-[-0.03em] text-[#1d1d1f]">{FRONT.company}</div></div>
           <div className="mt-1 text-[13px] text-[#6b7280]">{FRONT.role}</div>
           <ul className="mt-3 space-y-2.5 border-t border-black/10 pt-3">
-            {REWRITES.map(([, b]) => <li key={b} className="flex gap-2.5 text-[14.5px] leading-snug text-[#0b1020]"><span className="mt-[7px] size-1.5 shrink-0 rounded-full bg-[#0a84ff]" />{b}</li>)}
+            {REWRITES.map(([, b]) => <li key={b} className="flex gap-2.5 text-[14.5px] leading-snug text-[#1d1d1f]"><span className="mt-[7px] size-1.5 shrink-0 rounded-full bg-[#0a84ff]" />{b}</li>)}
           </ul>
-          <div className="mt-4 flex flex-wrap gap-1.5">{KEYWORDS.map(w => <span key={w} className="rounded-full bg-[#0b1020] px-2.5 py-1 text-[12px] font-semibold text-white">{w}</span>)}</div>
-          <div className="mt-4 flex items-center justify-between text-[13px] text-[#6b7280]"><span>Keyword match for this job</span><span className="text-[26px] font-semibold tracking-[-0.04em] text-[#0b1020]">98%</span></div>
+          <div className="mt-4 flex flex-wrap gap-1.5">{KEYWORDS.map(w => <span key={w} className="rounded-full bg-[#1d1d1f] px-2.5 py-1 text-[12px] font-semibold text-white">{w}</span>)}</div>
+          <div className="mt-4 flex items-center justify-between text-[13px] text-[#6b7280]"><span>Keyword match for this job</span><span className="text-[26px] font-semibold tracking-[-0.04em] text-[#1d1d1f]">98%</span></div>
         </div>
         <div className="mt-3 space-y-2.5">
           {DECK.map((c, i) => <motion.div key={c.company} initial={{ opacity: 0, y: 40 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
@@ -204,7 +204,7 @@ export function StoryMobile() {
         <h2 className="text-[40px] font-bold leading-[0.98] tracking-[-0.045em] text-white">Sent. <span className="serif-i text-[#9cc8ff]">Everywhere.</span></h2>
         <div className="mt-6 grid grid-cols-3 gap-2.5">
           {SENT.map(([c, d, ic], i) => <motion.div key={c} initial={{ opacity: 0, y: 10 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * .05 }}
-            className="rounded-[12px] bg-white p-2.5"><Avatar name={c} domain={d} icon={ic} size={22} /><div className="mt-1.5 text-[12px] font-semibold leading-tight text-[#0b1020]">{c}</div>
+            className="rounded-[12px] bg-white p-2.5"><Avatar name={c} domain={d} icon={ic} size={22} /><div className="mt-1.5 text-[12px] font-semibold leading-tight text-[#1d1d1f]">{c}</div>
             <div className="text-[10.5px] font-semibold text-[#16a34a]">✓ Applied</div></motion.div>)}
         </div>
         <div className="mt-8 text-center"><div className="text-[52px] font-bold tracking-[-0.05em] text-white">1,284</div>

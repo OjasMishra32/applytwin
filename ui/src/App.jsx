@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { Toaster, toast } from 'sonner'
 import { Radar, Sparkles, FileText, Upload } from 'lucide-react'
 import { api } from './lib/api'
-import { Logo, TopBar, Palette } from './components/Shell'
+import { Logo, TopBar, Palette, Sidebar } from './components/Shell'
 import { Sky } from './components/Sky'
 import Home from './pages/Home'
 import Jobs from './pages/Jobs'
@@ -102,11 +102,13 @@ export default function App() {
   return (
     <Ctx.Provider value={{ ...state, refresh, go, jobs, loadJobs, startScan, scan, setState, auth, signIn, signOut }}>
       {route.page !== 'welcome' && <TopBar page={route.page} go={go} onPalette={() => setPalette(true)} matched={state.stats?.matched} auth={auth} signIn={signIn} signOut={signOut} />}
+      {route.page !== 'welcome' && <Sidebar page={route.page} go={go} onPalette={() => setPalette(true)} auth={auth} signIn={signIn} signOut={signOut} />}
       <Palette open={palette} setOpen={setPalette} go={go} jobs={jobs} actions={actions} />
-      <motion.main key={route.page} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.25, ease: 'easeOut' }} className="relative min-h-full">
+      <motion.main key={route.page} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2, ease: 'easeOut' }}
+        className={'relative min-h-full ' + (route.page !== 'welcome' ? 'md:pl-[220px]' : '')}>
         <Page arg={route.arg} />
       </motion.main>
-      <Toaster theme="dark" position="bottom-center" toastOptions={{ style: { borderRadius: 16, background: '#1c2033', border: '1px solid rgb(255 255 255 / .08)', color: '#fff' } }} />
+      <Toaster theme="dark" position="bottom-center" toastOptions={{ style: { borderRadius: 14, background: '#2c2c2e', border: '1px solid rgb(255 255 255 / .08)', color: '#fff' } }} />
     </Ctx.Provider>
   )
 }
@@ -125,7 +127,7 @@ function SignInGate({ signIn }) {
         <h1 className="mt-7 text-[34px] font-bold leading-tight tracking-[-0.035em] text-white">Sign in to ApplyTwin</h1>
         <p className="mx-auto mt-3 max-w-[340px] text-[15.5px] leading-relaxed text-white/65">Your setup, answers and applications are saved to your account, so nothing is lost if you switch laptops or reinstall.</p>
         <button onClick={go} disabled={busy}
-          className="mx-auto mt-9 flex h-12 w-full max-w-[320px] items-center justify-center gap-3 rounded-full bg-white text-[15.5px] font-semibold text-[#0b1020] transition hover:bg-white/90 disabled:opacity-60">
+          className="mx-auto mt-9 flex h-12 w-full max-w-[320px] items-center justify-center gap-3 rounded-full bg-white text-[15.5px] font-semibold text-[#1d1d1f] transition hover:bg-white/90 disabled:opacity-60">
           <svg viewBox="0 0 48 48" className="size-5" aria-hidden><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>
           {busy ? 'Opening Google…' : 'Continue with Google'}
         </button>
@@ -141,6 +143,6 @@ function Loading() {
 }
 
 export function Page({ children, wide }) {
-  return <><Sky height={340} /><div className={`relative mx-auto px-6 pb-24 pt-24 ${wide ? 'max-w-[1320px]' : 'max-w-[1180px]'}`}>{children}</div></>
+  return <div className={`relative mx-auto px-6 pb-24 pt-20 md:px-10 md:pt-16 ${wide ? 'max-w-[1320px]' : 'max-w-[1180px]'}`}>{children}</div>
 }
 

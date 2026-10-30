@@ -134,6 +134,16 @@ def main():
                 time.sleep(0.2)
         html = http('/')
         check('web app serves', '<div id="root"' in html or 'id="root"' in html)
+        import socket
+        with socket.create_connection(('127.0.0.1', PORT), timeout=10) as sk:   # exactly one reply per request (no stray 404 after it)
+            sk.sendall(b'GET /api/version HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n')
+            raw = b''
+            while True:
+                chunk = sk.recv(65536)
+                if not chunk:
+                    break
+                raw += chunk
+        check('one reply per request', raw.count(b'HTTP/1.') == 1 and raw.startswith(b'HTTP/1.0 200'), raw[:40].decode(errors='replace'))
         d = http('/api/doctor')
         check('/api/doctor', 'items' in d, f"{sum(i['ok'] for i in d['items'])}/{len(d['items'])} ok")
         a = http('/api/agents')
@@ -159,8 +169,13 @@ def main():
         q = http('/api/questions')
         check('onboarding lists unanswered questions', len(q['missing']) > 10, f"{len(q['missing'])} to answer")
         blank = http('/api/answer/test', {'questions': ['Are you legally authorized to work in the United States?']})[0]
-        inbox = http('/api/inbox')['items']
         check('a blank answer is never guessed', blank.get('answer') is None)
+        check('trying a question on the Answers page notifies no one', not http('/api/inbox')['items'])
+        # a real form asking it (through the agent's tool) tells the user exactly what to add
+        mcp_session([{'jsonrpc': '2.0', 'id': 1, 'method': 'initialize', 'params': {}},
+                     {'jsonrpc': '2.0', 'id': 2, 'method': 'tools/call', 'params': {'name': 'applytwin_answer_questions',
+                      'arguments': {'questions': ['Are you legally authorized to work in the United States?']}}}])
+        inbox = http('/api/inbox')['items']
         check('...and the user is told what to add', any('authorized to work' in i['title'] for i in inbox), inbox[0]['title'] if inbox else '')
         # the user answers them once (as onboarding does), and every form gets them
         prof = http('/api/state')['profile']

@@ -223,7 +223,7 @@ function Import({ open, setOpen, onDone }) {
     <Dialog.Root open={open} onOpenChange={o => { setOpen(o); if (!o) { setOut(null); setText(null) } }}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-black/25 backdrop-blur-[2px]" />
-        <Dialog.Content aria-describedby={undefined} className="fixed left-1/2 top-1/2 z-50 w-[min(640px,92vw)] -translate-x-1/2 -translate-y-1/2 rounded-[18px] bg-[#0b1124] ring-1 ring-white/10 p-8 shadow-[0_40px_100px_rgb(0_0_0/.28)] outline-none">
+        <Dialog.Content aria-describedby={undefined} className="fixed left-1/2 top-1/2 z-50 w-[min(640px,92vw)] -translate-x-1/2 -translate-y-1/2 rounded-[18px] bg-[#1c1c1e] ring-1 ring-white/10 p-8 shadow-[0_40px_100px_rgb(0_0_0/.28)] outline-none">
           <Dialog.Title className="font-display text-[40px] font-semibold tracking-[-0.035em] leading-tight text-ink">Bring everything you've got.</Dialog.Title>
           <p className="mb-6 mt-1 text-[14.5px] text-muted">Old resumes, your LinkedIn, project notes. Your twin pulls it all into one vault and never invents anything.</p>
           {busy ? <div className="grid place-items-center py-14"><motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1.1, ease: 'linear' }}><Sparkles className="size-8 text-signal" /></motion.div>

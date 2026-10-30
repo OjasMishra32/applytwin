@@ -11,7 +11,7 @@ const LINES = [[92, 1], [76, 0], [86, 1], [62, 0], [90, 0], [70, 1], [82, 0], [5
 function Sheet({ active, name, front }) {
   return (
     <div className="absolute inset-0 rounded-[10px] bg-white p-5" style={{ boxShadow: front ? '0 30px 70px rgb(3 23 64 / .45), 0 0 0 .5px rgb(0 0 0 / .05)' : '0 20px 50px rgb(3 23 64 / .35)' }}>
-      <div className="text-[16px] font-semibold tracking-[-0.02em] text-[#111827]">{name}</div>
+      <div className="text-[16px] font-semibold tracking-[-0.02em] text-[#1c1c1e]">{name}</div>
       <div className="mt-1.5 h-[4px] w-24 rounded-full bg-white/[.08]" />
       {[0, 1, 2].map(sec => (
         <div key={sec} className="mt-4">
@@ -66,7 +66,7 @@ export function Hero3D({ name }) {
             initial={{ opacity: 0, x: -50, z: 170, rotateY: 28, scale: 0.94 }} animate={{ opacity: 1, x: 0, z: 120, rotateY: 6, scale: 1 }}
             exit={{ opacity: 0, x: 40, z: 60, rotateY: -16, scale: 0.96 }} transition={{ type: 'spring', stiffness: 120, damping: 18 }}>
             <div className="flex items-center gap-2.5"><Avatar name={job.c} domain={job.d} size={34} />
-              <div className="min-w-0"><div className="truncate text-[13px] font-semibold leading-tight text-[#111827]">{job.t}</div>
+              <div className="min-w-0"><div className="truncate text-[13px] font-semibold leading-tight text-[#1c1c1e]">{job.t}</div>
                 <div className="text-[12px] text-[#6b7280]">{job.c} · {job.where}</div></div></div>
             <div className="mt-3 flex items-center justify-between">
               <span className="text-[12px] text-[#6b7280]">Match</span>

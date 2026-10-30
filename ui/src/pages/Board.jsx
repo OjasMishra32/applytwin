@@ -31,7 +31,7 @@ export default function Board() {
   }
   const ImportBtn = ({ primary }) => (
     <label className="cursor-pointer"><input type="file" accept=".csv,text/csv" className="hidden" onChange={importCsv} />
-      <span className={'inline-flex h-10 items-center gap-1.5 rounded-full px-5 text-[14px] font-medium ' + (primary ? 'bg-white text-[#0b1020] hover:bg-white/90' : 'bg-white/[.08] text-ink hover:bg-white/[.13]')}>
+      <span className={'inline-flex h-10 items-center gap-1.5 rounded-full px-5 text-[14px] font-medium ' + (primary ? 'bg-white text-[#1d1d1f] hover:bg-white/90' : 'bg-white/[.08] text-ink hover:bg-white/[.13]')}>
         <Upload className="size-4" />Import your tracker</span></label>)
   const fromEmail = async () => {
     try {
@@ -50,7 +50,7 @@ export default function Board() {
         Applications</Title>
       {empty ? (
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={spring}
-          className="mx-auto mt-6 max-w-[560px] rounded-[22px] bg-[#111526] px-8 py-12 text-center ring-1 ring-white/[.06]">
+          className="mx-auto mt-6 max-w-[560px] rounded-[22px] bg-[#1c1c1e] px-8 py-12 text-center ring-1 ring-white/[.06]">
           <h2 className="text-[26px] font-semibold tracking-[-0.03em] text-white">No applications yet</h2>
           <p className="mx-auto mt-2 max-w-[400px] text-[15px] leading-relaxed text-muted">Start your twin and every application shows up here, from needs-you to offer. Already applied somewhere? Import your tracker so your twin never applies twice.</p>
           <div className="mt-7 flex flex-wrap justify-center gap-3">

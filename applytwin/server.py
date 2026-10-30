@@ -98,6 +98,7 @@ class H(BaseHTTPRequestHandler):
             self.wfile.write(data)
         except (BrokenPipeError, ConnectionResetError):
             pass   # the page went away (reload, closed tab) before the answer arrived; nothing to do
+        return True   # answered (callers check this; returning None made them send a second, 404 reply)
 
     def _route(self, table, body=None):
         u = urllib.parse.urlparse(self.path)

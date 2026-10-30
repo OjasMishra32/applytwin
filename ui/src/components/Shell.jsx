@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { Command } from 'cmdk'
-import { Bell, Search, Settings2, Sparkles } from 'lucide-react'
+import { Bell, Briefcase, FileText, House, LayoutList, MessageSquareText, Play, Search, Settings2, Sparkles } from 'lucide-react'
 import { cn } from '../lib/utils'
 import { api } from '../lib/api'
 import { spring } from './ui'
@@ -27,7 +27,7 @@ export const GoogleG = ({ className = 'size-4' }) => (
 function Account({ auth, signIn, signOut }) {
   const [open, setOpen] = useState(false)
   if (!auth?.signed_in) return (
-    <button onClick={signIn} className="flex h-8 items-center gap-2 rounded-full bg-white px-3.5 text-[13px] font-medium text-[#0b1020] shadow-[0_0_0_.5px_rgb(0_0_0/.12),0_1px_3px_rgb(0_0_0/.08)] transition hover:shadow-[0_0_0_.5px_rgb(0_0_0/.2),0_3px_10px_rgb(0_0_0/.1)]">
+    <button onClick={signIn} className="flex h-8 items-center gap-2 rounded-full bg-white px-3.5 text-[13px] font-medium text-[#1d1d1f] shadow-[0_0_0_.5px_rgb(0_0_0/.12),0_1px_3px_rgb(0_0_0/.08)] transition hover:shadow-[0_0_0_.5px_rgb(0_0_0/.2),0_3px_10px_rgb(0_0_0/.1)]">
       <GoogleG />Sign in</button>)
   const u = auth.user || {}
   return (
@@ -36,7 +36,7 @@ function Account({ auth, signIn, signOut }) {
         {u.avatar ? <img src={u.avatar} alt="" referrerPolicy="no-referrer" className="size-full object-cover" /> : (u.name || u.email || '?')[0].toUpperCase()}</button>
       <AnimatePresence>{open && (
         <motion.div initial={{ opacity: 0, y: -6, scale: .97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -4 }} transition={spring}
-          className="absolute right-0 top-11 w-64 origin-top-right overflow-hidden rounded-[16px] bg-[#0d1328]/95 p-1.5 ring-1 ring-white/10 shadow-[0_20px_60px_rgb(0_0_0/.2),0_0_0_.5px_rgb(0_0_0/.08)] backdrop-blur-xl">
+          className="absolute right-0 top-11 w-64 origin-top-right overflow-hidden rounded-[16px] bg-[#232325]/95 p-1.5 ring-1 ring-white/10 shadow-[0_20px_60px_rgb(0_0_0/.2),0_0_0_.5px_rgb(0_0_0/.08)] backdrop-blur-xl">
           <div className="px-3 py-2.5"><div className="truncate text-[14px] font-semibold">{u.name || 'Signed in'}</div><div className="truncate text-[12.5px] text-muted">{u.email}</div></div>
           <div className="mx-2 h-px bg-white/[.06]" />
           <div className="px-3 py-2 text-[12.5px] text-muted">Your vault, answers and resumes sync to your ApplyTwin space.</div>
@@ -81,7 +81,7 @@ function Inbox() {
       </button>
       <AnimatePresence>{open && (
         <motion.div initial={{ opacity: 0, y: -6, scale: .97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -4 }} transition={spring}
-          className="absolute right-0 top-11 w-[360px] origin-top-right overflow-hidden rounded-[16px] bg-[#0d1328]/97 p-2 shadow-[0_30px_80px_rgb(0_0_0/.5)] ring-1 ring-white/10">
+          className="absolute right-0 top-11 w-[360px] origin-top-right overflow-hidden rounded-[16px] bg-[#232325]/97 p-2 shadow-[0_30px_80px_rgb(0_0_0/.5)] ring-1 ring-white/10">
           <div className="px-3 pb-2 pt-1.5 text-[14px] font-semibold text-white">Needs you</div>
           {n === 0 && <div className="px-3 pb-4 text-[13px] text-muted">Nothing right now. Your twin will ping you (and your Mac) if a site needs a code or a sign-in.</div>}
           <div className="max-h-[360px] overflow-y-auto">
@@ -97,9 +97,42 @@ function Inbox() {
   )
 }
 
+const NAV_ICONS = { home: House, jobs: Briefcase, studio: FileText, answers: MessageSquareText, board: LayoutList, agents: Play }
+
+/* The Mac way: a translucent sidebar with the app's sections, Settings at the bottom, and a small toolbar on the right. */
+export function Sidebar({ page, go, onPalette, auth, signIn, signOut }) {
+  const item = (id, label, Icon) => (
+    <button key={id} onClick={() => go(id)}
+      className={cn('flex h-8 w-full items-center gap-2.5 rounded-[7px] px-2.5 text-left text-[13.5px] transition-colors',
+        page === id ? 'bg-signal text-white' : 'text-ink/85 hover:bg-white/[.06]')}>
+      <Icon className={cn('size-[15px] shrink-0', page === id ? 'text-white' : 'text-signal-ink')} strokeWidth={2} />{label}
+    </button>)
+  return (
+    <>
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[220px] flex-col border-r border-white/[.06] bg-[#232325]/80 px-3 pb-4 pt-5 backdrop-blur-xl md:flex">
+        <button onClick={() => go('home')} className="mb-5 flex items-center gap-2 px-2.5">
+          <Logo size={20} /><span className="text-[15px] font-semibold tracking-[-0.01em] text-ink">ApplyTwin</span>
+        </button>
+        <nav className="space-y-0.5">{NAV.map(([id, label]) => item(id, label, NAV_ICONS[id]))}</nav>
+        <div className="mt-auto space-y-0.5">
+          {item('settings', 'Settings', Settings2)}
+        </div>
+      </aside>
+      <div className="fixed right-5 top-3 z-40 hidden items-center gap-2 md:flex">
+        <button onClick={onPalette} className="flex h-8 items-center gap-2 rounded-[8px] bg-white/[.06] px-3 text-[13px] text-muted transition hover:bg-white/[.1] hover:text-ink">
+          <Search className="size-3.5" /><span>Search</span><kbd className="text-[11px] text-faint">⌘K</kbd>
+        </button>
+        <StarButton compact />
+        <Inbox />
+        <Account auth={auth} signIn={signIn} signOut={signOut} />
+      </div>
+    </>
+  )
+}
+
 export function TopBar({ page, go, onPalette, matched, auth, signIn, signOut }) {
   return (
-    <header className="glass fixed inset-x-0 top-0 z-40 border-b border-white/[.06]">
+    <header className="glass fixed inset-x-0 top-0 z-40 border-b border-white/[.06] md:hidden">
       <div className="mx-auto flex h-[52px] max-w-[1240px] items-center gap-7 px-6">
         <button onClick={() => go('home')} className="flex items-center gap-2.5">
           <Logo /><span className="text-[17px] font-semibold tracking-[-0.02em] text-ink">ApplyTwin</span>
@@ -116,7 +149,7 @@ export function TopBar({ page, go, onPalette, matched, auth, signIn, signOut }) 
           <button onClick={onPalette} className="flex h-8 items-center gap-2 rounded-full bg-white/[.05] px-3.5 text-[13px] text-muted transition hover:bg-white/[.08] hover:text-ink">
             <Search className="size-3.5" /><span className="hidden sm:inline">Search</span><kbd className="text-[11px] text-faint">⌘K</kbd>
           </button>
-          <button onClick={() => go('settings')} className={cn('grid size-8 place-items-center rounded-full transition', page === 'settings' ? 'bg-white text-[#0b1020]' : 'bg-white/[.05] text-muted hover:text-ink')} title="Settings"><Settings2 className="size-4" /></button>
+          <button onClick={() => go('settings')} className={cn('grid size-8 place-items-center rounded-full transition', page === 'settings' ? 'bg-white text-[#1d1d1f]' : 'bg-white/[.05] text-muted hover:text-ink')} title="Settings"><Settings2 className="size-4" /></button>
           <span className="hidden md:block"><StarButton compact /></span>
           <Inbox />
           <Account auth={auth} signIn={signIn} signOut={signOut} />
@@ -138,7 +171,7 @@ export function Palette({ open, setOpen, go, jobs, actions }) {
       {open && (
         <motion.div className="fixed inset-0 z-50 flex items-start justify-center bg-black/20 px-4 pt-[14vh] backdrop-blur-[2px]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setOpen(false)}>
           <motion.div onClick={e => e.stopPropagation()} initial={{ y: -8, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ opacity: 0 }} transition={spring}
-            className="w-full max-w-[620px] overflow-hidden rounded-[18px] bg-[#0b1124]/92 ring-1 ring-white/10 shadow-[0_40px_100px_rgb(0_0_0/.6)] backdrop-blur-2xl">
+            className="w-full max-w-[620px] overflow-hidden rounded-[18px] bg-[#1c1c1e]/92 ring-1 ring-white/10 shadow-[0_40px_100px_rgb(0_0_0/.6)] backdrop-blur-2xl">
             <Command label="Command menu" loop>
               <div className="flex items-center gap-3 border-b border-white/[.06] px-4"><Search className="size-4 text-muted" />
                 <Command.Input autoFocus placeholder="Search jobs, pages, actions" className="w-full bg-transparent py-4 text-[15px] placeholder:text-faint" /></div>

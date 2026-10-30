@@ -87,7 +87,7 @@ export default function Agents() {
       <div className="mx-auto max-w-[1080px]">
         <h1 className="text-[44px] font-bold leading-none tracking-[-0.035em] text-white">Autopilot</h1>
 
-        <section className="mt-7 rounded-[22px] bg-[#111526] p-7 ring-1 ring-white/[.06]">
+        <section className="mt-7 rounded-[22px] bg-[#1c1c1e] p-7 ring-1 ring-white/[.06]">
           <div className="flex flex-wrap items-start justify-between gap-8">
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 text-[13px] font-medium" style={{ color: running ? GREEN : 'var(--color-muted)' }}>
@@ -201,7 +201,7 @@ function Group({ title, detail, action, footer, children }) {
           {typeof detail === 'string' ? <span className="text-[13px] text-faint">{detail}</span> : detail}</div>
         {action}
       </div>
-      <div className="overflow-hidden rounded-[18px] bg-[#111526] ring-1 ring-white/[.06] [&>*+*]:border-t [&>*+*]:border-white/[.06]">{children}</div>
+      <div className="overflow-hidden rounded-[18px] bg-[#1c1c1e] ring-1 ring-white/[.06] [&>*+*]:border-t [&>*+*]:border-white/[.06]">{children}</div>
       {footer && <p className="mt-2 px-1 text-[12.5px] leading-relaxed text-faint">{footer}</p>}
     </section>
   )
@@ -291,14 +291,14 @@ function StarAsk({ count }) {
   const done = () => { safeSet('at:starAsk', 'done'); setGone(true) }
   return (
     <motion.section initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={spring}
-      className="mt-5 flex flex-wrap items-center gap-4 rounded-[18px] bg-[#111526] px-5 py-4 ring-1 ring-white/[.06]">
+      className="mt-5 flex flex-wrap items-center gap-4 rounded-[18px] bg-[#1c1c1e] px-5 py-4 ring-1 ring-white/[.06]">
       <span className="text-[22px] text-[#ffd60a]">★</span>
       <div className="min-w-0 flex-1">
         <div className="text-[15px] font-semibold text-white">Your twin has handled {count} applications. Like it?</div>
         <div className="text-[13px] text-muted">ApplyTwin is free. A star on GitHub helps other students find it.</div>
       </div>
       <a href={REPO_URL} target="_blank" rel="noreferrer" onClick={done}
-        className="inline-flex h-9 items-center gap-1.5 rounded-full bg-white px-4 text-[13.5px] font-semibold text-[#0b1020] hover:bg-white/90"><span className="text-[#f5a524]">★</span>Star on GitHub</a>
+        className="inline-flex h-9 items-center gap-1.5 rounded-full bg-white px-4 text-[13.5px] font-semibold text-[#1d1d1f] hover:bg-white/90"><span className="text-[#f5a524]">★</span>Star on GitHub</a>
       <button onClick={done} className="text-[13px] text-muted hover:text-white">Not now</button>
     </motion.section>
   )

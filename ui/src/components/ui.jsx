@@ -11,7 +11,7 @@ export const soft = { type: 'spring', stiffness: 220, damping: 28 }
 export function Button({ variant = 'ink', size = 'md', className, children, arrow, loading, ...p }) {
   const v = {
     ink: 'bg-signal text-white hover:bg-[#2b95ff]', signal: 'bg-signal text-white hover:bg-[#2b95ff]', sky: 'bg-signal text-white hover:bg-[#2b95ff]',
-    dark: 'bg-white text-[#0b1020] hover:bg-white/90',
+    dark: 'bg-white text-[#1d1d1f] hover:bg-white/90',
     white: 'bg-white/[.08] text-ink hover:bg-white/[.13]',
     glass: 'bg-white/20 text-white backdrop-blur-md hover:bg-white/30',
     ghost: 'text-signal-ink hover:bg-signal/[.06]',

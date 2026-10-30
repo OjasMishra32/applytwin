@@ -111,7 +111,7 @@ export default function Welcome() {
       <motion.div initial={{ scale: .8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ ...SPRING, delay: .1 }}
         className="mx-auto grid size-20 place-items-center rounded-[24px] bg-white text-[38px] shadow-[0_20px_60px_rgb(0_0_0/.35)]">
         <svg width="44" height="44" viewBox="0 0 64 64"><defs><linearGradient id="wg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#38bdf8" /><stop offset="1" stopColor="#a78bfa" /></linearGradient></defs>
-          <rect x="4" y="4" width="38" height="38" rx="12" fill="url(#wg)" /><rect x="22" y="22" width="38" height="38" rx="12" fill="#0b1020" fillOpacity=".85" /></svg></motion.div>
+          <rect x="4" y="4" width="38" height="38" rx="12" fill="url(#wg)" /><rect x="22" y="22" width="38" height="38" rx="12" fill="#1d1d1f" fillOpacity=".85" /></svg></motion.div>
       <H>Hi. Let's set up your twin.</H>
       <Sub>About five minutes. You answer everything once; after that it finds jobs, writes the right resume for each one and applies, on its own.</Sub>
     </Center>,
@@ -242,7 +242,7 @@ export default function Welcome() {
 
   return (
     <div className="relative min-h-screen overflow-hidden">
-      <div className="pointer-events-none fixed inset-0"><Sky height={2400} /><div className="absolute inset-0 bg-[#050816]/45" /></div>
+      <div className="pointer-events-none fixed inset-0"><Sky height={2400} /><div className="absolute inset-0 bg-[#161617]/45" /></div>
       <div className="fixed inset-x-0 top-0 z-20 h-[3px] bg-white/[.06]">
         <motion.div className="h-full bg-signal" animate={{ width: `${(100 * i) / (screens.length - 1)}%` }} transition={SPRING} /></div>
       <div className="relative mx-auto flex min-h-screen max-w-[820px] flex-col justify-center px-6 pb-36 pt-16">
@@ -303,4 +303,4 @@ const Toggle = ({ l, d, v, f }) => (
 const Pick = ({ l, v, opts, f }) => (
   <div className="flex items-center justify-between gap-4 px-5 py-4"><div className="text-[15px] text-white">{l}</div>
     <div className="flex gap-1">{opts.map(o => <button key={o} onClick={() => f(o)}
-      className={'h-8 min-w-9 rounded-full px-2.5 text-[13px] transition ' + (v === o ? 'bg-white font-semibold text-[#0b1020]' : 'text-white/70 hover:bg-white/[.08]')}>{o}</button>)}</div></div>)
+      className={'h-8 min-w-9 rounded-full px-2.5 text-[13px] transition ' + (v === o ? 'bg-white font-semibold text-[#1d1d1f]' : 'text-white/70 hover:bg-white/[.08]')}>{o}</button>)}</div></div>)

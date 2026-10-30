@@ -57,7 +57,7 @@ function YesNo({ value, onChange }) {
     <div className="inline-flex rounded-[10px] bg-white/[.06] p-[2px]">
       {[[true, 'Yes'], [false, 'No']].map(([v, l]) => (
         <button key={l} type="button" onClick={() => onChange(v)}
-          className={'h-8 rounded-[8px] px-5 text-[13.5px] transition ' + (value === v ? 'bg-white font-semibold text-[#0b1020]' : 'text-white/75 hover:text-white')}>{l}</button>))}
+          className={'h-8 rounded-[8px] px-5 text-[13.5px] transition ' + (value === v ? 'bg-white font-semibold text-[#1d1d1f]' : 'text-white/75 hover:text-white')}>{l}</button>))}
     </div>
   )
 }
