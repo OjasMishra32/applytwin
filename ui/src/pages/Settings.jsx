@@ -6,22 +6,22 @@ import { useApp, Page } from '../App'
 import { Button, Segmented, Slider, Switch, Title } from '../components/ui'
 import { ProfileQuestions, missing, useQuestions } from '../components/ProfileQuestions'
 
-export function Chips({ value = [], onChange, placeholder, suggestions = [] }) {
+export function Chips({ value = [], onChange, placeholder, suggestions = [], large }) {
   const [t, setT] = useState('')
   const addv = x => { x = x.trim(); if (x && !value.includes(x)) onChange([...value, x]); setT('') }
   // a dozen at a time; typing narrows them, and anything you type works even if it's not listed
   const shown = suggestions.filter(s => !value.includes(s) && (!t || s.includes(t.toLowerCase()))).slice(0, t ? 8 : 12)
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-1.5 rounded-[14px] bg-mist px-2 py-1.5 focus-within:bg-white/[.08] focus-within:ring-2 focus-within:ring-signal">
-        {value.map(v => <span key={v} className="inline-flex items-center gap-1 rounded-full bg-signal/10 py-1 pl-3 pr-1.5 text-[13px] font-medium text-signal-ink">{v}
+      <div className={'flex flex-wrap items-center gap-1.5 bg-mist ' + (large ? 'rounded-[18px] px-3 py-2.5 backdrop-blur ' : 'rounded-[14px] px-2 py-1.5 ') + 'focus-within:bg-white/[.08] focus-within:ring-2 focus-within:ring-signal'}>
+        {value.map(v => <span key={v} className={'inline-flex items-center gap-1 rounded-full bg-signal/15 pl-3 pr-1.5 font-medium text-[#9cc8ff] ' + (large ? 'py-1.5 text-[15px]' : 'py-1 text-[13px]')}>{v}
           <button onClick={() => onChange(value.filter(x => x !== v))} className="grid size-4 place-items-center rounded-full hover:bg-signal/20"><X className="size-3" /></button></span>)}
         <input value={t} onChange={e => setT(e.target.value)} placeholder={value.length ? '' : placeholder} onKeyDown={e => {
           if ((e.key === 'Enter' || e.key === ',') && t.trim()) { e.preventDefault(); addv(t) } if (e.key === 'Backspace' && !t && value.length) onChange(value.slice(0, -1)) }}
-          className="h-8 min-w-[140px] flex-1 bg-transparent px-1.5 text-[14px] outline-none placeholder:text-faint" />
+          className={'min-w-[140px] flex-1 bg-transparent px-1.5 text-white outline-none placeholder:text-faint ' + (large ? 'h-9 text-[16px]' : 'h-8 text-[14px]')} />
       </div>
       {shown.length > 0 && <div className="mt-2 flex flex-wrap gap-1.5">{shown.map(s =>
-        <button key={s} onClick={() => addv(s)} className="rounded-full bg-white/[.04] px-3 py-1 text-[12.5px] text-muted transition hover:bg-signal/10 hover:text-signal-ink">+ {s}</button>)}</div>}
+        <button key={s} onClick={() => addv(s)} className={'rounded-full bg-white/[.06] text-white/70 transition hover:bg-signal/15 hover:text-white ' + (large ? 'px-3.5 py-1.5 text-[14px]' : 'px-3 py-1 text-[12.5px]')}>+ {s}</button>)}</div>}
     </div>
   )
 }

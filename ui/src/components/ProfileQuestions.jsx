@@ -14,26 +14,26 @@ export const getv = (p, k) => k.startsWith('eeo.') ? (p.eeo || {})[k.slice(4)] :
 export const setv = (p, k, v) => k.startsWith('eeo.') ? { ...p, eeo: { ...(p.eeo || {}), [k.slice(4)]: v } } : { ...p, [k]: v }
 export const missing = (qs, p) => (qs || []).filter(q => !q.optional && [undefined, null, ''].includes(getv(p, q.key)))
 
-export function ProfileQuestions({ qs, p, setP, groups, showMissing, filled = [] }) {
+export function ProfileQuestions({ qs, p, setP, groups, showMissing, filled = [], large }) {
   if (!qs) return <div className="skel h-64" />
   const names = groups || [...new Set(qs.map(q => q.group))]
   return (
     <div className="space-y-7">
       {names.map(g => (
         <section key={g}>
-          <div className="mb-2 px-1 text-[13px] text-muted">{g}{g.startsWith('Voluntary') && ' · you can decline any of these'}</div>
-          <div className="divide-y divide-white/[.06] overflow-hidden rounded-[16px] bg-white/[.035] ring-1 ring-white/[.06]">
+          {!large && <div className="mb-2 px-1 text-[13px] text-muted">{g}{g.startsWith('Voluntary') && ' · you can decline any of these'}</div>}
+          <div className={'divide-y divide-white/[.06] overflow-hidden ring-1 ring-white/[.08] ' + (large ? 'rounded-[20px] bg-white/[.06] backdrop-blur' : 'rounded-[16px] bg-white/[.035]')}>
             {qs.filter(q => q.group === g).map(q => {
               const v = getv(p, q.key)
               const blank = [undefined, null, ''].includes(v)
               return (
-                <div key={q.key} className="flex min-h-[52px] flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-2.5">
-                  <div className="flex min-w-0 items-center gap-2 text-[14.5px] text-white">
+                <div key={q.key} className={'flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-6 ' + (large ? 'px-5 py-3.5' : 'min-h-[52px] px-4 py-2.5')}>
+                  <div className={'flex min-w-0 flex-1 flex-wrap items-center gap-x-2 text-white ' + (large ? 'text-[16px]' : 'text-[14.5px]')}>
                     <span>{q.label}</span>{q.optional && <span className="text-[12px] text-faint">optional</span>}
                     {showMissing && blank && !q.optional && <span className="text-[12px] text-[#ff9f0a]">Needed</span>}
-                    {filled.includes(q.key) && !blank && <span className="text-[12px] text-[#64d2ff]">from your resume</span>}
+                    {filled.includes(q.key) && !blank && <span className="text-[12px] text-[#64d2ff]">filled in for you</span>}
                   </div>
-                  <div className="w-full sm:w-[48%]">
+                  <div className="w-full shrink-0 sm:w-[46%]">
                     {q.kind === 'yesno' ? <YesNo value={v} onChange={x => setP(setv(p, q.key, x))} />
                       : q.kind === 'select' ? (
                         <select value={v || ''} onChange={e => setP(setv(p, q.key, e.target.value))}

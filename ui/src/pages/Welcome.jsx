@@ -29,12 +29,15 @@ export default function Welcome() {
   const [agents, setAgents] = useState(null)
   const [scan, setScan] = useState(null)
   const [queue, setQueue] = useState(null)
+  const [tick, setTick] = useState(0)
+  useEffect(() => { if (!busy) return; const t = setInterval(() => setTick(x => x + 1), 3500); return () => clearInterval(t) }, [busy])
+  const READING = ['Reading your resume…', 'Finding your experience…', 'Pulling out projects and research…', 'Spotting your skills…', 'Filling in your answers…', 'Almost done…']
   const qs = useQuestions()
   const s = p.search || {}
   const ss = (k, v) => setP(x => ({ ...x, search: { ...x.search, [k]: v } }))
   const sa = (k, v) => setP(x => ({ ...x, apply: { ...x.apply, [k]: v } }))
   const now = new Date(), year = +((s.season || '').match(/20\d\d/) || [now.getFullYear() + (now.getMonth() >= 7 ? 1 : 0)])[0]   // from August, next summer's cycle
-  const terms = [`Summer ${year}`, `Fall ${year}`, `Spring ${year + 1}`, `Winter ${year}`, `Summer ${year + 1}`]
+  const terms = [`Summer ${year}`, `Fall ${year}`, `Winter ${year + 1}`, `Spring ${year + 1}`, `Summer ${year + 1}`]
   const picked = (s.season || '').split(',').map(x => x.trim()).filter(Boolean)
   const intern = ['internship', 'co-op'].includes(s.kind)
   const groupLeft = g => missing((qs || []).filter(q => q.group === g), p).length
@@ -83,7 +86,13 @@ export default function Welcome() {
   const cur = screens[i]
   const next = () => { setDir(1); setI(x => Math.min(screens.length - 1, x + 1)) }
   const back = () => { setDir(-1); setI(x => Math.max(0, x - 1)) }
+  const [derived, setDerived] = useState([])
+  const START = { summer: 'May', fall: 'August', winter: 'January', spring: 'January' }
   const onContinue = async () => {
+    if (cur.id === 'when' && intern && !p.earliest_start && picked.length) {   // you picked the term, so the start date follows from it
+      const [term, yr] = picked[0].toLowerCase().split(' ')
+      setP(x => ({ ...x, earliest_start: `${START[term] || 'May'} ${yr}` })); setDerived(['earliest_start'])
+    }
     if (cur.id === 'agent') { next(); return build() }
     if (cur.id === 'done') return go('agents')
     if (i > 1) await save()
@@ -102,14 +111,23 @@ export default function Welcome() {
     resume: <Center wide>
       <H>Start with your resume.</H>
       <Sub>It reads everything you've done, and fills in every answer it can. You'll check them later.</Sub>
-      <div className="mx-auto mt-8 max-w-[520px] text-left">
-        {busy ? <div className="grid place-items-center rounded-[20px] bg-white/[.04] py-14 ring-1 ring-white/10"><Loader2 className="size-7 animate-spin text-signal" />
-          <div className="mt-3 text-[14px] text-muted">Reading your resume…</div></div>
-          : imp ? <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="rounded-[20px] bg-white/[.05] p-5 ring-1 ring-white/10">
-            <div className="flex items-center gap-3"><div className="grid size-10 place-items-center rounded-[12px] bg-good/15 text-good"><Check className="size-5" /></div>
-              <div><div className="text-[16px] font-semibold text-white">{imp.name || 'Got it'}</div><div className="text-[13px] text-muted">{imp.message}</div></div></div>
-            {imp.filled?.length > 0 && <div className="mt-3 text-[13px] text-[#64d2ff]">Filled in {imp.filled.length} answers from it.</div>}
-            <button onClick={() => setImp(null)} className="mt-3 text-[13px] text-muted hover:text-white">Use a different file</button>
+      <div className="mx-auto mt-10 max-w-[560px] text-left">
+        {busy ? <div className="grid place-items-center rounded-[24px] bg-white/[.05] py-16 ring-1 ring-white/10 backdrop-blur"><Loader2 className="size-8 animate-spin text-signal" />
+          <AnimatePresence mode="wait"><motion.div key={tick} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
+            className="mt-4 text-[16px] text-white/80">{READING[Math.min(tick, READING.length - 1)]}</motion.div></AnimatePresence>
+          <div className="mt-1 text-[13px] text-faint">About half a minute</div></div>
+          : imp ? <motion.div initial={{ opacity: 0, y: 10, scale: .98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={SPRING}
+            className="rounded-[24px] bg-white/[.06] p-7 text-center ring-1 ring-white/10 backdrop-blur">
+            <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ ...SPRING, delay: .1 }} className="mx-auto grid size-12 place-items-center rounded-full bg-good text-white"><Check className="size-6" strokeWidth={3} /></motion.div>
+            <div className="mt-4 text-[26px] font-semibold tracking-[-0.02em] text-white">{imp.name || 'Got it'}</div>
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+              {[['experience', 'jobs'], ['research', 'research'], ['projects', 'projects'], ['leadership', 'leadership'], ['skills', 'skill groups']]
+                .filter(([k]) => imp.counts?.[k]).map(([k, l], j) => (
+                  <motion.span key={k} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ ...SPRING, delay: .15 + j * .06 }}
+                    className="rounded-full bg-white/[.08] px-3.5 py-1.5 text-[14px] text-white"><b className="font-semibold">{imp.counts[k]}</b> {l}</motion.span>))}
+            </div>
+            {imp.filled?.length > 0 && <div className="mt-4 text-[14px] text-[#64d2ff]">{imp.filled.length} application answers filled in from it</div>}
+            <button onClick={() => setImp(null)} className="mt-4 text-[13px] text-muted hover:text-white">Use a different file</button>
           </motion.div>
           : <Drop onFile={f => upload({ name: f.name, data: f.data })} onText={() => { const t = prompt('Paste your resume or LinkedIn text'); if (t) upload({ text: t }) }} />}
       </div>
@@ -133,22 +151,22 @@ export default function Welcome() {
     roles: <Center wide>
       <H>Which roles?</H>
       <Sub>{imp?.suggest_roles?.length ? 'We picked these from your resume. Add anything, in any field.' : 'Pick some, or type any role in any field.'}</Sub>
-      <div className="mx-auto mt-8 max-w-[600px] text-left"><Chips value={s.roles || []} onChange={v => ss('roles', v)} placeholder="Type a role and press Enter" suggestions={ROLE_SUGGEST} /></div>
+      <div className="mx-auto mt-8 max-w-[600px] text-left"><Chips large value={s.roles || []} onChange={v => ss('roles', v)} placeholder="Type a role and press Enter" suggestions={ROLE_SUGGEST} /></div>
     </Center>,
     where: <Center wide>
       <H>Where?</H>
       <Sub>Places you'd work, and how.</Sub>
       <Tiles items={ARRANGE.map(([v, l]) => ({ v, l }))} value={s.arrangement || []} multi small
         onPick={v => { const a = s.arrangement || []; const n = a.includes(v) ? a.filter(x => x !== v) : [...a, v]; ss('arrangement', n); setP(x => ({ ...x, search: { ...x.search, arrangement: n }, onsite_ok: n.some(y => y !== 'remote') || x.onsite_ok })) }} />
-      <div className="mx-auto mt-6 max-w-[600px] text-left"><Chips value={s.locations || []} onChange={v => ss('locations', v)} placeholder="United States, a city, Remote…"
+      <div className="mx-auto mt-6 max-w-[600px] text-left"><Chips large value={s.locations || []} onChange={v => ss('locations', v)} placeholder="United States, a city, Remote…"
         suggestions={['United States', 'Remote', 'New York', 'San Francisco', 'Seattle', 'Boston', 'Chicago', 'Austin', 'Los Angeles', 'Washington, DC']} /></div>
     </Center>,
     companies: <Center wide>
       <H>Any dream companies?</H>
       <Sub>Optional. Your twin applies to these first, the moment they post.</Sub>
       <div className="mx-auto mt-8 max-w-[600px] space-y-5 text-left">
-        <Chips value={s.companies_priority || []} onChange={v => ss('companies_priority', v)} placeholder="Type a company and press Enter" suggestions={DREAM_SUGGEST} />
-        <div><div className="mb-2 text-[13px] text-muted">Never apply to</div><Chips value={s.companies_skip || []} onChange={v => ss('companies_skip', v)} placeholder="Companies to skip (optional)" /></div>
+        <Chips large value={s.companies_priority || []} onChange={v => ss('companies_priority', v)} placeholder="Type a company and press Enter" suggestions={DREAM_SUGGEST} />
+        <div><div className="mb-2 text-[13px] text-muted">Never apply to</div><Chips large value={s.companies_skip || []} onChange={v => ss('companies_skip', v)} placeholder="Companies to skip (optional)" /></div>
       </div>
     </Center>,
     apply: <Center wide>
@@ -202,17 +220,17 @@ export default function Welcome() {
 
   return (
     <div className="relative min-h-screen overflow-hidden">
-      <Sky height={520} />
+      <div className="pointer-events-none fixed inset-0"><Sky height={2400} /><div className="absolute inset-0 bg-[#050816]/45" /></div>
       <div className="fixed inset-x-0 top-0 z-20 h-[3px] bg-white/[.06]">
         <motion.div className="h-full bg-signal" animate={{ width: `${(100 * i) / (screens.length - 1)}%` }} transition={SPRING} /></div>
-      <div className="relative mx-auto flex min-h-screen max-w-[760px] flex-col px-6 pb-32 pt-12">
-        {i > 0 && cur.id !== 'scan' && cur.id !== 'done' && <button onClick={back} className="mb-4 flex w-fit items-center gap-1 text-[14px] text-white/70 hover:text-white"><ArrowLeft className="size-4" />Back</button>}
+      <div className="relative mx-auto flex min-h-screen max-w-[820px] flex-col justify-center px-6 pb-36 pt-16">
+        {i > 0 && cur.id !== 'scan' && cur.id !== 'done' && <button onClick={back} className="fixed left-6 top-6 z-30 flex items-center gap-1 rounded-full bg-white/[.08] px-3.5 py-2 text-[14px] text-white/80 backdrop-blur hover:text-white"><ArrowLeft className="size-4" />Back</button>}
         <AnimatePresence mode="popLayout" custom={dir} initial={false}>
           <motion.div key={cur.id} custom={dir} variants={{ in: d => ({ x: d * 60, opacity: 0 }), at: { x: 0, opacity: 1 }, out: d => ({ x: d * -60, opacity: 0 }) }}
-            initial="in" animate="at" exit="out" transition={SPRING} className="flex-1">
+            initial="in" animate="at" exit="out" transition={SPRING}>
             {group ? <Center wide>
               <H>{groupCopy[cur.id][0]}</H><Sub>{groupCopy[cur.id][1]}</Sub>
-              <div className="mx-auto mt-8 max-w-[640px] text-left"><ProfileQuestions qs={qs} p={p} setP={setP} groups={[cur.id]} showMissing filled={imp?.filled || []} /></div>
+              <div className="mx-auto mt-8 max-w-[640px] text-left"><ProfileQuestions qs={qs} p={p} setP={setP} groups={[cur.id]} showMissing large filled={[...(imp?.filled || []), ...derived]} /></div>
             </Center> : body[cur.id]}
           </motion.div>
         </AnimatePresence>
@@ -230,20 +248,20 @@ export default function Welcome() {
   )
 }
 
-const Center = ({ children, wide }) => <div className={'mx-auto pt-[6vh] text-center ' + (wide ? 'max-w-[680px]' : 'max-w-[560px]')}>{children}</div>
-const H = ({ children }) => <h1 className="mt-6 text-[clamp(30px,5vw,44px)] font-bold leading-[1.08] tracking-[-0.035em] text-white">{children}</h1>
-const Sub = ({ children }) => <p className="mx-auto mt-3 max-w-[480px] text-[16px] leading-relaxed text-white/65">{children}</p>
+const Center = ({ children, wide }) => <div className={'mx-auto text-center ' + (wide ? 'max-w-[720px]' : 'max-w-[620px]')}>{children}</div>
+const H = ({ children }) => <h1 className="mt-6 text-[clamp(34px,5.5vw,56px)] font-bold leading-[1.05] tracking-[-0.04em] text-white">{children}</h1>
+const Sub = ({ children }) => <p className="mx-auto mt-4 max-w-[540px] text-[18px] leading-relaxed text-white/70">{children}</p>
 
 function Tiles({ items, value, onPick, multi, small }) {
   return (
-    <div className={'mx-auto mt-8 grid gap-3 text-left ' + (small ? 'max-w-[480px] grid-cols-3' : 'max-w-[560px] sm:grid-cols-2')}>
+    <div className={'mx-auto mt-10 grid gap-3 text-left ' + (small ? 'max-w-[520px] grid-cols-3' : 'max-w-[640px] sm:grid-cols-2')}>
       {items.map(({ v, l, d }) => {
         const on = value.includes(v)
         return (
           <motion.button key={v} whileTap={{ scale: .98 }} onClick={() => onPick(v)}
-            className={'relative rounded-[18px] px-5 py-4 ring-1 transition ' + (on ? 'bg-white/[.1] ring-2 ring-signal' : 'bg-white/[.04] ring-white/10 hover:bg-white/[.07]') + (small ? ' text-center' : '')}>
-            <div className={'font-semibold text-white ' + (small ? 'text-[15px]' : 'text-[17px]')}>{l}</div>
-            {d && <div className="mt-0.5 text-[13px] text-muted">{d}</div>}
+            className={'relative rounded-[20px] px-6 py-5 ring-1 backdrop-blur transition ' + (on ? 'bg-white/[.14] ring-2 ring-signal' : 'bg-white/[.06] ring-white/10 hover:bg-white/[.1]') + (small ? ' text-center' : '')}>
+            <div className={'font-semibold text-white ' + (small ? 'text-[16px]' : 'text-[19px]')}>{l}</div>
+            {d && <div className="mt-1 text-[14px] text-white/60">{d}</div>}
             <AnimatePresence>{on && !small && <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} transition={SPRING}
               className="absolute right-4 top-4 grid size-5 place-items-center rounded-full bg-signal text-white"><Check className="size-3" strokeWidth={3} /></motion.span>}</AnimatePresence>
           </motion.button>)

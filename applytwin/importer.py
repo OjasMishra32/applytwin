@@ -339,6 +339,8 @@ def profile_from_resume(vault, p):
         if url and not any(x in url for x in ('linkedin', 'github', 'mailto:')) and not p.get('website') and 'website' not in patch:
             patch['website'] = url
     edu = (vault.get('education') or [{}])[0]
+    if not p.get('location') and 'location' not in patch and edu.get('location'):
+        patch['location'] = edu['location']   # where you study; shown as from your resume so you can correct it
     if edu.get('school'):
         if not p.get('school'):
             patch['school'] = edu['school']
