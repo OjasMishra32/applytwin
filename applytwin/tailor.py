@@ -860,29 +860,6 @@ def _recency(e):
     return 9999.0 if when >= now.tm_year + now.tm_mon / 12 - 1 else when
 
 
-def _lead_with_proof(res, reqs, jd):
-    """The top third must prove the posting's #1 requirement. Among recent roles (the ones the plan may order by
-    relevance) the role that best matches the requirements leads, and in every role the bullet that best proves them comes
-    first. Requirement #1 counts most; the posting's own words break ties."""
-    if os.environ.get('APPLYTWIN_NO_LEAD') or not reqs:
-        return
-    kws = ats.keywords(jd)
-    jdw = _jd_words(' '.join(reqs[:1]) * 3 + ' ' + ' '.join(reqs[1:3]) * 2)   # the requirements' own words, #1 weighted
-    score = lambda t: relevance(t, [], jdw) + 0.3 * _kw_score(ats.plain(t), kws)
-    for sec in ('experience', 'projects'):
-        for e in res.get(sec, []):
-            bl = e.get('bullets') or []
-            if len(bl) > 1:
-                best = max(range(len(bl)), key=lambda i: (score(bl[i]) + (0.5 if i == 0 else 0), -i))
-                e['bullets'] = [bl[best]] + bl[:best] + bl[best + 1:]
-    exp = res.get('experience') or []
-    recent = [e for e in exp if _recency(e) == 9999.0]
-    if len(recent) > 1:
-        ranked = sorted(recent, key=lambda e: -(score(json.dumps(e, ensure_ascii=False)) + (1.0 if e is recent[0] else 0)))
-        it = iter(ranked)
-        res['experience'] = [next(it) if _recency(e) == 9999.0 else e for e in exp]
-
-
 def _house_rules(res, ctx):
     """Field conventions a screener checks at a glance. Banking and finance read strict reverse-chronological order (a
     recent role listed below an older one looks like a formatting error), so relevance never reorders their roles."""
@@ -1225,8 +1202,6 @@ def _tailor(v, job, jd, mode, plan, style, out_dir, track):
     else:
         mode = 'agent'
     res, rep = apply(v, plan, jd)
-    if mode == 'api':
-        _lead_with_proof(res, rep.get('requirements') or [], jd)
     _house_rules(res, ctx)
     if mode == 'api' and rep['rejected']:   # one revision: show the model exactly what the fact checker refused, and why
         track.stage('fix')
@@ -1239,7 +1214,6 @@ def _tailor(v, job, jd, mode, plan, style, out_dir, track):
             plan2 = call_llm(fix, timeout=200, think=False)
             if plan2:
                 res2, rep2 = apply(v, plan2, jd)
-                _lead_with_proof(res2, rep2.get('requirements') or [], jd)
                 _house_rules(res2, ctx)
                 if len(rep2['rejected']) < len(rep['rejected']):
                     plan, res, rep = plan2, res2, rep2
