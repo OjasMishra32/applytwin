@@ -523,6 +523,18 @@ def tailor_prompt(job_id):
                     "is better. Write a plan only if the user asked you to change something specific."}
 
 
+def last_resume(job_id):
+    """The resume last built for this job (what the job panel shows when you open it again), if its PDF still exists."""
+    if not re.fullmatch(r'[\w-]+', job_id or ''):
+        return {"result": None}
+    try:
+        d = json.load(open(store.path('resumes', job_id, 'tailor.json'), encoding='utf-8'))
+        r = d.get('result')
+        return {"result": r if r and os.path.exists(r.get('pdf', '')) else None}
+    except (OSError, ValueError):
+        return {"result": None}
+
+
 def tailor_progress(job_id):
     """What the resume build for this job is doing now and about how long is left (None when nothing is building)."""
     return {"progress": tailor.progress(job_id)}

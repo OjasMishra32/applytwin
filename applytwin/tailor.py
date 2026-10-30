@@ -304,17 +304,21 @@ RULES (hard):
 - What hiring managers in this field look for first: {rules.get('emphasize', 'the posting requirements and measurable results')}.
 {you}
 
-OUTPUT: only a JSON object:
-{{"headline": [2-4 short identity tags for THIS role: the vault's headline tags, or new ones built only from words in the vault
-                ("Avionics Hardware", "Recommender Systems"); the role's identity first],
+OUTPUT: only a JSON object, written in THIS order (decide the strategy first, then build the page from it):
+{{"requirements": ["requirement 1 (what this hiring manager screens for first)", "requirement 2", "requirement 3"],
+  "positioning": "the one-line story that makes this candidate the obvious hire for THIS role",
+  "lead": {{"entry": "<id of the entry that best proves requirement 1>", "bullet": "<its id.n that proves it>",
+           "cut": ["<ids of entries that don't help this posting>"]}},
+  "headline": [2-4 short identity tags naming THIS role's identity in its terms (vault words; "Avionics Hardware",
+               "Recommender Systems", "Developer Tooling"); drop tags that point at a different job],
   "order": ["education", "experience", "projects", ...],
   "experience": [{{"id": "<entry id>", "bullets": ["<id>.<n>" or {{"from": "<id>.<n>", "text": "<reworded bullet>"}}]}}],
   "projects": [same shape], "leadership": [same shape],
   "research": ["<research id>", ...], "awards": [<indexes>],
   "skills": [{{"label": "...", "items": [subset/reorder of that label's items]}}],
-  "positioning": "the one-line story from step 2",
-  "requirements": ["requirement 1", "requirement 2", "requirement 3"],
   "notes": "one line on the strategy"}}
+The "lead" entry goes first in its section (a design-team or lab role may sit in experience) with the "lead" bullet first,
+unless a strictly chronological field convention says otherwise; the "cut" entries stay off the page.
 
 RESUME WRITING GUIDE (follow it):
 {GUIDE[:6000]}
@@ -1254,11 +1258,12 @@ def _tailor(v, job, jd, mode, plan, style, out_dir, track):
     before = ats.report(v, jd)
     after = ats.report(res, jd, r['pages'], txt)
     r.pop('resume', None)
-    json.dump({"plan": plan, "resume": res, "report": rep, "render": r, "mode": mode, "style": style, "field": ctx['field'],
-               "pipeline": PIPELINE},
-              open(os.path.join(out_dir, 'tailor.json'), 'w', encoding='utf-8'), indent=1, ensure_ascii=False)
-    return {"pdf": pdf, "tex": pdf[:-4] + '.tex', "pages": r['pages'], "dropped": r['dropped'], "mode": mode, "style": style,
-            "coverage_vault": before.get('coverage'), "coverage": after.get('coverage'), "score": after['score'],
-            "missing": [m['term'] for m in after.get('missing', []) if m['hard']][:12],
-            "rewrites": len(rep["rewrites"]), "rejected": rep["rejected"], "notes": rep["notes"], "field": ctx["field"], "added": rep.get("added", []),
-            "positioning": rep.get("positioning", ''), "requirements": rep.get("requirements", [])}
+    out = {"pdf": pdf, "tex": pdf[:-4] + '.tex', "pages": r['pages'], "dropped": r['dropped'], "mode": mode, "style": style,
+           "coverage_vault": before.get('coverage'), "coverage": after.get('coverage'), "score": after['score'],
+           "missing": [m['term'] for m in after.get('missing', []) if m['hard']][:12],
+           "rewrites": len(rep["rewrites"]), "rejected": rep["rejected"], "notes": rep["notes"], "field": ctx["field"], "added": rep.get("added", []),
+           "positioning": rep.get("positioning", ''), "requirements": rep.get("requirements", [])}
+    with open(os.path.join(out_dir, 'tailor.json'), 'w', encoding='utf-8') as f:
+        json.dump({"plan": plan, "resume": res, "report": rep, "render": r, "mode": mode, "style": style, "field": ctx['field'],
+                   "pipeline": PIPELINE, "result": out}, f, indent=1, ensure_ascii=False)
+    return out

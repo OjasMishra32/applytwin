@@ -3,7 +3,7 @@ import { ChevronRight, Check } from 'lucide-react'
 import { api } from '../lib/api'
 import { ago } from '../lib/utils'
 import { useApp, Page } from '../App'
-import { Avatar, Button, Fit, GlideList, Odometer, Reveal, Stagger } from '../components/ui'
+import { Avatar, Button, Fit, GlideList, Reveal, Stagger } from '../components/ui'
 
 /* Today: what a native Mac app shows when you open it. A large title, two actions, your numbers, and what's next. */
 export default function Home() {
@@ -16,7 +16,8 @@ export default function Home() {
   const greet = h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'
   const todo = setup.filter(s => !s.done)
   const scanning = scan?.running
-  const fresh = [...jobs].sort((a, b) => b.found_at - a.found_at).slice(0, 6)
+  const shown = new Set((next?.jobs || []).map(j => j.id))
+  const fresh = [...jobs].filter(j => !shown.has(j.id)).sort((a, b) => b.found_at - a.found_at).slice(0, 6)
   const today = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })
 
   return (
@@ -25,7 +26,7 @@ export default function Home() {
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <div className="text-[13px] font-semibold uppercase tracking-[0.04em] text-faint">{today}</div>
-            <h1 className="mt-1 text-[34px] font-bold leading-tight tracking-[-0.025em] text-white">{greet}{first ? `, ${first}` : ''}</h1>
+            <h1 className="mt-1 text-[34px] font-bold leading-[1.1] tracking-[-0.025em] text-white">{greet}{first ? `, ${first}` : ''}</h1>
             <p className="mt-1 text-[15px] text-muted">{(stats.matched || 0).toLocaleString()} open roles fit you right now.</p>
           </div>
           <div className="flex gap-2">
@@ -35,9 +36,9 @@ export default function Home() {
         </div>
 
         <Reveal><div className="mt-8 grid grid-cols-2 gap-3 md:grid-cols-4">
-          {[['Fit you now', stats.matched], ['Applied today', stats.applied_today], ['This week', stats.applied_7d], ['Left today', next?.remaining_today ?? 0]].map(([l, v]) => (
+          {[['Fit you now', stats.matched ?? 0], ['Applied today', stats.applied_today ?? 0], ['This week', stats.applied_7d ?? 0], ['Left today', next ? (next.remaining_today ?? 0) : null]].map(([l, v]) => (
             <div key={l} className="card px-5 py-4">
-              <div className="text-[28px] font-semibold leading-none tracking-[-0.03em] text-white tabular-nums"><Odometer value={v || 0} /></div>
+              <div className="text-[28px] font-semibold leading-none tracking-[-0.03em] text-white tabular-nums">{v == null ? <span className="text-faint">–</span> : Number(v).toLocaleString()}</div>
               <div className="mt-2 text-[13px] text-muted">{l}</div></div>))}
         </div></Reveal>
 
@@ -50,7 +51,7 @@ export default function Home() {
             <div className="card divide-y divide-white/[.06] overflow-hidden">
               {setup.map(s => (
                 <button key={s.id} onClick={() => go({ profile: 'settings', vault: 'studio', skills: 'studio', search: 'settings', scan: 'jobs', chrome: 'agents' }[s.id])}
-                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-[14.5px] transition hover:bg-white/[.03]">
+                  className="flex min-h-[44px] w-full items-center gap-3 px-4 py-2.5 text-left text-[14px] transition-colors hover:bg-white/[.03]">
                   <span className={`grid size-[20px] shrink-0 place-items-center rounded-full ${s.done ? 'bg-good text-white' : 'ring-[1.5px] ring-inset ring-white/25'}`}>{s.done && <Check className="size-3" strokeWidth={3} />}</span>
                   <span className={`min-w-0 flex-1 truncate ${s.done ? 'text-muted' : 'text-white'}`}>{s.label}</span>
                   {s.detail && !s.done && <span className="shrink-0 text-[12.5px] text-warn">{s.detail}</span>}
@@ -68,7 +69,8 @@ export default function Home() {
               <div className="min-w-0 flex-1"><div className="truncate text-[15px] font-medium text-ink">{j.title}</div>
                 <div className="truncate text-[13px] text-muted">{j.company} · {j.location || 'Remote or multiple'} · {ago(j.found_at)} ago</div></div>
               <Fit v={j.fit} /><ChevronRight className="size-4 text-faint" /></> }))} />
-            {next && !next.jobs.length && <div className="px-6 py-14 text-center text-[15px] text-muted">No matches yet. Choose <b>Find new jobs</b>.</div>}
+            {!next && <div className="space-y-px p-2">{[0, 1, 2].map(i => <div key={i} className="skel h-[56px]" />)}</div>}
+            {next && !next.jobs.length && <div className="px-6 py-14 text-center text-[15px] text-muted">No matches yet. Press <b className="font-semibold text-white">Find new jobs</b> to scan every career page.</div>}
           </Stagger>
         </section></Reveal>
 

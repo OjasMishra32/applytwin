@@ -30,6 +30,7 @@ GET = {
     r'/api/jobs/([\w-]+)/questions': lambda m, qs, b: api.job_questions(m.group(1)),
     r'/api/jobs/([\w-]+)/ats': lambda m, qs, b: api.ats_report(job_id=m.group(1)),
     r'/api/jobs/([\w-]+)/progress': lambda m, qs, b: api.tailor_progress(m.group(1)),
+    r'/api/jobs/([\w-]+)/resume': lambda m, qs, b: api.last_resume(m.group(1)),
     r'/api/templates': lambda m, qs, b: api.templates(),
     r'/api/answers': lambda m, qs, b: api.get_answers(),
     r'/api/applications': lambda m, qs, b: api.applications(history=_q(qs, 'history') == '1'),

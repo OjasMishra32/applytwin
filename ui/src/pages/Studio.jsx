@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { toast } from 'sonner'
-import { ArrowDown, ArrowUp, Check, CheckCircle2, FileDown, Palette, PenLine, Plus, ScanSearch, Trash2, AlertTriangle, Sparkles, Upload } from 'lucide-react'
+import { ArrowDown, ArrowUp, Check, CheckCircle2, ChevronLeft, ChevronRight, FileDown, Palette, PenLine, Plus, ScanSearch, Trash2, AlertTriangle, Sparkles, Upload } from 'lucide-react'
 import { api, fileUrl } from '../lib/api'
 import { useApp, Page } from '../App'
 import { Badge, Button, Drop, Ring, Segmented, Title, spring } from '../components/ui'
@@ -72,22 +72,22 @@ export default function Studio({ arg }) {
       <Page wide>
         <Title sub="Put everything here, even what won't fit. Your twin picks the best of it for every job."
           right={<>
-            <span className="mr-2 flex items-center gap-1.5 text-[13px] text-white/85">{saved ? <><CheckCircle2 className="size-4" />Saved</> : 'Saving…'}</span>
+            <span className="mr-1 flex w-[72px] items-center justify-end gap-1.5 text-[13px] text-muted" aria-live="polite">{saved ? <><CheckCircle2 className="size-3.5 text-good" />Saved</> : 'Saving…'}</span>
             <Button variant="white" onClick={() => setImporting(true)}><Upload className="size-4" />Import</Button>
             <Button variant="sky" onClick={download}><FileDown className="size-4" />Download PDF</Button></>}>
           Resume
         </Title>
-        <div className="mb-5 flex justify-center">
-          <div className="glass rounded-full p-1"><Segmented id="mode" value={mode} onChange={setMode} options={[['write', 'Write', PenLine], ['check', 'Check', ScanSearch], ['style', 'Style', Palette]]} /></div>
+        <div className="mb-6 flex justify-center">
+          <Segmented value={mode} onChange={setMode} options={[['write', 'Write', PenLine], ['check', 'Check', ScanSearch], ['style', 'Style', Palette]]} />
         </div>
-        <AnimatePresence mode="wait">
+        <AnimatePresence initial={false}>
           {mode === 'write' && (
-            <motion.div key="w" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} className="grid gap-6 lg:grid-cols-[1fr_300px]">
+            <motion.div key="w" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.15 }} className="grid gap-6 lg:grid-cols-[1fr_300px]">
               <Doc v={v} set={set} save={save} />
-              <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
-                <div className="card p-5"><div className="flex items-center gap-4"><Ring value={rep?.score ?? 0} size={70} />
-                  <div><div className="font-display text-[22px] font-semibold tracking-[-0.035em] leading-tight">Resume score</div><div className="text-[12.5px] text-muted">{fails.length ? `${fails.length} things to fix` : 'Looking sharp'}</div></div></div>
-                  <button onClick={() => setMode('check')} className="mt-3 text-[13px] font-medium text-signal-ink hover:underline">See the checks →</button></div>
+              <aside className="space-y-4 lg:sticky lg:top-[72px] lg:self-start">
+                <div className="card p-5"><div className="flex items-center gap-4"><Ring value={rep?.score ?? 0} size={64} label={rep ? undefined : ''} />
+                  <div><div className="text-[17px] font-semibold leading-tight text-white">Resume score</div><div className="mt-0.5 text-[13px] text-muted">{!rep ? 'Checking…' : fails.length ? `${fails.length} thing${fails.length === 1 ? '' : 's'} to fix` : 'Looking sharp'}</div></div></div>
+                  <button onClick={() => setMode('check')} className="mt-3 flex items-center text-[13px] font-medium text-signal-ink hover:underline">See the checks<ChevronRight className="size-3.5" /></button></div>
                 <div className="card p-5"><div className="text-[15px] font-semibold text-white">How it works</div>
                   <ul className="mt-2 space-y-2 text-[13px] leading-relaxed text-muted">
                     <li>Click any line to edit it. <b className="text-fg">**bold**</b> works.</li>
@@ -96,18 +96,18 @@ export default function Studio({ arg }) {
               </aside>
             </motion.div>)}
           {mode === 'check' && (
-            <motion.div key="c" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mx-auto max-w-[760px]">
-              <div className="card p-7"><div className="flex items-center gap-5"><Ring value={rep?.score ?? 0} size={104} stroke={9} />
-                <div><div className="font-display text-[34px] font-semibold tracking-[-0.035em] leading-none">{(rep?.score ?? 0) >= 85 ? 'Recruiter-ready.' : 'Almost there.'}</div>
+            <motion.div key="c" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.15 }} className="mx-auto max-w-[760px]">
+              <div className="card p-6 sm:p-7"><div className="flex items-center gap-5"><Ring value={rep?.score ?? 0} size={88} stroke={8} label={rep ? undefined : ''} />
+                <div><div className="text-[26px] font-bold leading-tight tracking-[-0.02em] text-white">{!rep ? 'Checking…' : rep.score >= 85 ? 'Recruiter-ready' : 'Almost there'}</div>
                   <div className="mt-2 text-[14px] text-muted">The checks recruiters and ATS parsers actually care about.</div></div></div>
                 <div className="mt-6 divide-y divide-line">{(rep?.lint || []).map((c, i) => (
-                  <motion.div key={c.id} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.035 }} className="flex items-start gap-3 py-3 text-[14px]">
-                    {c.level === 'pass' ? <span className="mt-0.5 grid size-5 place-items-center rounded-full bg-good text-white"><Check className="size-3" strokeWidth={3} /></span>
-                      : <AlertTriangle className={`mt-0.5 size-5 ${c.level === 'fail' ? 'text-bad' : 'text-warn'}`} />}<span className={c.level === 'pass' ? 'text-muted' : 'text-fg'}>{c.msg}</span></motion.div>))}</div>
+                  <div key={c.id} className="flex items-start gap-3 py-3 text-[14px]">
+                    {c.level === 'pass' ? <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-good text-white"><Check className="size-3" strokeWidth={3} /></span>
+                      : <AlertTriangle className={`mt-0.5 size-5 shrink-0 ${c.level === 'fail' ? 'text-bad' : 'text-warn'}`} />}<span className={c.level === 'pass' ? 'text-muted' : 'text-fg'}>{c.msg}</span></div>))}</div>
               </div>
             </motion.div>)}
           {mode === 'style' && (
-            <motion.div key="s" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+            <motion.div key="s" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.15 }}>
               <Coverflow templates={templates} tpl={tpl} pick={pick} />
             </motion.div>)}
         </AnimatePresence>
@@ -223,9 +223,9 @@ function Import({ open, setOpen, onDone }) {
     <Dialog.Root open={open} onOpenChange={o => { setOpen(o); if (!o) { setOut(null); setText(null) } }}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-black/25 backdrop-blur-[2px]" />
-        <Dialog.Content aria-describedby={undefined} className="fixed left-1/2 top-1/2 z-50 w-[min(640px,92vw)] -translate-x-1/2 -translate-y-1/2 rounded-[18px] bg-[#1c1c1e] ring-1 ring-white/10 p-8 shadow-[0_40px_100px_rgb(0_0_0/.28)] outline-none">
-          <Dialog.Title className="font-display text-[40px] font-semibold tracking-[-0.035em] leading-tight text-ink">Bring everything you've got.</Dialog.Title>
-          <p className="mb-6 mt-1 text-[14.5px] text-muted">Old resumes, your LinkedIn, project notes. Your twin pulls it all into one vault and never invents anything.</p>
+        <Dialog.Content aria-describedby={undefined} className="fixed left-1/2 top-1/2 z-50 max-h-[calc(100vh-32px)] w-[min(600px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-[16px] bg-[#1c1c1e] p-6 shadow-[0_40px_100px_rgb(0_0_0/.5)] outline-none ring-1 ring-white/10 sm:p-7">
+          <Dialog.Title className="text-[22px] font-bold tracking-[-0.02em] text-ink">Import your resume</Dialog.Title>
+          <p className="mb-5 mt-1 text-[14px] text-muted">Old resumes, your LinkedIn, project notes. Your twin pulls it all into one vault and never invents anything.</p>
           {busy ? <div className="grid place-items-center py-14"><motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1.1, ease: 'linear' }}><Sparkles className="size-8 text-signal" /></motion.div>
             <div className="mt-3 text-[14px] text-muted">Reading it like a recruiter…</div></div>
             : out ? <div className="rounded-[18px] bg-mist p-6"><div className="flex items-center gap-2 font-medium text-ink"><CheckCircle2 className="size-5 text-good" />{out.message}</div>
@@ -251,7 +251,7 @@ function Coverflow({ templates, tpl, pick }) {
   const cur = templates[i] || {}
   return (
     <div>
-      <div className="relative h-[560px] select-none" style={{ perspective: 1600 }}
+      <div className="relative isolate h-[560px] select-none overflow-x-clip" style={{ perspective: 1600 }}
         onWheel={e => { if (Math.abs(e.deltaX) > Math.abs(e.deltaY) && Math.abs(e.deltaX) > 18) setI(x => Math.max(0, Math.min(templates.length - 1, x + Math.sign(e.deltaX)))) }}>
         {templates.map((x, j) => {
           const d = j - i, ad = Math.abs(d)
@@ -270,17 +270,18 @@ function Coverflow({ templates, tpl, pick }) {
       </div>
       <div className="mt-2 text-center">
         <AnimatePresence mode="wait"><motion.div key={cur.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}>
-          <div className="text-[30px] font-bold tracking-[-0.035em] text-white">{cur.label}</div>
+          <div className="text-[26px] font-bold tracking-[-0.02em] text-white">{cur.label}</div>
           <div className="mt-1 text-[15px] text-muted">{cur.desc}</div>
           <div className="mt-1 text-[13px] text-faint">Best for {cur.best}</div>
         </motion.div></AnimatePresence>
         <div className="mt-5 flex items-center justify-center gap-3">
-          <Button variant="white" onClick={() => setI(x => Math.max(0, x - 1))}>←</Button>
-          <Button onClick={() => pick(cur.id)}>{tpl === cur.id ? 'Your template' : 'Use this template'}</Button>
-          <Button variant="white" onClick={() => setI(x => Math.min(templates.length - 1, x + 1))}>→</Button>
+          <Button variant="white" className="w-10 px-0" aria-label="Previous template" disabled={i === 0} onClick={() => setI(x => Math.max(0, x - 1))}><ChevronLeft className="size-4" /></Button>
+          {tpl === cur.id ? <Button variant="white" className="min-w-[180px] disabled:opacity-100" disabled><Check className="size-4 text-good" />Your template</Button>
+            : <Button className="min-w-[180px]" onClick={() => pick(cur.id)}>Use this template</Button>}
+          <Button variant="white" className="w-10 px-0" aria-label="Next template" disabled={i === templates.length - 1} onClick={() => setI(x => Math.min(templates.length - 1, x + 1))}><ChevronRight className="size-4" /></Button>
         </div>
         <div className="mt-4 flex justify-center gap-1.5">{templates.map((x, j) => <button key={x.id} onClick={() => setI(j)}
-          className={`h-1.5 rounded-full transition-all ${j === i ? 'w-6 bg-white' : 'w-1.5 bg-white/25'}`} />)}</div>
+          aria-label={x.label} className={`h-1.5 rounded-full transition-all ${j === i ? 'w-6 bg-white' : 'w-1.5 bg-white/25 hover:bg-white/40'}`} />)}</div>
       </div>
     </div>
   )

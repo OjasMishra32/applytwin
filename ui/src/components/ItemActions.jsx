@@ -78,6 +78,7 @@ function Talk({ job, onDone }) {
   const [msgs, setMsgs] = useState([])
   const [t, setT] = useState('')
   const [busy, setBusy] = useState(false)
+  const [open, setOpen] = useState(false)
   const box = useRef(null)
   const last = msgs.at(-1)
   const waiting = !!last && (last.role === 'you' || /^(On it|Queued|Submitting)/.test(last.text))   // a reply is on its way
@@ -104,6 +105,9 @@ function Talk({ job, onDone }) {
     } catch (err) { toast.error(err.message); setT(text) }
     setBusy(false)
   }
+  // the message box stays out of the way until you want it (or a conversation has started)
+  if (!open && !shown.length) return (
+    <button onClick={() => setOpen(true)} className="mt-2 text-[12.5px] font-medium text-signal-ink hover:underline">Message your twin about this one</button>)
   return (
     <div className="mt-3">
       {shown.length > 0 && (
@@ -115,7 +119,7 @@ function Talk({ job, onDone }) {
             </div>))}
         </div>)}
       <form onSubmit={send} className="flex items-center gap-2">
-        <input value={t} onChange={e => setT(e.target.value)} placeholder="Message your twin about this one, like: did you submit it?"
+        <input autoFocus={open && !shown.length} value={t} onChange={e => setT(e.target.value)} placeholder="e.g. Did you submit it?"
           className="h-9 min-w-0 flex-1 rounded-full bg-white/[.06] px-3.5 text-[13px] text-white outline-none placeholder:text-faint focus:ring-2 focus:ring-signal" />
         <button disabled={busy || !t.trim()} className="h-9 rounded-full bg-white/[.1] px-3.5 text-[12.5px] font-semibold text-white transition hover:bg-white/[.16] disabled:opacity-40">
           {busy ? 'Sending…' : 'Send'}</button>

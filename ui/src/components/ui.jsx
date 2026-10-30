@@ -20,7 +20,7 @@ export function Button({ variant = 'ink', size = 'md', className, children, arro
   const s = { sm: 'h-8 px-3.5 text-[13px] gap-1', md: 'h-10 px-5 text-[14px] gap-1.5', lg: 'h-12 px-6 text-[16px] gap-1.5' }[size]
   return (
     <motion.button whileTap={{ scale: 0.96 }} transition={spring} disabled={loading || p.disabled}
-      className={cn('inline-flex items-center justify-center rounded-full font-medium transition-colors duration-150 disabled:opacity-50 cursor-pointer select-none', v, s, className)} {...p}>
+      className={cn('inline-flex shrink-0 items-center justify-center whitespace-nowrap rounded-full font-medium transition-colors duration-150 disabled:cursor-default disabled:opacity-50 cursor-pointer select-none', loading && '[&>svg]:hidden', v, s, className)} {...p}>
       {loading && <span className="size-4 animate-spin rounded-full border-2 border-current/30 border-t-current" />}
       {children}
       {arrow && <ChevronRight className="-mr-1 size-4" />}
@@ -64,14 +64,15 @@ export function Slider({ value, onChange, min = 0, max = 100, step = 5 }) {
   )
 }
 
-export function Segmented({ options, value, onChange, id = 'seg', className }) {
+/* A macOS segmented control: the selected segment simply lights up (no sliding pill that can lag behind a page that's moving). */
+export function Segmented({ options, value, onChange, className }) {
   return (
-    <div className={cn('inline-flex rounded-[10px] bg-white/[.06] p-[2px]', className)}>
+    <div role="tablist" className={cn('inline-flex shrink-0 rounded-[9px] bg-white/[.06] p-[2px]', className)}>
       {options.map(([v, label, Icon]) => (
-        <button key={v} onClick={() => onChange(v)} className={cn('relative flex h-7 items-center gap-1.5 rounded-[8px] px-3.5 text-[13px] transition-colors',
-          value === v ? 'font-semibold text-ink' : 'font-medium text-ink/70 hover:text-ink')}>
-          {value === v && <motion.span layoutId={id} transition={spring} className="absolute inset-0 rounded-[8px] bg-white/[.16] shadow-[0_3px_8px_rgb(0_0_0/.3)]" />}
-          <span className="relative flex items-center gap-1.5">{Icon && <Icon className="size-3.5" />}{label}</span>
+        <button key={v} role="tab" aria-selected={value === v} onClick={() => onChange(v)}
+          className={cn('flex h-7 items-center gap-1.5 whitespace-nowrap rounded-[7px] px-3 text-[13px] transition-colors duration-100',
+            value === v ? 'bg-white/[.16] font-semibold text-ink shadow-[0_1px_3px_rgb(0_0_0/.3)]' : 'font-medium text-ink/70 hover:text-ink')}>
+          {Icon && <Icon className="size-3.5" />}{label}
         </button>
       ))}
     </div>
@@ -95,11 +96,11 @@ export function Ring({ value = 0, size = 64, stroke = 6, label, color, className
       <svg width={size} height={size} className="-rotate-90">
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgb(255 255 255 / .08)" strokeWidth={stroke} />
         <motion.circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={col} strokeWidth={stroke} strokeLinecap="round"
-          initial={{ strokeDashoffset: c }} animate={{ strokeDashoffset: c * (1 - Math.min(100, value) / 100) }} transition={{ duration: 1.1, ease: [0.2, 0.8, 0.2, 1] }}
+          initial={{ strokeDashoffset: c }} animate={{ strokeDashoffset: c * (1 - Math.min(100, value) / 100) }} transition={{ duration: 0.6, ease: [0.2, 0.8, 0.2, 1] }}
           strokeDasharray={c} />
       </svg>
       <div className="absolute inset-0 grid place-items-center text-center font-semibold tabular-nums tracking-[-0.02em]" style={{ fontSize: size * 0.28 }}>
-        {label ?? <span><NumberTicker value={value} /></span>}
+        {label ?? Math.round(value)}
       </div>
     </div>
   )
@@ -166,15 +167,15 @@ export const item = { h: { opacity: 0 }, s: { opacity: 1, transition: { duration
 export function Hand({ children, className }) {
   return <span className={cn('text-[14px] font-semibold text-signal', className)}>{children}</span>
 }
+/* The large title every page opens with (macOS/iOS large title: 34pt bold). No entrance animation: the page itself fades in. */
 export function Title({ children, sub, right }) {
   return (
-    <div className="mb-8 flex flex-wrap items-end justify-between gap-6">
-      <div>
-        <motion.h1 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={soft}
-          className="text-[44px] font-bold leading-[1.05] tracking-[-0.035em] text-white">{children}</motion.h1>
-        {sub && <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }} className="mt-2 max-w-xl text-[16px] leading-snug text-muted">{sub}</motion.p>}
+    <div className="mb-8 flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
+      <div className="min-w-0">
+        <h1 className="text-[34px] font-bold leading-[1.1] tracking-[-0.025em] text-white">{children}</h1>
+        {sub && <p className="mt-1.5 max-w-xl text-[15px] leading-snug text-muted">{sub}</p>}
       </div>
-      <div className="flex items-center gap-2">{right}</div>
+      {right && <div className="flex flex-wrap items-center gap-2">{right}</div>}
     </div>
   )
 }

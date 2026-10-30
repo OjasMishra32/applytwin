@@ -32,14 +32,16 @@ export const ROLE_SUGGEST = ['software engineer', 'finance', 'investment banking
   'nonprofit', 'education', 'journalism', 'media', 'communications', 'writing', 'sales', 'operations', 'supply chain', 'hr', 'civil',
   'architecture', 'environmental', 'aerospace', 'cybersecurity', 'security', 'hospitality', 'retail', 'fashion', 'sports', 'agriculture']
 
+/* macOS System Settings: a small group label over an inset grouped list. */
 function Group({ title, children }) {
-  return <div className="mb-8"><div className="mb-2 px-4 text-[13px] text-muted">{title}</div><div className="card divide-y divide-line overflow-hidden">{children}</div></div>
+  return <div className="mb-8"><div className="mb-1.5 px-4 text-[13px] font-medium text-muted">{title}</div><div className="card divide-y divide-line overflow-hidden">{children}</div></div>
 }
-function Row({ label, hint, children, stack }) {
+// a switch or segmented control sits at its own size on the right; sliders and text fields (wide) get a fixed share of the row
+function Row({ label, hint, children, stack, wide }) {
   return (
-    <div className={`px-5 py-3 ${stack ? '' : 'flex min-h-[52px] items-center justify-between gap-6'}`}>
-      <div className={stack ? 'mb-2.5' : 'min-w-0'}><div className="text-[15px] text-ink">{label}</div>{hint && <div className="text-[12.5px] text-muted">{hint}</div>}</div>
-      <div className={stack ? '' : 'w-[52%] shrink-0'}>{children}</div>
+    <div className={`px-5 py-3 ${stack ? '' : 'flex min-h-[52px] flex-wrap items-center justify-between gap-x-6 gap-y-2 sm:flex-nowrap'}`}>
+      <div className={stack ? 'mb-2.5' : 'min-w-0 flex-1'}><div className="text-[15px] text-ink">{label}</div>{hint && <div className="mt-0.5 text-[12.5px] leading-snug text-muted">{hint}</div>}</div>
+      <div className={stack ? '' : wide ? 'w-full shrink-0 sm:w-[44%]' : 'shrink-0'}>{children}</div>
     </div>
   )
 }
@@ -52,17 +54,24 @@ export default function Settings() {
   const ss = (k, v) => setP({ ...p, search: { ...s, [k]: v } })
   const sa = (k, v) => setP({ ...p, apply: { ...a, [k]: v } })
   const se = (k, v) => setP({ ...p, eeo: { ...p.eeo, [k]: v } })
-  const save = async () => { await api('/api/profile', p); await refresh(); toast.success('Saved', { description: 'Rescan to re-rank jobs with your new preferences.' }) }
+  const [saving, setSaving] = useState(false)
+  const dirty = JSON.stringify(p) !== JSON.stringify(profile)
+  const save = async () => {
+    setSaving(true)
+    try { await api('/api/profile', p); const st = await refresh(); if (st?.profile) setP(structuredClone(st.profile)); toast.success('Saved', { description: 'Rescan to re-rank jobs with your new preferences.' }) }
+    catch (e) { toast.error("Couldn't save", { description: e.message }) }
+    setSaving(false)
+  }
   const T = (k, ph) => <input className="uline" value={p[k] || ''} placeholder={ph} onChange={e => set(k, e.target.value)} />
   const qs = useQuestions()
   const left = missing(qs, p)
   const Sel = (k, opts) => <select className="uline" value={p.eeo[k]} onChange={e => se(k, e.target.value)}>{opts.map(o => <option key={o}>{o}</option>)}</select>
   return (
     <div className="relative"><Page>
-      <Title sub="Who you are, what you want, and how far your twin may go on its own." right={<Button onClick={save} arrow>Save</Button>}>
+      <Title sub="Who you are, what you want, and how far your twin may go on its own." right={<><span className="text-[13px] text-muted">{dirty ? 'Unsaved changes' : ''}</span><Button variant={dirty ? 'ink' : 'white'} onClick={save} loading={saving} disabled={!dirty}>{dirty ? 'Save' : 'Saved'}</Button></>}>
         Settings</Title>
       <div className="mx-auto max-w-[860px]">
-        {left.length > 0 && <div className="mb-6 rounded-[14px] bg-[#ff9f0a]/10 px-4 py-3 text-[14px] text-[#ffc56b] ring-1 ring-[#ff9f0a]/25">
+        {left.length > 0 && <div className="mb-8 rounded-[12px] bg-[#ff9f0a]/10 px-4 py-3 text-[14px] text-[#ffc56b] ring-1 ring-[#ff9f0a]/25">
           {left.length} application answer{left.length === 1 ? '' : 's'} missing (marked below). Until you answer, your twin asks you instead of guessing.</div>}
         <Group title="Your twin's permissions">
           <Row label="Submit applications on its own" hint="Off: it fills everything and stops so you can press Submit."><div className="flex justify-end"><Switch checked={a.auto_submit} onChange={v => sa('auto_submit', v)} /></div></Row>
@@ -70,21 +79,21 @@ export default function Settings() {
           <Row label="Desktop notifications" hint="Ping my Mac when my twin needs me."><div className="flex justify-end"><Switch checked={a.notify_desktop !== false} onChange={v => sa('notify_desktop', v)} /></div></Row>
           <Row label="Applies with" hint="The agent Autopilot uses."><div className="flex justify-end"><Segmented id="agentset" value={a.agent || 'claude'} onChange={v => sa('agent', v)} options={[['claude', 'Claude Code'], ['codex', 'Codex']]} /></div></Row>
           <Row label="Tailor a resume for every job" hint="A new one-page resume, rewritten for each posting."><div className="flex justify-end"><Switch checked={a.tailor_every_resume} onChange={v => sa('tailor_every_resume', v)} /></div></Row>
-          <Row label={`Up to ${a.daily_limit} applications a day`}><Slider value={a.daily_limit} min={5} max={200} step={5} onChange={v => sa('daily_limit', v)} /></Row>
-          <Row label={`Skip an application stuck for ${a.stuck_minutes || 20} minutes`} hint="Waiting on a sign-in or a page that won't load: it moves on and leaves that one in Needs you."><Slider value={a.stuck_minutes || 20} min={5} max={60} step={5} onChange={v => sa('stuck_minutes', v)} /></Row>
-          <Row label={`At most ${a.per_company_cap} per company`} hint="Many companies cap or flag repeat applicants."><Slider value={a.per_company_cap} min={1} max={10} step={1} onChange={v => sa('per_company_cap', v)} /></Row>
+          <Row wide label={`Up to ${a.daily_limit} applications a day`}><Slider value={a.daily_limit} min={5} max={200} step={5} onChange={v => sa('daily_limit', v)} /></Row>
+          <Row wide label={`Skip an application stuck for ${a.stuck_minutes || 20} minutes`} hint="Waiting on a sign-in or a page that won't load: it moves on and leaves that one in Needs you."><Slider value={a.stuck_minutes || 20} min={5} max={60} step={5} onChange={v => sa('stuck_minutes', v)} /></Row>
+          <Row wide label={`At most ${a.per_company_cap} per company`} hint="Many companies cap or flag repeat applicants."><Slider value={a.per_company_cap} min={1} max={10} step={1} onChange={v => sa('per_company_cap', v)} /></Row>
         </Group>
         <Group title="What you're looking for">
           <Row label="Type"><div className="flex justify-end"><Segmented id="kind" value={s.kind} onChange={v => ss('kind', v)} options={[['internship', 'Internship'], ['new-grad', 'New grad'], ['full-time', 'Full-time']]} /></div></Row>
-          <Row label="Cycle">{<input className="uline" value={s.season} onChange={e => ss('season', e.target.value)} placeholder="Summer 2027" />}</Row>
+          <Row wide label="Cycle">{<input className="uline" value={s.season} onChange={e => ss('season', e.target.value)} placeholder="Summer 2027" />}</Row>
           <Row label="Roles" stack><Chips value={s.roles} onChange={v => ss('roles', v)} placeholder="Add a role" suggestions={ROLE_SUGGEST.slice(0, 10)} /></Row>
           <Row label="Dream companies" hint="Applied to first, every time they post." stack><Chips value={s.companies_priority} onChange={v => ss('companies_priority', v)} placeholder="e.g. Google, Jane Street, Mayo Clinic" /></Row>
           <Row label="Never apply to" stack><Chips value={s.companies_skip} onChange={v => ss('companies_skip', v)} placeholder="Companies to skip" /></Row>
           <Row label="Locations" stack><Chips value={s.locations} onChange={v => ss('locations', v)} placeholder="United States, Remote, New York…" suggestions={['United States', 'Remote', 'New York', 'San Francisco', 'Seattle', 'Boston']} /></Row>
           <Row label="Skip titles with" stack><Chips value={s.exclude} onChange={v => ss('exclude', v)} placeholder="senior, phd…" /></Row>
-          <Row label={`Show jobs with fit ${s.min_fit}+`}><Slider value={s.min_fit} min={0} max={95} onChange={v => ss('min_fit', v)} /></Row>
+          <Row wide label={`Show jobs with fit ${s.min_fit}+`}><Slider value={s.min_fit} min={0} max={95} onChange={v => ss('min_fit', v)} /></Row>
         </Group>
-        <div className="mb-3 px-4 text-[13px] text-muted">Your application answers, used on every form</div>
+        <div className="mb-1.5 px-4 text-[13px] font-medium text-muted">Your application answers, used on every form</div>
         <div className="mb-8"><ProfileQuestions qs={qs} p={p} setP={setP} showMissing /></div>
         <Group title="ApplyTwin">
           <Row label="Update automatically" hint="Installs each tested version on start and every hour, never mid-run."><div className="flex justify-end"><Switch checked={a.auto_update !== false} onChange={v => sa('auto_update', v)} /></div></Row>

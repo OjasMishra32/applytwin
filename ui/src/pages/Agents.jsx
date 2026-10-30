@@ -7,6 +7,7 @@ import { parseRun } from '../lib/runlog'
 import { useApp, Page } from '../App'
 import { Avatar, Segmented, burst, spring } from '../components/ui'
 import { REPO_URL } from '../lib/star'
+import { atsName } from '../lib/utils'
 import { ItemActions } from '../components/ItemActions'
 
 const clock = s => { s = Math.max(0, Math.round(s)); return s >= 60 ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` : `${s}s` }
@@ -99,30 +100,32 @@ export default function Agents() {
   const step = d => setN(SIZES[Math.max(0, Math.min(SIZES.length - 1, SIZES.indexOf(n) + d))] ?? 25)
 
   const now = run?.now
+  // idle, it says what Start will do (the queue); the last run is a footnote, not the headline
   const headline = running ? now?.step || live.step || 'Getting ready'
-    : session.length ? `${session.length} handled.` : `${(q?.total ?? 0).toLocaleString()} roles ready.`
+    : q ? `${q.total.toLocaleString()} role${q.total === 1 ? '' : 's'} ready` : ''
   const subline = running ? (now?.company ? `${now.company.replace(/^\W+/, '')} · ${now.title} · ` : '') + `${session.length} of ${total} done`
-    : session.length ? `${session.filter(a => a.status === 'Needs User').length} waiting on you, ${session.filter(a => a.status === 'Skipped').length} skipped.`
-    : q?.dream ? `${q.dream} at your dream companies.` : 'Every open role that fits you.'
+    : !q ? '' : [q.dream ? `${q.dream} at your dream companies.` : 'Every open role that fits you.',
+      session.length ? `Last run: ${session.length} handled, ${session.filter(a => a.status === 'Needs User').length} waiting on you.` : ''].filter(Boolean).join(' ')
 
   return (
     <Page>
       <div className="mx-auto max-w-[1080px]">
-        <h1 className="text-[44px] font-bold leading-none tracking-[-0.035em] text-white">Autopilot</h1>
+        <h1 className="text-[34px] font-bold leading-[1.1] tracking-[-0.025em] text-white">Autopilot</h1>
+        <p className="mt-1.5 max-w-xl text-[15px] leading-snug text-muted">Your twin applies to your queue in its own Chrome window, one job at a time, with a resume written for each.</p>
 
-        <section className="mt-7 rounded-[22px] bg-[#1c1c1e] p-7 ring-1 ring-white/[.06]">
+        <section className="mt-8 rounded-[18px] bg-[#1c1c1e] p-6 ring-1 ring-white/[.06] sm:p-7">
           <div className="flex flex-wrap items-start justify-between gap-8">
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 text-[13px] font-medium" style={{ color: running ? GREEN : 'var(--color-muted)' }}>
                 {running ? `${label} is applying` : 'Ready'}
               </div>
-              <div className="relative mt-3 h-[52px] overflow-hidden">
-                <AnimatePresence mode="popLayout" initial={false}>
-                  <motion.div key={headline} initial={{ y: 28, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -28, opacity: 0 }} transition={spring}
-                    className="truncate text-[40px] font-semibold leading-[52px] tracking-[-0.03em] text-white">{headline}</motion.div>
-                </AnimatePresence>
+              <div className="relative mt-2 h-[44px] overflow-hidden">
+                {headline ? <AnimatePresence mode="popLayout" initial={false}>
+                  <motion.div key={headline} initial={{ y: 24, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -24, opacity: 0 }} transition={spring}
+                    className="truncate text-[34px] font-semibold leading-[44px] tracking-[-0.025em] text-white">{headline}</motion.div>
+                </AnimatePresence> : <div className="skel mt-1.5 h-8 w-64" />}
               </div>
-              <div className="mt-1 text-[15px] text-muted">{subline}</div>
+              <div className="mt-1 min-h-[22px] text-[15px] text-muted">{subline}</div>
               {running && now?.resume && <ResumeLine p={now.resume} />}
               {running && <div className="mt-2 text-[13px] text-faint">Watch it live in the Chrome window your twin opened. Don't close that window; it's the twin's.</div>}
               {running && (
@@ -137,7 +140,7 @@ export default function Agents() {
                 <Segmented id="ag" value={agent} onChange={setAgent} options={[['claude', 'Claude Code'], ['codex', 'Codex']]} />
                 <div className="flex h-8 items-center rounded-[10px] bg-white/[.06]">
                   <button onClick={() => step(-1)} disabled={running} className="grid h-8 w-8 place-items-center text-white/80 hover:text-white disabled:opacity-40" aria-label="Fewer jobs"><Minus className="size-3.5" /></button>
-                  <span className="w-[74px] text-center text-[13px] font-medium tabular-nums text-white">{n} jobs</span>
+                  <span className="w-[74px] text-center text-[13px] font-medium tabular-nums text-white" aria-live="polite">{n} jobs</span>
                   <button onClick={() => step(1)} disabled={running} className="grid h-8 w-8 place-items-center text-white/80 hover:text-white disabled:opacity-40" aria-label="More jobs"><Plus className="size-3.5" /></button>
                 </div>
               </div>
@@ -146,13 +149,13 @@ export default function Agents() {
                   : `Signed out. Run ${agent === 'claude' ? '`claude` then /login' : '`codex login`'}`}
               </div>
               <motion.button whileTap={{ scale: 0.96 }} transition={spring} onClick={running ? stop : start} disabled={!running && st && !st.signed_in}
-                className="mt-1 h-12 w-full rounded-full px-9 text-[16px] font-semibold text-white transition-colors disabled:opacity-40 sm:w-auto"
+                className="mt-1 h-11 w-full rounded-full px-10 text-[15px] font-semibold text-white transition-colors disabled:cursor-default disabled:opacity-40 sm:w-auto"
                 style={{ background: running ? 'rgb(255 255 255 / .1)' : BLUE }}>
                 {running ? 'Stop' : 'Start'}
               </motion.button>
               <div className="text-[12.5px] text-faint">{profile.apply?.auto_submit ? 'Submits on its own.' : 'Stops at the review screen so you press submit.'}</div>
-              {gaps.length > 0 && <button onClick={() => go('settings')} className="text-right text-[12.5px] text-[#ff9f0a] hover:underline">
-                {gaps.length} application answer{gaps.length === 1 ? '' : 's'} missing. Add them so it never has to stop and ask →</button>}
+              {gaps.length > 0 && <button onClick={() => go('settings')} className="text-left text-[12.5px] text-[#ff9f0a] hover:underline sm:text-right">
+                {gaps.length} application answer{gaps.length === 1 ? '' : 's'} missing. Add them so it never stops to ask</button>}
             </div>
           </div>
         </section>
@@ -171,11 +174,12 @@ export default function Agents() {
               action={<button onClick={() => go('settings')} className="text-[13px]" style={{ color: BLUE }}>Preferences</button>}>
               <div className="max-h-[520px] overflow-y-auto [&>*+*]:border-t [&>*+*]:border-white/[.06]">
                 {(q?.jobs || []).slice(0, 40).map(j => (
-                  <Row key={j.id} onClick={() => go('jobs', j.id)} left={<Avatar name={j.company} size={32} />} title={j.title} sub={`${j.company} · ${j.ats}`}
+                  <Row key={j.id} onClick={() => go('jobs', j.id)} left={<Avatar name={j.company} size={32} />} title={j.title} sub={`${j.company} · ${atsName(j.ats)}`}
                     right={<span className="flex items-center gap-2">{j.dream && <Star className="size-3.5" style={{ color: ORANGE, fill: ORANGE }} />}
                       <span className="w-9 text-right text-[13px] tabular-nums text-muted">{Math.round(j.fit)}%</span>
                       <ChevronRight className="size-4 text-white/25" /></span>} />))}
-                {!q && <div className="p-5 text-[13px] text-faint">Loading…</div>}
+                {!q && <div className="space-y-px p-2">{[0, 1, 2, 3].map(i => <div key={i} className="skel h-[48px]" />)}</div>}
+                {q && !q.jobs?.length && <div className="px-4 py-8 text-center text-[13.5px] text-muted">Your queue is empty. Scan for jobs on the Jobs page, or widen your roles in Preferences.</div>}
               </div>
             </Group>
           </div>
@@ -220,7 +224,7 @@ export default function Agents() {
 function Group({ title, detail, action, footer, children }) {
   return (
     <section>
-      <div className="mb-2.5 flex items-baseline justify-between px-1">
+      <div className="mb-2 flex items-center justify-between px-1">
         <div className="flex items-center gap-2"><h2 className="text-[20px] font-semibold tracking-[-0.02em] text-white">{title}</h2>
           {typeof detail === 'string' ? <span className="text-[13px] text-faint">{detail}</span> : detail}</div>
         {action}
@@ -287,10 +291,10 @@ function NeedsYou({ item, onDone }) {
     <motion.div layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, height: 0 }} className="px-4 py-3.5">
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
-          <div className="text-[14.5px] font-medium text-white">{item.title}</div>
-          <div className="mt-0.5 text-[13px] leading-relaxed text-muted">{question || item.message}</div>
+          <div className="text-[14.5px] font-medium text-white">{question || item.title}</div>
+          {item.message && item.message !== (question || item.title) && <div className="mt-0.5 text-[13px] leading-relaxed text-muted">{item.message}</div>}
         </div>
-        {question && <button onClick={() => setOpen(!open)} className="shrink-0 pt-0.5 text-[13px]" style={{ color: BLUE }}>{open ? 'Cancel' : 'Answer'}</button>}
+        {question && <button onClick={() => setOpen(!open)} className="shrink-0 pt-0.5 text-[13px] font-medium text-signal-ink hover:underline">{open ? 'Cancel' : 'Answer'}</button>}
       </div>
       {!open && <div className="mt-2"><ItemActions item={item} onDone={onDone} /></div>}
       <AnimatePresence initial={false}>{open && (
@@ -317,7 +321,7 @@ function StarAsk({ count }) {
     <motion.section initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={spring}
       className="mt-5 flex flex-wrap items-center gap-4 rounded-[18px] bg-[#1c1c1e] px-5 py-4 ring-1 ring-white/[.06]">
       <span className="text-[22px] text-[#ffd60a]">★</span>
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 basis-[220px]">
         <div className="text-[15px] font-semibold text-white">Your twin has handled {count} applications. Like it?</div>
         <div className="text-[13px] text-muted">ApplyTwin is free. A star on GitHub helps other students find it.</div>
       </div>

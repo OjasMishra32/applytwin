@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { Toaster, toast } from 'sonner'
 import { Radar, Sparkles, FileText, Upload } from 'lucide-react'
 import { api } from './lib/api'
-import { Logo, TopBar, Palette, Sidebar } from './components/Shell'
+import { Logo, TopBar, TabBar, Palette, Sidebar } from './components/Shell'
 import { Sky } from './components/Sky'
 import Home from './pages/Home'
 import Jobs from './pages/Jobs'
@@ -110,13 +110,13 @@ export default function App() {
     <Ctx.Provider value={{ ...state, refresh, go, jobs, loadJobs, startScan, scan, setState, auth, signIn, signOut }}>
       {route.page !== 'welcome' && (wide   // only the layout on screen is mounted, so nothing polls twice
         ? <Sidebar page={route.page} go={go} onPalette={() => setPalette(true)} auth={auth} signIn={signIn} signOut={signOut} />
-        : <TopBar page={route.page} go={go} onPalette={() => setPalette(true)} matched={state.stats?.matched} auth={auth} signIn={signIn} signOut={signOut} />)}
+        : <><TopBar page={route.page} go={go} onPalette={() => setPalette(true)} matched={state.stats?.matched} auth={auth} signIn={signIn} signOut={signOut} /><TabBar page={route.page} go={go} /></>)}
       <Palette open={palette} setOpen={setPalette} go={go} jobs={jobs} actions={actions} />
       <motion.main key={route.page} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2, ease: 'easeOut' }}
         className={'relative min-h-full ' + (route.page !== 'welcome' ? 'md:pl-[220px]' : '')}>
         <Page arg={route.arg} />
       </motion.main>
-      <Toaster theme="dark" position="bottom-center" toastOptions={{ style: { borderRadius: 14, background: '#2c2c2e', border: '1px solid rgb(255 255 255 / .08)', color: '#fff' } }} />
+      <Toaster theme="dark" position="bottom-center" offset={wide ? 24 : 80} toastOptions={{ style: { borderRadius: 14, background: '#2c2c2e', border: '1px solid rgb(255 255 255 / .08)', color: '#fff' } }} />
     </Ctx.Provider>
   )
 }
@@ -151,6 +151,6 @@ function Loading() {
 }
 
 export function Page({ children, wide }) {
-  return <div className={`relative mx-auto px-6 pb-24 pt-20 md:px-10 md:pt-16 ${wide ? 'max-w-[1320px]' : 'max-w-[1180px]'}`}>{children}</div>
+  return <div className={`relative mx-auto px-4 pb-28 pt-20 sm:px-6 md:pb-24 md:px-10 md:pt-[72px] ${wide ? 'max-w-[1320px]' : 'max-w-[1180px]'}`}>{children}</div>
 }
 

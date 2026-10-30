@@ -51,7 +51,7 @@ export default function Board() {
       {empty ? (
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={spring}
           className="mx-auto mt-6 max-w-[560px] rounded-[22px] bg-[#1c1c1e] px-8 py-12 text-center ring-1 ring-white/[.06]">
-          <h2 className="text-[26px] font-semibold tracking-[-0.03em] text-white">No applications yet</h2>
+          <h2 className="text-[22px] font-bold tracking-[-0.02em] text-white">No applications yet</h2>
           <p className="mx-auto mt-2 max-w-[400px] text-[15px] leading-relaxed text-muted">Start your twin and every application shows up here, from needs-you to offer. Already applied somewhere? Import your tracker so your twin never applies twice.</p>
           <div className="mt-7 flex flex-wrap justify-center gap-3">
             <a href="#agents" className="inline-flex h-10 items-center rounded-full bg-signal px-5 text-[14px] font-semibold text-white hover:bg-[#2b95ff]">Start Autopilot</a>
@@ -61,29 +61,30 @@ export default function Board() {
           <p className="mt-4 text-[12.5px] text-faint">Your twin can read your "thank you for applying" emails, or import a CSV from Simplify, Huntr, Teal, Notion or a spreadsheet</p>
         </motion.div>
       ) : (
-      <div className="grid gap-4 overflow-x-auto pb-4 md:grid-cols-5">
+      <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-4 sm:-mx-6 sm:px-6 md:-mx-10 md:px-10">
         {COLS.map(([st, label, color]) => {
           const xs = (apps || []).filter(a => a.status === st)
           return (
             <div key={st} onDragOver={e => { e.preventDefault(); setOver(st) }} onDragLeave={() => setOver(null)}
               onDrop={() => { setOver(null); drag && move(drag, st); setDrag(null) }}
-              className={`min-h-[120px] rounded-[18px] p-2 transition ${over === st ? 'bg-signal/[.08] ring-2 ring-signal' : ''}`}>
-              <div className="mb-3 flex items-center justify-between px-1.5"><div className="flex items-center gap-2 text-[13.5px] font-semibold text-ink">
-                {label}</div><span className="text-[13px] tabular-nums text-muted">{xs.length.toLocaleString()}</span></div>
-              <div className="space-y-2.5">
+              className={`min-h-[160px] w-[236px] shrink-0 rounded-[14px] bg-white/[.025] p-2 ring-1 transition-colors ${over === st ? 'bg-signal/[.08] ring-2 ring-signal' : 'ring-white/[.04]'}`}>
+              <div className="mb-2 flex h-8 items-center justify-between px-2"><div className="flex items-center gap-2 text-[13px] font-semibold text-ink">
+                <span className="size-2 rounded-full" style={{ background: color }} />{label}</div><span className="text-[13px] tabular-nums text-muted">{apps ? xs.length.toLocaleString() : ''}</span></div>
+              <div className="space-y-2">
                 <AnimatePresence>{xs.slice(0, 40).map(a => (
                   <motion.div layout layoutId={a.job_id} key={a.job_id} transition={spring} draggable onDragStart={() => setDrag(a)}
                     initial={{ opacity: 0, scale: .96 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
-                    className="card cursor-grab p-3.5 active:cursor-grabbing">
+                    className="cursor-grab rounded-[10px] bg-[#232325] p-3 ring-1 ring-white/[.06] transition-colors hover:bg-[#2a2a2c] active:cursor-grabbing">
                     <div className="flex items-center gap-2.5"><Avatar name={a.company} size={30} />
                       <div className="min-w-0"><div className="truncate text-[13px] font-semibold text-ink">{a.company}</div>
                         <div className="truncate text-[12px] text-muted">{a.title}</div></div></div>
-                    <div className="mt-2.5 flex items-center justify-between text-[11.5px] text-faint">
+                    <div className="mt-2 flex items-center justify-between text-[12px] text-faint">
                       <span>{new Date(a.at * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
-                      {a.resume_path && <a href={fileUrl(a.resume_path)} target="_blank" rel="noreferrer" className="font-medium text-signal-ink hover:underline">resume</a>}</div>
+                      {a.resume_path && <a href={fileUrl(a.resume_path)} target="_blank" rel="noreferrer" draggable={false} className="font-medium text-signal-ink hover:underline">Resume</a>}</div>
                   </motion.div>))}</AnimatePresence>
-                {xs.length > 40 && <div className="px-2 py-2 text-center text-[12.5px] text-faint">+ {(xs.length - 40).toLocaleString()} more</div>}
-                {apps && !xs.length && <div className="px-2 py-3 text-[13px] text-faint">—</div>}
+                {xs.length > 40 && <div className="px-2 py-2 text-center text-[12.5px] text-faint">{(xs.length - 40).toLocaleString()} more</div>}
+                {!apps && [0, 1].map(i => <div key={i} className="skel h-[76px]" />)}
+                {apps && !xs.length && <div className="rounded-[10px] border border-dashed border-white/[.08] px-3 py-5 text-center text-[12.5px] text-faint">{st === 'Interview' || st === 'Offer' ? 'Drag a card here when you hear back' : 'None'}</div>}
               </div>
             </div>)
         })}
