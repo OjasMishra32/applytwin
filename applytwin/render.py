@@ -268,7 +268,7 @@ def render(r, style, out_pdf, one_page=True, worth=None):
         html_to_pdf(build_html(r, style, k), out_pdf)
         n = page_count(out_pdf)
         if n == 1 or not one_page:
-            return {"pdf": out_pdf, "pages": n, "scale": k, "dropped": dropped}
+            return {"pdf": out_pdf, "pages": n, "scale": k, "dropped": dropped, "resume": r}
     for k, budget in ((.95, 12), (.92, 12), (.9, 30)):
         for _ in range(budget):
             victim = _drop_one(r, worth)
@@ -277,8 +277,8 @@ def render(r, style, out_pdf, one_page=True, worth=None):
             dropped.append(victim)
             html_to_pdf(build_html(r, style, k), out_pdf)
             if page_count(out_pdf) == 1:
-                return {"pdf": out_pdf, "pages": 1, "scale": k, "dropped": dropped}
-    return {"pdf": out_pdf, "pages": page_count(out_pdf), "scale": .9, "dropped": dropped}
+                return {"pdf": out_pdf, "pages": 1, "scale": k, "dropped": dropped, "resume": r}
+    return {"pdf": out_pdf, "pages": page_count(out_pdf), "scale": .9, "dropped": dropped, "resume": r}
 
 
 def fits(r, style, k, out_pdf):
@@ -292,7 +292,7 @@ def _fit(r, out_pdf, one_page, dropped, make, steps, worth=None):
         make(r, k)
         n = page_count(out_pdf)
         if n == 1 or not one_page:
-            return {"pdf": out_pdf, "pages": n, "scale": k, "dropped": dropped}
+            return {"pdf": out_pdf, "pages": n, "scale": k, "dropped": dropped, "resume": r}
     for _ in range(30):
         v = _drop_one(r, worth)
         if not v:
@@ -300,8 +300,8 @@ def _fit(r, out_pdf, one_page, dropped, make, steps, worth=None):
         dropped.append(v)
         make(r, steps[-1])
         if page_count(out_pdf) == 1:
-            return {"pdf": out_pdf, "pages": 1, "scale": steps[-1], "dropped": dropped}
-    return {"pdf": out_pdf, "pages": page_count(out_pdf), "scale": steps[-1], "dropped": dropped}
+            return {"pdf": out_pdf, "pages": 1, "scale": steps[-1], "dropped": dropped, "resume": r}
+    return {"pdf": out_pdf, "pages": page_count(out_pdf), "scale": steps[-1], "dropped": dropped, "resume": r}
 
 
 def _drop_one(r, worth=None):

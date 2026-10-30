@@ -476,12 +476,12 @@ def apply(v, plan, jd=''):
     return out, rep
 
 
-def _fill_page(v, res, jd, style, probe):
+def _fill_page(v, res, jd, style, probe, k=1.0):
     """A two-thirds-empty page reads as thin. While there's clear room, add the user's next strongest true bullets for
     this posting (from the same roles first, then roles/projects the plan left out), never past one page."""
     from . import render
     v = ensure_ids(copy.deepcopy(v))
-    if render.fits(res, style, 1.07, probe) is False:
+    if render.fits(res, style, k * 1.03, probe) is False:   # no real room left
         return []
     kws = ats.keywords(jd)
     avoid = set(learn_avoid(v))
@@ -512,11 +512,11 @@ def _fill_page(v, res, jd, style, probe):
             if sec not in res.get('order', []):
                 res.setdefault('order', []).append(sec)
             undo = lambda: res[sec].pop()
-        if not render.fits(res, style, 1.0, probe):
+        if not render.fits(res, style, k, probe):
             undo()
-            break
+            continue   # too big for the space left: try the next, smaller candidate
         added.append(f"{sec}: {ats.plain(x if isinstance(x, str) else x.get('org') or x.get('name', ''))[:60]}")
-        if not render.fits(res, style, 1.04, probe):   # full enough
+        if not render.fits(res, style, k * 1.02, probe):   # full enough
             break
     return added
 
@@ -643,10 +643,12 @@ def tailor(v, job, jd, mode='auto', plan=None, style=None, out_dir=None):
     kws = ats.keywords(jd)
     worth = lambda b: _kw_score(ats.plain(b), kws) + (2 if IMPACT.search(b) else 0)   # what to keep when trimming to fit
     r = render.render(res, style, pdf, worth=worth)
-    if r['pages'] == 1 and not r['dropped'] and style != 'latex':   # room left on the page: fill it with real material
-        added = _fill_page(v, res, jd, style, pdf + '.probe.pdf')
+    if r['pages'] == 1 and style != 'latex':   # room left on the page (also after trimming a big item): fill it with real material
+        base = r['resume'] if r['dropped'] else res
+        added = _fill_page(v, base, jd, style, pdf + '.probe.pdf', k=r['scale'])
         if added:
             rep['added'] = added
+            res = base
             r = render.render(res, style, pdf, worth=worth)
         for f in (pdf + '.probe.pdf',):
             if os.path.exists(f):
@@ -657,6 +659,7 @@ def tailor(v, job, jd, mode='auto', plan=None, style=None, out_dir=None):
     txt = render.pdf_text(pdf)
     before = ats.report(v, jd)
     after = ats.report(res, jd, r['pages'], txt)
+    r.pop('resume', None)
     json.dump({"plan": plan, "resume": res, "report": rep, "render": r, "mode": mode, "style": style, "field": ctx['field']},
               open(os.path.join(out_dir, 'tailor.json'), 'w', encoding='utf-8'), indent=1, ensure_ascii=False)
     return {"pdf": pdf, "tex": pdf[:-4] + '.tex', "pages": r['pages'], "dropped": r['dropped'], "mode": mode, "style": style,
