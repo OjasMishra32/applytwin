@@ -73,7 +73,7 @@ res.append(ok(_st.load('enc_old.json')['t'] == "a – b", 'old Windows-encoded f
 
 from applytwin import answers as _an
 _bank = _an.default_bank({**store.profile(), 'location': 'Gainesville, FL'})
-_q = [_an.match(x, _bank) for x in ('Race/Ethnicity', 'Current city')]
+_q = [_an.match(x, _bank) for x in ('Race/Ethnicity', 'Current location')]
 res.append(ok((_q[0] or {}).get('answer') != 'Gainesville, FL' and (_q[1] or {}).get('answer') == 'Gainesville, FL',
               'Race/Ethnicity is never answered with your city'))
 store.execute("insert or replace into jobs(id,source,company,title,url,apply_url,ats,found_at,fit,status) values('pend1','t','Acme','Intern','u','u','lever',0,90,'new')")

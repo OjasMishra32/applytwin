@@ -57,6 +57,16 @@ def vault_text(v):
 MAGNITUDE = re.compile(r'\b(thousand|million|billion|trillion|\d+[kmb]\b|\d+x\b|percent)', re.I)
 
 
+def _forms(w):
+    """Inflections of a verb, to recognise 'Ship' as 'shipped' or 'Build' as 'built' in the vault."""
+    irregular = {'build': ['built'], 'lead': ['led'], 'run': ['ran'], 'write': ['wrote', 'written'], 'win': ['won'],
+                 'make': ['made'], 'drive': ['drove'], 'teach': ['taught'], 'grow': ['grew'], 'find': ['found'],
+                 'take': ['took'], 'give': ['gave'], 'hold': ['held'], 'cut': ['cut'], 'set': ['set'], 'begin': ['began']}
+    out = {w + 'ed', w + 'd', w + 's', w + 'es', w + 'ing', w + w[-1:] + 'ed', w + w[-1:] + 'ing', w[:-1] + 'ied',
+           w[:-1] + 'ing', w[:-1] + 'ed'} | set(irregular.get(w, []))
+    return out
+
+
 def check_rewrite(orig, new, vault_txt, jd, entry_txt=None):
     """Return None if the rewrite is truthful, else the reason it was rejected.
     entry_txt = all text of the same role/project: new numbers and tools must come from THAT entry."""
@@ -64,8 +74,8 @@ def check_rewrite(orig, new, vault_txt, jd, entry_txt=None):
     scope = ats.plain(entry_txt or orig)
     if len(n) < 25:
         return 'too short'
-    if len(n) > max(len(o) * 1.25, len(o) + 40):
-        return 'much longer than the original'
+    if len(n) > max(240, len(o) + 40):   # length is about fitting two lines, not truth: facts are checked below
+        return 'longer than two lines'
     extra_nums = nums(n) - nums(scope)
     if extra_nums:
         return 'adds numbers not in this entry: ' + ', '.join(sorted(extra_nums))
@@ -80,6 +90,10 @@ def check_rewrite(orig, new, vault_txt, jd, entry_txt=None):
     vlow = {w.lower() for w in vw}
     caps = {w for w in words(n) - vw if w[0].isupper() and w.lower() not in vlow and w.lower() not in ats.ACTION_VERBS}
     caps = {w for w in caps if not (len(w) >= 6 and w[:6].lower() in stems)}
+    # a capitalized verb that starts a bullet ("Ship", "Lead") is the same word as "shipped"/"leading" in the vault,
+    # and an acronym already inside a vault word ("OS" in macOS/iOS) is not a new name
+    caps = {w for w in caps if not any(f in vlow for f in _forms(w.lower()))
+            and not (w.isupper() and any(x.endswith(w) and x != w for x in vw))}
     if caps:
         return 'adds names/tools not in your vault: ' + ', '.join(sorted(caps))
     jdw = {w.lower() for w in words(jd)}
