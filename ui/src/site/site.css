@@ -55,3 +55,20 @@ html:has(.site), html:has(.site) body { background: var(--bg, #fff); }
 .site .faint { color: var(--fg-3); }
 .site .mono { font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace; letter-spacing: 0; }
 .site ::selection { background: rgb(0 113 227 / .25); }
+
+/* Display type: Apple sets big headlines in SF Pro Display, semibold, with tracking that tightens as size grows. */
+.site .display-xl { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", system-ui, sans-serif;
+  font-weight: 600; letter-spacing: -0.045em; line-height: 0.98; }
+.site .display-l { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", system-ui, sans-serif;
+  font-weight: 600; letter-spacing: -0.032em; line-height: 1.04; }
+/* A full-bleed dark band for the one section that should feel serious. */
+.site .band { --band-fg-2: #86868b; background: #000; color: #f5f5f7; --orange: #ff9f0a; }
+@media (prefers-color-scheme: dark) { .site .band { background: #161617; } }
+html { scroll-behavior: smooth; }
+.site [id] { scroll-margin-top: 48px; }
+.site .appwin { box-shadow: 0 30px 80px rgb(0 0 0 / .22), 0 0 0 1px rgb(0 0 0 / .08); }
+@media (prefers-color-scheme: dark) { .site .appwin { box-shadow: 0 30px 80px rgb(0 0 0 / .6), 0 0 0 1px rgb(255 255 255 / .12); } }
+/* The hero's entrance runs in CSS, so the headline never waits on JavaScript to become visible. */
+@keyframes site-rise { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: none; } }
+.site .rise { animation: site-rise .9s cubic-bezier(.25,.1,.25,1) both; }
+@media (prefers-reduced-motion: reduce) { .site .rise { animation: none; } }

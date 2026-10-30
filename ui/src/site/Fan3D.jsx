@@ -84,7 +84,7 @@ function Rig({ progress, pointer }) {
     const back = Math.max(1, 0.95 / (size.width / size.height))   // narrow (phone) screens step back to see the whole fan
     camera.position.x += ((pointer.current.x * 0.25) - camera.position.x) * 0.05
     camera.position.y += ((0.12 + pointer.current.y * 0.12) - camera.position.y) * 0.05
-    camera.position.z = (3.9 - s * 0.35) * back
+    camera.position.z = (3.7 - s * 0.55) * back
     camera.lookAt(0, 0.02, -0.3 * s)
   })
   return null

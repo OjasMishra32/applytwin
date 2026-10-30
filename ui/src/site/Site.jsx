@@ -1,14 +1,14 @@
 import { Suspense, lazy, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion, useInView, useMotionValueEvent, useScroll, useTransform, useReducedMotion } from 'motion/react'
-import { Check, ChevronRight, Copy, Laptop, Lock, KeyRound, ShieldCheck } from 'lucide-react'
+import { Check, ChevronRight, Copy } from 'lucide-react'
 import { Toaster } from 'sonner'
 import { Avatar } from '../components/ui'
 import { REPO_URL, useStars } from '../lib/star'
 import './site.css'
 
-/* apply.twinly.tech: the public home of ApplyTwin, built the way Apple builds a product page. Plain surfaces, the
-   system font, one blue, real product UI instead of decoration. The app runs on each person's own computer, on the
-   Claude Code or Codex plan they already pay for, so the page's one job is a calm, one-line setup. */
+/* apply.twinly.tech: the public home of ApplyTwin, built the way Apple builds a product page. One idea per scroll,
+   the system font set large and tight, real product UI as the picture, and motion only where it explains something:
+   the window opening, the resume fanning into versions, the bullets rewriting themselves, the words lighting up. */
 
 const INSTALL = 'curl -fsSL apply.twinly.tech/install | bash'
 const INSTALL_WIN = 'irm apply.twinly.tech/install.ps1 | iex'
@@ -18,29 +18,26 @@ const FAQ = [
   ['Do I need an API key?', 'No. ApplyTwin runs on the Claude Code or Codex subscription you already have. If you can use either one in a terminal, you can use ApplyTwin.'],
   ['Where does my data live?', 'On your computer, in a folder called ~/.applytwin. Signing in backs up your setup so a new laptop picks up where you left off.'],
   ['Will it submit applications without me?', 'Only if you turn that on. Otherwise it fills every form and stops on the review screen, so you press Submit.'],
-  ['What will it never do?', 'Type your passwords, solve CAPTCHAs, create accounts, accept legal agreements, or invent a single fact about you. Those come to you instead.'],
+  ['What will it never do?', 'Type your passwords, solve CAPTCHAs, create accounts, accept legal agreements, or change your numbers, titles or employers. Those come to you instead.'],
   ['Does it work on Windows?', 'Yes. Mac, Windows and Linux. On Windows, paste the PowerShell command.'],
   ['Is it only for software jobs?', 'No. It knows what a strong resume looks like in your field, from nursing and finance to design, research and engineering.'],
   ['Why do I sign in with Google?', 'So your setup, answers and applications are saved to your account. ApplyTwin never posts, emails or signs up for anything as you.'],
   ['Does it track me?', 'It counts installs with a random ID, your OS and its version, once a day. Never your resume, jobs or applications. You can turn it off in Settings.'],
   ['What does it cost?', 'Nothing. ApplyTwin is free.'],
 ]
+
 // Apple's motion: long, eased, small. Nothing bounces; things settle.
+const EASE = [0.25, 0.1, 0.25, 1]
 function Reveal({ children, className, delay = 0 }) {
   return (
     <motion.div className={className} initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: '-40px' }} transition={{ duration: 0.9, ease: [0.25, 0.1, 0.25, 1], delay }}>{children}</motion.div>
+      viewport={{ once: true, margin: '-40px' }} transition={{ duration: 0.9, ease: EASE, delay }}>{children}</motion.div>
   )
 }
-const EASE = [0.25, 0.1, 0.25, 1]
-const rise = (delay = 0) => ({ initial: { opacity: 0, y: 28 }, animate: { opacity: 1, y: 0 }, transition: { duration: 1.1, ease: EASE, delay } })
+const clamp = v => Math.min(1, Math.max(0, v))
 
-const Fan3D = lazy(() => import('./Fan3D'))   // three.js loads after the page is up
+const Fan3D = lazy(() => import('./Fan3D'))   // three.js loads only when the fan is near the screen
 const webgl = () => { try { const c = document.createElement('canvas'); return !!(c.getContext('webgl2') || c.getContext('webgl')) } catch { return false } }
-
-const COMPANIES = [['Google', 'google.com'], ['Meta', 'meta.com'], ['Apple', 'apple.com'], ['NVIDIA', 'nvidia.com'], ['Jane Street', 'janestreet.com'],
-  ['Citadel', 'citadel.com'], ['Palantir', 'palantir.com'], ['Anduril', 'anduril.com'], ['Stripe', 'stripe.com'], ['Microsoft', 'microsoft.com'],
-  ['Amazon', 'amazon.com'], ['Two Sigma', 'twosigma.com']]
 
 export default function Site() {
   return (
@@ -48,121 +45,124 @@ export default function Site() {
       <Toaster position="bottom-center" />
       <Nav />
 
-      <section className="px-4 pb-10 pt-28 text-center sm:pt-36">
-        <motion.div {...rise(0)} className="text-[19px] font-semibold sm:text-[21px]">ApplyTwin</motion.div>
-        <h1 className="display mx-auto mt-2 max-w-[920px] text-[44px] font-semibold leading-[1.06] sm:text-[72px] sm:leading-[1.04]">
-          <motion.span {...rise(0.12)} className="block">You apply once.</motion.span>
-          <motion.span {...rise(0.32)} className="block muted">Your twin does the rest.</motion.span>
-        </h1>
-        <motion.p {...rise(0.55)} className="mx-auto mt-5 max-w-[640px] text-[19px] leading-[1.42] sm:text-[21px]">
-          It finds every role that fits you, writes a tailored resume for each one, and fills out the application.
-          On the Claude Code or Codex plan you already have. Free.
-        </motion.p>
-        <motion.div {...rise(0.7)} className="mt-8 flex flex-wrap items-center justify-center gap-x-7 gap-y-3">
-          <a href="#start" className="btn">Get ApplyTwin</a>
-          <a href="#how" className="link inline-flex items-center text-[17px]">See how it works<ChevronRight className="size-4" /></a>
-        </motion.div>
+      {/* 1. What it is, with the app itself as the picture */}
+      <section className="px-4 pt-28 sm:pt-40">
+        <div className="mx-auto max-w-[1120px]">
+          <div style={{ animationDelay: '0s' }} className="rise flex items-center gap-2 text-[17px] font-semibold sm:text-[19px]"><Logo size={22} />ApplyTwin</div>
+          <h1 className="display-xl mt-5 text-[clamp(40px,8.6vw,108px)] [text-wrap:balance]">
+            <span style={{ animationDelay: '0.06s' }} className="rise block">You apply once.</span>
+            <span style={{ animationDelay: '0.14s' }} className="rise block muted">Your twin does the rest.</span>
+          </h1>
+          <div className="mt-8 grid gap-8 sm:mt-10 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+            <p style={{ animationDelay: '0.24s' }} className="rise max-w-[600px] text-[19px] leading-[1.42] sm:text-[21px]">
+              It finds internships that fit you, writes a one-page resume for each posting and fills out the application.
+              <span className="muted"> All on the Claude Code or Codex plan you already pay for.</span>
+            </p>
+            <div style={{ animationDelay: '0.3s' }} className="rise flex flex-wrap items-center gap-x-7 gap-y-3">
+              <a href="#start" className="btn">Install free</a>
+              <a href="#how" className="link inline-flex items-center text-[17px]">How it works<ChevronRight className="size-4" /></a>
+            </div>
+          </div>
+        </div>
+        <div className="mx-auto mt-12 max-w-[1120px] sm:mt-24"><Lid><AppWindow /></Lid></div>
+        <p className="mx-auto mt-5 max-w-[1120px] text-[13px] faint">Autopilot, mid-run. Twenty-five applications queued, three already in.</p>
       </section>
 
+      {/* 2. One resume becomes many */}
       <OneToMany />
 
-      <section className="px-4 pb-24"><Lid><AppWindow /></Lid></section>
-
+      {/* 3. How a single bullet changes */}
       <Becomes />
 
-      <section id="how" className="bg-[var(--bg)] px-4 pb-24">
-        <Reveal className="mx-auto max-w-[980px] text-center">
-          <h2 className="display text-[40px] font-semibold leading-[1.08] sm:text-[56px]">Every step of applying.<br /><span className="muted">Done for you.</span></h2>
-        </Reveal>
-        <div className="mx-auto mt-14 grid max-w-[1080px] gap-5 md:grid-cols-2">
-          <Tile title="Finds every role." text="It reads thousands of company job boards and keeps only the roles that fit you: your field, your cycle, your locations.">
-            <Roles />
-          </Tile>
-          <Tile title="A new resume for every job." text="Your strongest true experience, rewritten for each posting and fitted to one clean page. It never invents a fact.">
-            <Stack />
-          </Tile>
-          <Tile title="Fills the whole form." text="Work authorization, graduation date, address, even the short essays. Answered once in setup, used everywhere.">
-            <Form />
-          </Tile>
-          <Tile title="Only asks what matters." text="A sign-in, a code, a question only you can answer. It pings you, keeps going, and finishes when you're done.">
-            <Ask />
-          </Tile>
+      {/* 4. The four things it does, one at a time */}
+      <section id="how" className="px-4 pt-28 sm:pt-40">
+        <div className="mx-auto max-w-[1120px]">
+          <Reveal><h2 className="display-l max-w-[820px] text-[clamp(38px,6vw,72px)]">Everything between you and Submit.</h2></Reveal>
+          <div className="mt-14 sm:mt-20">
+            <Step n="01" title="Finds the roles." text="It checks more than 600 company career sites and the student-run internship lists, and keeps only what fits your field, your cycle and your cities.">
+              <Roles />
+            </Step>
+            <Step n="02" title="A new resume for every job." text="Your strongest true experience, reordered and reworded for each posting, fitted to one clean page. A fact checker rejects anything you didn't tell it.">
+              <Stack />
+            </Step>
+            <Step n="03" title="Fills the whole form." text="Work authorization, graduation date, address, even the short essays. You answer once during setup. It answers everywhere after that.">
+              <Form />
+            </Step>
+            <Step n="04" title="Asks only when it has to." text="A sign-in, an emailed code, a question only you can answer. It pings you, moves on to the next job, and comes back when you're done.">
+              <Ask />
+            </Step>
+          </div>
         </div>
       </section>
 
-      <section className="px-4 pb-24">
-        <Reveal className="tile mx-auto max-w-[1080px] px-6 py-14 text-center sm:px-16 sm:py-20">
-          <Laptop className="mx-auto size-10 text-[var(--fg)]" strokeWidth={1.4} />
-          <h2 className="display mx-auto mt-5 max-w-[720px] text-[34px] font-semibold leading-[1.1] sm:text-[48px]">Runs on the plan you already pay for.</h2>
-          <p className="mx-auto mt-4 max-w-[600px] text-[19px] leading-[1.45] muted">
-            ApplyTwin works through Claude Code or Codex on your own computer. No API keys, no new subscription, nothing to configure.
-          </p>
-        </Reveal>
-      </section>
-
-      <section className="px-4 pb-24">
-        <Reveal className="mx-auto max-w-[980px] text-center">
-          <h2 className="display text-[34px] font-semibold leading-[1.1] sm:text-[48px]">Roles at companies like these.</h2>
-        </Reveal>
-        <Reveal delay={0.05} className="mx-auto mt-10 grid max-w-[980px] grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6">
-          {COMPANIES.map(([c, d]) => (
-            <div key={c} className="tile flex flex-col items-center gap-2 rounded-[18px] px-2 py-5">
-              <Avatar name={c} domain={d} size={36} /><span className="text-[13px] font-medium">{c}</span>
-            </div>))}
-        </Reveal>
-      </section>
-
-      <section className="px-4 pb-24">
-        <div className="mx-auto grid max-w-[1080px] gap-5 md:grid-cols-3">
-          {[[Lock, 'Your data stays yours.', 'Everything lives on your computer. Sign in only to back it up.'],
-            [KeyRound, 'Never your passwords.', 'It never types a password, solves a CAPTCHA or creates an account for you.'],
-            [ShieldCheck, 'Never a made-up fact.', 'Every bullet and answer comes from what you told it. A fact checker blocks the rest.']].map(([I, t, d]) => (
-            <Reveal key={t} className="tile px-7 py-9">
-              <I className="size-7 text-[var(--fg)]" strokeWidth={1.6} />
-              <div className="display mt-4 text-[24px] font-semibold leading-tight">{t}</div>
-              <p className="mt-2 text-[17px] leading-[1.45] muted">{d}</p>
-            </Reveal>))}
+      {/* 5. Where it applies */}
+      <section className="px-4 pt-28 sm:pt-44">
+        <div className="mx-auto max-w-[1120px]">
+          <Scrub className="display-l max-w-[1040px] text-[clamp(32px,5.2vw,64px)]" parts={[
+            ['It applies at', 0], ['Google, Meta, Apple, NVIDIA, Jane Street, Citadel, Palantir, Anduril, Stripe, OpenAI, Two Sigma', 1],
+            ['and more than 600 other companies, straight through their own career sites.', 0]]} />
         </div>
       </section>
 
-      <section id="start" className="px-4 pb-24">
-        <Reveal className="mx-auto max-w-[760px] text-center">
-          <h2 className="display text-[40px] font-semibold leading-[1.08] sm:text-[56px]">Set up in one line.</h2>
-          <p className="mx-auto mt-4 max-w-[560px] text-[19px] leading-[1.45] muted">Paste this into your terminal. It installs ApplyTwin, connects your agent and opens the app.</p>
-          <div className="mt-9 text-left"><InstallBox /></div>
+      {/* 6. The lines it won't cross */}
+      <Never />
+
+      {/* 7. Price */}
+      <section className="px-4 pt-28 sm:pt-40">
+        <div className="mx-auto grid max-w-[1120px] gap-8 md:grid-cols-[auto_minmax(0,1fr)] md:items-end md:gap-16">
+          <Reveal><div className="display-xl text-[clamp(120px,20vw,240px)] leading-[0.82]">$0</div></Reveal>
+          <Reveal delay={0.1} className="pb-2">
+            <h2 className="display-l text-[clamp(28px,3.4vw,40px)]">No API key. No new subscription.</h2>
+            <p className="mt-4 max-w-[520px] text-[19px] leading-[1.45] muted">
+              ApplyTwin is free and open source. The thinking happens in Claude Code or Codex, on your own computer, under the plan you already have.
+            </p>
+          </Reveal>
+        </div>
+      </section>
+
+      {/* 8. Install */}
+      <section id="start" className="px-4 pt-28 sm:pt-40">
+        <div className="mx-auto max-w-[1120px]">
+          <Reveal><h2 className="display-l text-[clamp(38px,6vw,72px)]">Set up in one line.</h2></Reveal>
+          <Reveal delay={0.05} className="mt-4 max-w-[560px] text-[19px] leading-[1.45] muted">Paste this into your terminal. It installs ApplyTwin, connects your agent and opens the app.</Reveal>
+          <Reveal delay={0.1} className="mt-10 max-w-[820px]"><InstallBox /></Reveal>
           <p className="mt-3 text-[14px] faint">Mac, Windows and Linux. Needs Python 3.9+, Node.js, and Claude Code or Codex.</p>
-        </Reveal>
-        <div className="mx-auto mt-12 grid max-w-[760px] gap-4 sm:grid-cols-3">
-          {[['1', 'Paste the command', 'in Terminal, or PowerShell on Windows.'], ['2', 'Drop in your resume', 'and answer the setup questions once.'],
-            ['3', 'Press Start', 'and watch your twin apply in its own window.']].map(([n, t, d]) => (
-            <Reveal key={n} className="text-center sm:text-left">
-              <div className="mx-auto grid size-8 place-items-center rounded-full bg-[var(--fg)] text-[15px] font-semibold text-[var(--bg)] sm:mx-0">{n}</div>
-              <div className="mt-3 text-[17px] font-semibold">{t}</div>
-              <div className="text-[15px] muted">{d}</div>
-            </Reveal>))}
+          <ol className="mt-14 grid max-w-[820px] gap-8 border-t border-[var(--line)] pt-8 sm:grid-cols-3 sm:gap-6">
+            {[['Paste the command', 'in Terminal, or PowerShell on Windows.'], ['Drop in your resume', 'and answer the setup questions once.'],
+              ['Press Start', 'and watch it apply in its own window.']].map(([t, d], i) => (
+              <Reveal key={t} delay={i * 0.06}>
+                <li className="list-none">
+                  <div className="mono text-[13px] faint">0{i + 1}</div>
+                  <div className="mt-2 text-[17px] font-semibold">{t}</div>
+                  <div className="text-[15px] muted">{d}</div>
+                </li>
+              </Reveal>))}
+          </ol>
         </div>
       </section>
 
-      <section id="faq" className="px-4 pb-24">
-        <div className="mx-auto max-w-[760px]">
-          <Reveal><h2 className="display mb-6 text-[32px] font-semibold sm:text-[40px]">Questions</h2></Reveal>
-          <Reveal delay={0.05}><div className="group overflow-hidden">{FAQ.map(([q, a]) => <Faq key={q} q={q} a={a} />)}</div></Reveal>
+      {/* 9. Questions */}
+      <section id="faq" className="px-4 pt-28 sm:pt-40">
+        <div className="mx-auto grid max-w-[1120px] gap-8 md:grid-cols-[minmax(0,4fr)_minmax(0,7fr)] md:gap-16">
+          <Reveal><h2 className="display-l text-[clamp(34px,4.4vw,48px)] md:sticky md:top-24">Questions.</h2></Reveal>
+          <Reveal delay={0.05}><div className="border-t border-[var(--line)]">{FAQ.map(([q, a]) => <Faq key={q} q={q} a={a} />)}</div></Reveal>
         </div>
       </section>
 
-      <section className="px-4 pb-24">
-        <Reveal className="mx-auto max-w-[760px] text-center">
-          <h2 className="display text-[44px] font-semibold leading-[1.05] sm:text-[64px]">Get hired.</h2>
-          <p className="mx-auto mt-4 max-w-[520px] text-[19px] muted">ApplyTwin is free and has no ads. A star on GitHub is how other students find it.</p>
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-x-7 gap-y-3">
-            <a href="#start" className="btn">Get ApplyTwin</a>
+      {/* 10. Close */}
+      <section className="px-4 py-28 sm:py-44">
+        <Reveal className="mx-auto max-w-[1120px]">
+          <h2 className="display-xl text-[clamp(56px,10vw,128px)]">Get hired.</h2>
+          <p className="mt-5 max-w-[520px] text-[19px] leading-[1.45] muted">ApplyTwin is free and has no ads. A star on GitHub is how other students find it.</p>
+          <div className="mt-9 flex flex-wrap items-center gap-x-7 gap-y-3">
+            <a href="#start" className="btn">Install free</a>
             <Stars />
           </div>
         </Reveal>
       </section>
 
       <footer className="border-t border-[var(--line)] bg-[var(--bg-2)] px-4 py-8 text-[12px] faint">
-        <div className="mx-auto flex max-w-[1080px] flex-wrap items-center justify-between gap-3">
+        <div className="mx-auto flex max-w-[1120px] flex-wrap items-center justify-between gap-3">
           <span>Copyright © 2026 Ojasva Mishra. ApplyTwin, from Twinly.</span>
           <span className="flex gap-5"><a href="/app" className="hover:underline">Your account</a><a href={REPO_URL} target="_blank" rel="noreferrer" className="hover:underline">GitHub</a></span>
         </div>
@@ -174,13 +174,13 @@ export default function Site() {
 function Nav() {
   return (
     <header className="nav fixed inset-x-0 top-0 z-50">
-      <div className="mx-auto flex h-12 max-w-[1080px] items-center justify-between px-4">
+      <div className="mx-auto flex h-12 max-w-[1120px] items-center justify-between px-4">
         <a href="#" className="flex items-center gap-2 text-[15px] font-semibold"><Logo size={18} />ApplyTwin</a>
-        <nav className="flex items-center gap-5 text-[13px]">
+        <nav className="flex items-center gap-6 text-[13px]">
           <a href="#how" className="hidden opacity-80 hover:opacity-100 sm:block">How it works</a>
           <a href="#faq" className="hidden opacity-80 hover:opacity-100 sm:block">Questions</a>
           <a href="/app" className="hidden opacity-80 hover:opacity-100 sm:block">Account</a>
-          <a href="#start" className="rounded-full bg-[var(--blue)] px-3.5 py-1 text-[13px] font-medium text-white">Get</a>
+          <a href="#start" className="rounded-full bg-[var(--blue)] px-3.5 py-1 text-[13px] font-medium text-white">Install</a>
         </nav>
       </div>
     </header>
@@ -193,26 +193,97 @@ function OneToMany() {
   const progress = useRef(0)
   const [ok] = useState(() => typeof window !== 'undefined' && webgl())
   const [show, setShow] = useState(false)
-  const near = useInView(ref, { margin: '400px 0px' })
+  const near = useInView(ref, { margin: '600px 0px' })
   useEffect(() => { if (near) setShow(true) }, [near])
   const { scrollYProgress } = useScroll({ target: ref, offset: ['start start', 'end end'] })
   const [p, setP] = useState(0)
   useMotionValueEvent(scrollYProgress, 'change', v => { progress.current = v; setP(v) })
   if (!ok) return null
+  const t = clamp((p - 0.05) / 0.45)
+  const n = Math.max(1, Math.round(t * 8))
   return (
-    <section ref={ref} className="relative h-[230vh]">
-      <div className="sticky top-0 h-screen overflow-hidden">
-        <div className="pointer-events-none absolute inset-x-0 top-[12vh] z-10 px-4 text-center">
-          <h2 className="display text-[40px] font-semibold leading-[1.06] sm:text-[56px]">
-            <span style={{ opacity: 1 - Math.min(1, p * 3) * 0.0 }}>One resume.</span><br />
-            <motion.span className="muted" animate={{ opacity: p > 0.25 ? 1 : 0.25 }} transition={{ duration: 0.6, ease: EASE }}>Tailored for every role.</motion.span>
+    <section ref={ref} className="relative mt-28 h-[260vh] sm:mt-40">
+      <div className="sticky top-0 h-[100svh] overflow-hidden">
+        <div className="pointer-events-none absolute inset-x-0 top-[13vh] z-10 px-4">
+          <h2 className="display-l mx-auto max-w-[1120px] text-[clamp(38px,6vw,72px)]">
+            <span className="block">One resume.</span>
+            <span className="block" style={{ color: 'var(--fg-2)', opacity: 0.18 + 0.82 * t }}>A version for every job.</span>
           </h2>
         </div>
-        <div className="absolute inset-x-0 bottom-0 top-[20vh]">
+        <div className="absolute inset-x-0 bottom-[8vh] top-[26vh]">
           {show && <Suspense fallback={null}><Fan3D progress={progress} /></Suspense>}
+        </div>
+        <div className="pointer-events-none absolute inset-x-0 bottom-6 z-10 px-4">
+          <div className="mx-auto flex max-w-[1120px] items-baseline justify-between gap-4 text-[14px]">
+            <span className="muted"><span className="font-semibold tabular-nums text-[var(--fg)]">{n} {n === 1 ? 'resume' : 'resumes'}</span>{n > 1 ? ', each written for one company' : ', yours'}</span>
+            <span className="hidden items-center gap-2 faint sm:flex"><span className="inline-block h-[3px] w-5 rounded-full bg-[var(--blue)]" />rewritten for that job</span>
+          </div>
         </div>
       </div>
     </section>
+  )
+}
+
+/* Each step: the words on the left stay put while its live piece of the app scrolls by on the right. */
+function Step({ n, title, text, children }) {
+  return (
+    <div className="grid gap-8 border-t border-[var(--line)] py-12 sm:py-16 md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] md:gap-16">
+      <Reveal className="md:sticky md:top-24 md:self-start">
+        <div className="mono text-[13px] faint">{n}</div>
+        <h3 className="display-l mt-3 text-[clamp(30px,3.6vw,48px)]">{title}</h3>
+        <p className="mt-3 max-w-[440px] text-[17px] leading-[1.5] muted">{text}</p>
+      </Reveal>
+      <Reveal delay={0.08} className="tile flex min-h-[240px] items-end sm:min-h-[340px] overflow-hidden px-5 pt-10 sm:px-10 sm:pt-14">{children}</Reveal>
+    </div>
+  )
+}
+
+/* Words light up as you read down the page: the sentence fills in at reading speed, the company names land hardest. */
+function Scrub({ parts, className }) {
+  const ref = useRef(null)
+  const { scrollYProgress } = useScroll({ target: ref, offset: ['start 0.85', 'end 0.5'] })
+  const words = parts.flatMap(([t, strong]) => t.split(' ').filter(Boolean).map(w => [w, strong]))
+  return (
+    <p ref={ref} className={className}>
+      {words.map(([w, s], i) => <Word key={i} p={scrollYProgress} at={i / words.length} span={3 / words.length} strong={s}>{w}</Word>)}
+    </p>
+  )
+}
+function Word({ p, at, span, strong, children }) {
+  const still = useReducedMotion()
+  const opacity = useTransform(p, [at, Math.min(1, at + span)], [0.16, 1])
+  return <><motion.span style={{ opacity: still ? 1 : opacity, color: strong ? 'var(--fg)' : 'var(--fg-2)' }}>{children}</motion.span>{' '}</>
+}
+
+/* The hard limits, in a dark band, scrubbed line by line. */
+const NEVER = ['Type your password.', 'Solve a CAPTCHA.', 'Create an account in your name.', 'Accept a legal agreement.', 'Change a number or a title on your resume.']
+function Never() {
+  const ref = useRef(null)
+  const { scrollYProgress } = useScroll({ target: ref, offset: ['start 0.75', 'end 0.6'] })
+  return (
+    <section className="band mt-28 px-4 py-28 sm:mt-44 sm:py-40">
+      <div ref={ref} className="mx-auto max-w-[1120px]">
+        <div className="text-[17px] font-semibold sm:text-[19px]" style={{ color: 'var(--band-fg-2)' }}>What it will never do</div>
+        <ul className="mt-6">
+          {NEVER.map((l, i) => <NeverLine key={l} p={scrollYProgress} i={i} n={NEVER.length}>{l}</NeverLine>)}
+        </ul>
+        <p className="mt-12 max-w-[560px] text-[19px] leading-[1.45]" style={{ color: 'var(--band-fg-2)' }}>
+          Those come to you as a notification. And unless you turn on auto-submit, it stops on the review screen so you press Submit yourself.
+        </p>
+      </div>
+    </section>
+  )
+}
+function NeverLine({ p, i, n, children }) {
+  const still = useReducedMotion()
+  const a = i / (n + 1)
+  const opacity = useTransform(p, [a, a + 1 / (n + 1)], [0.2, 1])
+  const strike = useTransform(p, [a + 0.5 / (n + 1), a + 1.4 / (n + 1)], [0, 1])
+  return (
+    <motion.li style={{ opacity: still ? 1 : opacity }} className="display-l relative w-fit py-1 text-[clamp(30px,5vw,60px)]">
+      {children}
+      <motion.span aria-hidden className="absolute left-0 right-0 top-[54%] h-[0.07em] origin-left rounded-full bg-[var(--orange)]" style={{ scaleX: still ? 1 : strike }} />
+    </motion.li>
   )
 }
 
@@ -238,18 +309,16 @@ function Becomes() {
   const [p, setP] = useState(0)
   useMotionValueEvent(scrollYProgress, 'change', setP)
   const still = useReducedMotion()
-  const at = i => (still ? 1 : Math.min(1, Math.max(0, (p - (0.12 + i * 0.24)) / 0.14)))
+  const at = i => (still ? 1 : clamp((p - (0.12 + i * 0.24)) / 0.14))
   const done = STEPS.filter((_, i) => at(i) >= 1).length
   const match = Math.round(38 + (94 - 38) * Math.min(1, (at(0) + at(1) + at(2)) / 3))
   const role = at(0) > 0.5
   return (
-    <section ref={ref} className="relative h-auto px-4 md:h-[320vh]">
-      <div className="mx-auto max-w-[1080px] md:sticky md:top-0 md:flex md:h-screen md:flex-col md:justify-center md:py-10">
-        <div className="text-center">
-          <h2 className="display text-[40px] font-semibold leading-[1.06] sm:text-[56px]">The right candidate.<br /><span className="muted">For every single role.</span></h2>
-          <p className="mx-auto mt-4 max-w-[600px] text-[19px] leading-[1.45] muted">Your twin reads what this team screens for, then rewrites your real experience to prove it. Nothing invented.</p>
-        </div>
-        <div className="mt-10 grid gap-5 md:grid-cols-[0.9fr_1.1fr]">
+    <section ref={ref} className="relative h-auto px-4 pt-20 md:h-[320vh] md:pt-0">
+      <div className="mx-auto max-w-[1120px] md:sticky md:top-0 md:flex md:h-screen md:flex-col md:justify-center md:pb-6 md:pt-16">
+        <h2 className="display-l max-w-[900px] text-[clamp(38px,5.4vw,64px)]">Same person.<br /><span className="muted">Proven for this job.</span></h2>
+        <p className="mt-4 max-w-[600px] text-[19px] leading-[1.45] muted">It reads what the team screens for, then rewrites your real experience to prove each point. Here is Elon Musk's public record, aimed at one NASA posting.</p>
+        <div className="mt-8 grid gap-5 md:grid-cols-[0.9fr_1.1fr]">
           <div className="tile p-6 sm:p-8">
             <div className="flex items-center gap-3"><Avatar name={ROLE.company} domain={ROLE.domain} size={36} />
               <div><div className="text-[15px] font-semibold">{ROLE.title}</div><div className="text-[13px] muted">{ROLE.company}</div></div></div>
@@ -266,7 +335,7 @@ function Becomes() {
             </div>
             <div className="mt-8 flex items-end justify-between">
               <div className="text-[13px] muted">Match for this role</div>
-              <div className="display text-[44px] font-semibold tabular-nums leading-none" style={{ color: done === 3 ? 'var(--green)' : 'var(--fg)' }}>{match}%</div>
+              <div className="display-l text-[52px] tabular-nums leading-none" style={{ color: done === 3 ? 'var(--green)' : 'var(--fg)' }}>{match}%</div>
             </div>
           </div>
           <div className="sheet p-6 text-left sm:p-8" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
@@ -310,8 +379,9 @@ function Lid({ children }) {
   const ref = useRef(null)
   const still = useReducedMotion()
   const { scrollYProgress } = useScroll({ target: ref, offset: ['start end', 'center center'] })
-  const rotateX = useTransform(scrollYProgress, [0, 1], [24, 0])
-  const scale = useTransform(scrollYProgress, [0, 1], [0.86, 1])
+  const [narrow] = useState(() => typeof window !== 'undefined' && window.innerWidth < 640)   // a tall phone-width window tilts less, or it leaves a gap above
+  const rotateX = useTransform(scrollYProgress, [0, 1], [narrow ? 8 : 24, 0])
+  const scale = useTransform(scrollYProgress, [0, 1], [narrow ? 0.96 : 0.86, 1])
   const opacity = useTransform(scrollYProgress, [0, 0.35], [0.3, 1])
   return (
     <div ref={ref} style={{ perspective: 1800 }}>
@@ -343,7 +413,7 @@ function AppWindow() {
   const count = 3 + job + (step === 'Submitted' ? 1 : 0)
   const nav = ['Today', 'Jobs', 'Resume', 'Answers', 'Applications', 'Autopilot']
   return (
-    <div ref={box} className="mx-auto w-full max-w-[1120px] overflow-hidden rounded-[14px] text-left shadow-[0_30px_80px_rgb(0_0_0/.22),0_0_0_1px_rgb(0_0_0/.08)]"
+    <div ref={box} className="mx-auto w-full max-w-[1120px] overflow-hidden appwin rounded-[14px] text-left"
       style={{ background: '#1c1c1e', color: '#f5f5f7', colorScheme: 'dark' }}>
       <div className="grid md:grid-cols-[200px_1fr] [&>*]:min-w-0">
         {/* the real app's sidebar */}
@@ -418,16 +488,6 @@ function AppWindow() {
         </div>
       </div>
     </div>
-  )
-}
-
-function Tile({ title, text, children }) {
-  return (
-    <Reveal className="tile flex flex-col overflow-hidden px-7 pt-9 sm:px-10 sm:pt-11">
-      <div className="display text-[28px] font-semibold leading-tight sm:text-[32px]">{title}</div>
-      <p className="mt-2 max-w-[440px] text-[17px] leading-[1.45] muted">{text}</p>
-      <div className="mt-8 flex flex-1 items-end">{children}</div>
-    </Reveal>
   )
 }
 
@@ -522,13 +582,13 @@ function InstallBox() {
   const copy = () => { navigator.clipboard.writeText(cmd); setOk(true); setTimeout(() => setOk(false), 1600) }
   return (
     <div>
-      <div className="mx-auto mb-3 flex w-fit rounded-full bg-[var(--bg-2)] p-[3px] text-[13px]">
+      <div className="mb-3 flex w-fit rounded-full bg-[var(--bg-2)] p-[3px] text-[13px]">
         {[[false, 'Mac & Linux'], [true, 'Windows']].map(([w, l]) => (
           <button key={l} onClick={() => setWin(w)} className={'rounded-full px-4 py-1.5 transition ' + (win === w ? 'bg-[var(--bg-3)] font-semibold shadow-sm' : 'muted')}>{l}</button>))}
       </div>
       <button onClick={copy} aria-label="Copy the install command"
-        className="flex w-full items-center gap-3 rounded-[14px] bg-[var(--bg-2)] py-3.5 pl-4 pr-3 text-left transition hover:brightness-[.98]">
-        <span className="mono min-w-0 flex-1 text-[13px] leading-snug sm:text-[15px]">{cmd}</span>
+        className="flex w-full items-center gap-3 rounded-[16px] bg-[var(--bg-2)] py-4 pl-5 pr-4 text-left transition hover:brightness-[.98] sm:py-5 sm:pl-6">
+        <span className="mono min-w-0 flex-1 text-[13px] leading-snug sm:text-[17px]"><span className="faint select-none">$ </span>{cmd}</span>
         <span className="flex shrink-0 items-center gap-1.5 text-[14px] font-medium link">
           {ok ? <Check className="size-4" /> : <Copy className="size-4" />}<span className="hidden sm:inline">{ok ? 'Copied' : 'Copy'}</span></span>
       </button>
@@ -547,12 +607,15 @@ function Stars() {
 function Faq({ q, a }) {
   const [open, setOpen] = useState(false)
   return (
-    <div>
-      <button onClick={() => setOpen(!open)} className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left text-[17px]">
-        {q}<ChevronRight className="size-4 shrink-0 faint transition-transform" style={{ transform: open ? 'rotate(90deg)' : 'none' }} />
+    <div className="border-b border-[var(--line)]">
+      <button onClick={() => setOpen(!open)} aria-expanded={open} className="flex w-full items-center justify-between gap-4 py-5 text-left text-[19px] font-medium tracking-[-0.015em]">
+        {q}<span aria-hidden className="relative size-3.5 shrink-0">
+          <span className="absolute inset-x-0 top-1/2 h-[1.5px] -translate-y-1/2 rounded-full bg-[var(--fg-2)]" />
+          <span className="absolute inset-y-0 left-1/2 w-[1.5px] -translate-x-1/2 rounded-full bg-[var(--fg-2)] transition-transform duration-300" style={{ transform: `translateX(-50%) scaleY(${open ? 0 : 1})` }} />
+        </span>
       </button>
-      <motion.div initial={false} animate={{ height: open ? 'auto' : 0, opacity: open ? 1 : 0 }} transition={{ duration: 0.25, ease: 'easeOut' }} className="overflow-hidden">
-        <p className="px-5 pb-5 text-[15px] leading-relaxed muted">{a}</p>
+      <motion.div initial={false} animate={{ height: open ? 'auto' : 0, opacity: open ? 1 : 0 }} transition={{ duration: 0.35, ease: EASE }} className="overflow-hidden">
+        <p className="max-w-[600px] pb-6 text-[17px] leading-[1.5] muted">{a}</p>
       </motion.div>
     </div>
   )
