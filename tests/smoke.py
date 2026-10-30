@@ -206,6 +206,12 @@ _tl._house_rules(_res16, {"field": "finance"})
 res.append(ok([e['id'] for e in _res16['experience']] == ['ta', 'hw'] and _res16['awards'] == [] and
               _res16['education'][0]['honors'][-1] == "Case Competition 2025, 1st place",
               f"service jobs dropped when there's real material, finance strictly newest first, no award twice {[e['id'] for e in _res16['experience']]}"))
+# the database is never left open: thousands of requests used to exhaust the open-file limit ("Too many open files")
+import subprocess as _sp
+for _ in range(300):
+    store.rows('select 1')
+_open = _sp.run(['lsof', '-p', str(os.getpid())], capture_output=True, text=True).stdout.count('applytwin.db') if sys.platform != 'win32' else 0
+res.append(ok(_open <= 3, f'database connections close after each request ({_open} open files after 300 reads)'))
 # real form questions that used to get the wrong answer
 _pb = _an.default_bank({'name': 'Maya Chen', 'location': 'Austin, TX', 'grad_month': 'May', 'grad_year': '2028', 'major': 'Computer Science',
                         'work_authorized_us': True, 'needs_sponsorship': True, 'government_employee': False, 'willing_to_relocate': True})

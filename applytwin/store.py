@@ -5,6 +5,7 @@ resume.json    your master resume, structured (see examples/resume.example.json)
 answers.json   your application-question answer bank
 applytwin.db        jobs found by the scrapers + applications you sent
 """
+import contextlib
 import copy
 import json
 import re
@@ -246,20 +247,29 @@ create index if not exists thread_job on thread(job_id);
 """
 
 
-_wal = [False]
+_ready = set()   # database files whose schema and journal mode are set up in this process
 
 
+@contextlib.contextmanager
 def db():
-    con = sqlite3.connect(path('applytwin.db'), timeout=30)
-    con.row_factory = sqlite3.Row
-    if not _wal[0]:   # readers never wait for a writer (a scan or rescore used to freeze every page for seconds)
-        try:
-            con.execute('pragma journal_mode=wal')
-        except sqlite3.Error:
-            pass
-        _wal[0] = True
-    con.executescript(SCHEMA)
-    return con
+    """A connection for one block: commits (or rolls back) and always CLOSES at the end. sqlite3's own `with con:` only
+    commits, so every request used to leave a connection (two open files with WAL) behind until the app hit the
+    open-file limit and every page failed with "Too many open files"."""
+    f = path('applytwin.db')
+    con = sqlite3.connect(f, timeout=30)
+    try:
+        con.row_factory = sqlite3.Row
+        if f not in _ready:
+            try:   # readers never wait for a writer (a scan or rescore used to freeze every page for seconds)
+                con.execute('pragma journal_mode=wal')
+            except sqlite3.Error:
+                pass
+            con.executescript(SCHEMA)
+            _ready.add(f)
+        with con:
+            yield con
+    finally:
+        con.close()
 
 
 def rows(sql, args=()):
