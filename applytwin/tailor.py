@@ -649,7 +649,7 @@ def audit(res, rep):
     the user's own words (the fact checker catches new numbers and names, not a quietly upgraded verb or a dropped qualifier)."""
     items = [{"id": str(i), "original": r['from'], "new": r['to']} for i, r in enumerate(rep['rewrites'])]
     try:
-        out = call_llm(AUDIT + json.dumps(items, ensure_ascii=False), timeout=90, fast=True)
+        out = call_llm(AUDIT + json.dumps(items, ensure_ascii=False), timeout=120)   # Sonnet: Haiku let quiet overclaims through
     except Exception:
         out = None
     flagged = {str(x.get('id')): x.get('why', '') for x in (out or {}).get('overclaims', []) if isinstance(x, dict)}
