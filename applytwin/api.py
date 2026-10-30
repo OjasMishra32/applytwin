@@ -67,7 +67,11 @@ def get_vault():
     return tailor.ensure_ids(store.resume())
 
 
-def save_vault(vault):
+def save_vault(vault, force=False):
+    old = store.resume()
+    if not force and store._has_content(old) and not store._has_content(vault or {}):
+        # an editor showing an empty or stale copy must never wipe the real vault; a backup is kept for every save anyway
+        raise RuntimeError("That save would have erased your whole resume, so nothing was changed. Reload the page to see your saved resume.")
     v = store._merge(store.DEFAULT_RESUME, vault or {})
     for sec in tailor.ENTRY_SECS:
         for e in v.get(sec, []):
@@ -667,6 +671,23 @@ def setup_status():
 
 
 # ------------------------------------------------------------------ import, queue, autopilot
+
+def vault_backups():
+    return {"backups": store.vault_backups()[:30]}
+
+
+def restore_vault(file=None):
+    """Put a backed-up vault back (the newest one with content, or the one named)."""
+    bs = store.vault_backups()
+    pick = next((b for b in bs if b['file'] == file), None) if file else next((b for b in bs if b['experience'] or b['projects']), None)
+    if not pick or not re.fullmatch(r'resume-[\d-]+\.json', pick['file']):
+        raise RuntimeError('No saved version to restore.')
+    v = json.load(open(store.path('backups', pick['file']), encoding='utf-8'))
+    store.save('resume.json', v)
+    from . import cloud
+    cloud.sync_soon()
+    return {"ok": True, "vault": get_vault(), "restored": pick}
+
 
 def import_resume(name='', data=None, text=None):
     from . import importer

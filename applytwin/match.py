@@ -220,6 +220,43 @@ GENERIC_ONLY = re.compile(r'^(current|undergraduate|undergrad|graduate|college|u
                           r'domestic|eligible|qualified|female|women|black|hispanic|latinx?|first[- ]generation|\s)+$', re.I)
 
 
+# who a posting is for, read from its title and description (a freshman was being shown postdoctoral fellowships)
+POSTDOC = re.compile(r'\bpost[- ]?doc(?:toral)?\b', re.I)
+PHD_ONLY = re.compile(r"currently (?:enrolled|pursuing)[^.\n]{0,40}\b(?:ph\.?d|doctora)|\bph\.?d\.? (?:students?|candidates?)\b|"
+                      r"pursuing an? (?:ph\.?d|doctora)|enrolled in an? (?:ph\.?d|doctora)|\bdoctoral (?:students?|candidates?)\b", re.I)
+MS_ONLY = re.compile(r"currently (?:enrolled|pursuing)[^.\n]{0,40}\bmaster'?s|pursuing an? master'?s|\bmaster'?s (?:students?|candidates?)\b", re.I)
+OPEN_TO_UNDERGRAD = re.compile(r"\b(?:bachelor'?s?|undergrad\w*|b\.?s\.?/m\.?s|bs/ms|ba/bs|all (?:degree|academic) levels|any degree)\b", re.I)
+
+
+def student_level(prof):
+    """'undergrad', 'masters', 'phd' or 'doctorate' (has the PhD), from what the user said in setup."""
+    d = f"{prof.get('degree', '')} {prof.get('class_standing', '')}"
+    if re.search(r'postdoc|doctorate holder|ph\.?d\.? (?:graduate|holder)|graduated', d, re.I) and re.search(r'ph\.?d|doctor', d, re.I):
+        return 'doctorate'
+    if re.search(r'ph\.?d|doctor', d, re.I):
+        return 'phd'
+    if re.search(r'master|m\.?s\.?\b|mba|m\.?eng|graduate student', d, re.I):
+        return 'masters'
+    return 'undergrad'
+
+
+def level_gate(job, prof):
+    """Why this role is above the user's level, or ''. Postdocs need a finished PhD; PhD-only roles need a PhD student;
+    master's-only roles need a graduate student. A posting that also welcomes undergrads stays."""
+    title, desc = job.get('title', ''), job.get('description') or ''
+    lv = student_level(prof)
+    if POSTDOC.search(title) and lv != 'doctorate':
+        return 'postdoctoral role'
+    if lv in ('undergrad', 'masters') and '\U0001F393' in title:   # the internship lists' mark for "advanced degree required"
+        return 'advanced degree required'
+    if lv in ('undergrad', 'masters') and (re.search(r'\bph\.?d\b', title, re.I) or PHD_ONLY.search(desc)) \
+            and not OPEN_TO_UNDERGRAD.search(f"{title} {desc}" if lv == 'undergrad' else title):
+        return 'PhD students only'
+    if lv == 'undergrad' and MS_ONLY.search(desc) and not OPEN_TO_UNDERGRAD.search(desc):
+        return "master's students only"
+    return ''
+
+
 def fit(job, prof, vault_terms=None):
     """vault_terms: set of LEXICON terms the user's vault contains (makes the score personal)."""
     s = prof.get('search', {})
@@ -239,6 +276,9 @@ def fit(job, prof, vault_terms=None):
     if undergrad and re.search(r"\b(M\.?S\.?|Masters?|Master's|Ph\.?D\.?|MBA)\b(?!\s*(Excel|Office|Word|Teams))", title) and \
             not re.search(r"\b(B\.?S\.?|B\.?A\.?|Bachelor'?s?|undergrad\w*)\b", title, re.I):
         return 0, 'graduate students only'
+    why_level = level_gate(job, prof)
+    if why_level:
+        return 0, why_level
     intern_title = bool(re.search(r'\b(intern|internship|co-?op)\b', t))
     for x in s.get('exclude', []):
         x = (x or '').lower().strip()

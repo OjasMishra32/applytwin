@@ -19,6 +19,7 @@ def _q(qs, k, d=None):
 
 
 GET = {
+    r'/api/vault/backups': lambda m, qs, b: api.vault_backups(),
     r'/api/state': lambda m, qs, b: {"profile": api.get_profile(), "vault": api.get_vault(), "stats": api.stats(),
                                      "setup": api.setup_status(), "templates": api.templates(), "app_dir": store.APP, "home": store.HOME},
     r'/api/stats': lambda m, qs, b: api.stats(),
@@ -55,6 +56,7 @@ _UNKNOWN = set()
 POST = {
     r'/api/profile': lambda m, qs, b: api.update_profile(b),
     r'/api/vault': lambda m, qs, b: api.save_vault(b),
+    r'/api/vault/restore': lambda m, qs, b: api.restore_vault(b.get('file')),
     r'/api/answers': lambda m, qs, b: (store.update('answers.json', lambda cur: b, []), {"ok": True})[1],
     r'/api/answer': lambda m, qs, b: api.save_answer(b['question'], b['answer'], b.get('key')),
     r'/api/answer/test': lambda m, qs, b: api.answer_questions(b.get('questions', []), notify_user=False),   # just trying

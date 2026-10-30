@@ -271,6 +271,21 @@ _sh2.which, _ag2.status, _sp2.Popen = _ow2, _os2, _op2
 api._connecting.pop('codex', None)
 res.append(ok(_r1.get('signed_in') and _r2.get('step') == 'failed' and 'Node.js' in (_r2.get('error') or '')
               and _started and _started[0][-1] == 'login', f'agents install and sign in from the app ({_r2.get("error", "")[:40]}; {_started})'))
+# a resume can never be wiped by an empty save, every save keeps a backup, and a backup can be restored
+_full = api.get_vault()
+_n = len(_full.get('experience', []))
+try:
+    api.save_vault({"basics": _full.get('basics', {}), "experience": [], "projects": []})
+    _refused = False
+except RuntimeError:
+    _refused = True
+api.save_vault({**_full, "experience": _full['experience'][:1]})   # a real edit: keeps a backup of the full version
+_bk = store.vault_backups()
+store.save('resume.json', {"basics": {"name": "x"}})                # simulate a wipe that got through some other way
+_r = api.restore_vault()
+res.append(ok(_refused and _bk and _bk[0]['experience'] >= 1 and len(api.get_vault().get('experience', [])) >= 1,
+              f'an empty save is refused, saves keep backups, restore brings the resume back ({_n} roles, {len(_bk)} backups)'))
+api.save_vault(_full)
 # real form questions that used to get the wrong answer
 _pb = _an.default_bank({'name': 'Maya Chen', 'location': 'Austin, TX', 'grad_month': 'May', 'grad_year': '2028', 'major': 'Computer Science',
                         'work_authorized_us': True, 'needs_sponsorship': True, 'government_employee': False, 'willing_to_relocate': True})

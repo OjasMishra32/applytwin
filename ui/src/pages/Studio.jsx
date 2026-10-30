@@ -29,6 +29,21 @@ const SECS = { experience: ['Experience', { org: 'Company', title: 'Role', locat
 export default function Studio({ arg }) {
   const { vault: v0, profile, templates, setState } = useApp()
   const [v, setV] = useState(() => structuredClone(v0))
+  const [fresh, setFresh] = useState(false)     // edits save only after the real vault has been read from disk
+  const [backup, setBackup] = useState(null)   // a saved version to bring back when the vault is empty
+  useEffect(() => {
+    api('/api/state').then(s => {
+      if (s?.vault) { setV(structuredClone(s.vault)); setState?.(st => st ? { ...st, vault: s.vault } : st) }
+      setFresh(true)
+      if (!(s?.vault?.experience?.length || s?.vault?.projects?.length))
+        api('/api/vault/backups').then(r => setBackup((r.backups || []).find(b => b.experience || b.projects) || null)).catch(() => {})
+    }).catch(() => setFresh(true))
+  }, [])
+  const restore = async () => {
+    try { const r = await api('/api/vault/restore', {}); setV(r.vault); setState?.(s => s ? { ...s, vault: r.vault } : s); setBackup(null); setImporting(false)
+      toast.success('Your resume is back', { description: `${r.restored.experience} roles and ${r.restored.projects} projects restored.` }) }
+    catch (e) { toast.error(e.message) }
+  }
   const [mode, setMode] = useState('write')
   const [tpl, setTpl] = useState(profile.apply?.template || 'classic')
   const [rep, setRep] = useState(null)
@@ -37,6 +52,7 @@ export default function Studio({ arg }) {
   const t = useRef()
   // the app keeps one copy of the vault; update it too, so leaving and coming back never shows (and then re-saves) an old one
   const save = nv => {
+    if (!fresh) return   // never save over the real vault from a copy that wasn't read yet
     setV(nv); setSaved(false); setState?.(s => s ? { ...s, vault: nv } : s); clearTimeout(t.current)
     t.current = setTimeout(async () => {
       try { await api('/api/vault', nv); setSaved(true); api('/api/ats').then(setRep).catch(() => {}) }
@@ -112,6 +128,9 @@ export default function Studio({ arg }) {
             </motion.div>)}
         </AnimatePresence>
       </Page>
+      {backup && <div className="fixed inset-x-0 bottom-6 z-40 mx-auto flex w-fit max-w-[92vw] items-center gap-4 rounded-full bg-[#2c2c2e] px-5 py-2.5 text-[13.5px] text-white shadow-xl ring-1 ring-white/10">
+        <span>Your resume is empty. A saved version from {new Date(backup.at * 1000).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })} has {backup.experience} roles and {backup.projects} projects.</span>
+        <button onClick={restore} className="rounded-full bg-signal px-3.5 py-1 font-semibold">Restore it</button></div>}
       <Import open={importing} setOpen={setImporting} onDone={nv => { if (nv) { setV(nv); setState(s => ({ ...s, vault: nv })) } }} />
     </div>
   )

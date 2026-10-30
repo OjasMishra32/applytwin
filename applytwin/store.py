@@ -116,8 +116,52 @@ def kill_tree(p):
         p.kill()
 
 
+def _has_content(v):
+    return bool(isinstance(v, dict) and (v.get('experience') or v.get('projects') or v.get('education') or v.get('research')))
+
+
+def backup_vault():
+    """Keep the vault as it is right now (the last 30 versions) before anything replaces it: a stale editor tab or a bad
+    import must never be able to lose someone's resume."""
+    cur = path('resume.json')
+    if not os.path.exists(cur):
+        return
+    try:
+        old = json.load(open(cur, encoding='utf-8'))
+    except (OSError, ValueError):
+        return
+    if not _has_content(old):
+        return
+    d = path('backups')
+    os.makedirs(d, exist_ok=True)
+    import shutil
+    shutil.copy2(cur, os.path.join(d, time.strftime('resume-%Y%m%d-%H%M%S.json')))
+    keep = sorted(f for f in os.listdir(d) if f.startswith('resume-'))
+    for f in keep[:-30]:
+        try:
+            os.remove(os.path.join(d, f))
+        except OSError:
+            pass
+
+
+def vault_backups():
+    d = path('backups')
+    out = []
+    for f in sorted(os.listdir(d), reverse=True) if os.path.isdir(d) else []:
+        if f.startswith('resume-'):
+            try:
+                v = json.load(open(os.path.join(d, f), encoding='utf-8'))
+                out.append({"file": f, "at": os.path.getmtime(os.path.join(d, f)),
+                            "experience": len(v.get('experience', [])), "projects": len(v.get('projects', []))})
+            except (OSError, ValueError):
+                continue
+    return out
+
+
 def save(name, obj):
     import tempfile
+    if name == 'resume.json':
+        backup_vault()
     with _lock:
         # a temp file of its own: the app, the agent's MCP server and the CLI all save, sometimes at the same moment
         fd, tmp = tempfile.mkstemp(prefix='.' + os.path.basename(name) + '.', suffix='.tmp', dir=os.path.dirname(path(name)))
