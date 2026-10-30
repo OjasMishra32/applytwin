@@ -425,6 +425,19 @@ def on_start():
         refresh_resumes()
     except Exception:
         pass
+    try:   # a location imported with the name in front of it ('JANE DOE West Lafayette, IN') is cleaned once
+        from .importer import clean_location
+        v = store.resume()
+        b = v.get('basics') or {}
+        fixed = clean_location(b.get('location', ''), b.get('name', ''))
+        if b.get('location') and fixed != b['location']:
+            b['location'] = fixed
+            store.save('resume.json', v)
+        p = store.profile()
+        if p.get('location') and clean_location(p['location'], p.get('name') or b.get('name', '')) != p['location']:
+            store.update('profile.json', lambda cur: {**cur, 'location': clean_location(cur.get('location', ''), cur.get('name') or b.get('name', ''))}, {})
+    except Exception:
+        pass
     try:   # descriptions saved from a page's code (an older text extractor kept its CSS/JS) are fetched again, cleanly
         store.execute("update jobs set description='' where description like '%@font-face%' or description like '%font-family:%' "
                       "or description like '%function(%' or description like '%{display:%'")

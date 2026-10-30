@@ -294,6 +294,10 @@ _q = [j for j in api.queue(500)['jobs'] if j['company'] == 'Jane Street']
 for _i in range(3):
     store.execute("delete from jobs where id=?", (f'js-{_i}',))
 res.append(ok(len(_q) == 1 and _q[0]['title'] == 'Quantitative Trader Intern', f"one-application firms get one, the best fit ({[j['title'] for j in _q]})"))
+# a name on the same header line as the city never becomes part of the location
+from applytwin.importer import clean_location as _cl
+res.append(ok(_cl('JANE DOE West Lafayette, IN', 'Jane Doe') == 'West Lafayette, IN' and _cl('JOHN SMITH West Lafayette, IN') == 'West Lafayette, IN'
+              and _cl('San Francisco, CA') == 'San Francisco, CA', 'the name in a resume header is never read as part of the location'))
 # real form questions that used to get the wrong answer
 _pb = _an.default_bank({'name': 'Maya Chen', 'location': 'Austin, TX', 'grad_month': 'May', 'grad_year': '2028', 'major': 'Computer Science',
                         'work_authorized_us': True, 'needs_sponsorship': True, 'government_employee': False, 'willing_to_relocate': True})

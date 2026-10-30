@@ -164,8 +164,8 @@ def parse(text):
     b['email'] = m.group() if m else ''
     m = PHONE.search(head_txt)
     b['phone'] = m.group().strip() if m else ''
-    m = re.search(r'\b([A-Z][a-zA-Z .]+, [A-Z]{2})\b', head_txt)
-    b['location'] = m.group(1) if m else ''
+    m = re.search(r'\b((?:[A-Za-z.]+ ){0,3}[A-Za-z.]+, [A-Z]{2})\b', head_txt)
+    b['location'] = clean_location(m.group(1), b.get('name', '')) if m else ''
     for u in dict.fromkeys(URL.findall(head_txt)):
         if '@' in u or u.lower() == b['email'].split('@')[-1]:
             continue
@@ -388,6 +388,21 @@ def profile_from_resume(vault, p):
     return patch
 
 
+def clean_location(loc, name=''):
+    """'JANE DOE West Lafayette, IN' -> 'West Lafayette, IN': a name on the same line as the city (common in resume
+    headers) is not part of the location. Keeps 'City, ST' / 'City, Country' with at most three words for the city."""
+    loc = re.sub(r'\s+', ' ', (loc or '')).strip(' |,·')
+    m = re.match(r'(.*?),\s*(.+)$', loc)
+    if not m:
+        return loc
+    city, rest = m.group(1).split(), m.group(2)
+    names = {w.lower() for w in re.findall(r'[A-Za-z]+', name or '')}
+    while city and (city[0].lower() in names or (len(city) > 1 and city[0].isupper() and len(city[0]) > 1 and not all(w.isupper() for w in city))):
+        city = city[1:]   # a name word, or an ALL-CAPS name in front of a normally written city
+    city = city[-3:]
+    return f"{' '.join(city)}, {rest}" if city else loc
+
+
 def import_resume(name='', data=None, text=None):
     from . import match, tailor
     txt, source_tex = extract_text(name, data, text)
@@ -406,6 +421,9 @@ def import_resume(name='', data=None, text=None):
             parsed = None
     if not parsed:
         parsed = parse(txt)
+    b = parsed.get('basics') or {}
+    if b.get('location'):
+        b['location'] = clean_location(b['location'], b.get('name', ''))
     vault = merge(store.resume(), parsed)
     tailor.ensure_ids(vault)
     store.save('resume.json', vault)
