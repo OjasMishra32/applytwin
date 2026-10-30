@@ -324,8 +324,9 @@ def _drop_one(r):
             lambda: entry('projects', 4), lambda: entry('skills', 4), lambda: bullet('experience', 1, 3),
             lambda: entry('experience', 4), lambda: entry('awards', 1), lambda: entry('research', 3),
             lambda: entry('projects', 3), lambda: bullet('projects', 1), lambda: entry('leadership', 0),
-            lambda: bullet('experience', 2), lambda: entry('skills', 3), lambda: entry('research', 2),
-            lambda: entry('experience', 3), lambda: entry('projects', 2), lambda: bullet('experience', 1)]
+            lambda: bullet('experience', 2), lambda: entry('skills', 3),
+            lambda: entry('experience', 3), lambda: entry('projects', 2), lambda: bullet('experience', 1),
+            lambda: entry('research', 2)]   # publications are among a student's strongest lines: cut them last
     for step in plan:
         v = step()
         if v:

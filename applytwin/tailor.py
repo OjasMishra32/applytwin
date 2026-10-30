@@ -80,7 +80,7 @@ def check_rewrite(orig, new, vault_txt, jd, entry_txt=None):
     if extra_nums:
         return 'adds numbers not in this entry: ' + ', '.join(sorted(extra_nums))
     # a number keeps its meaning: "40K events/sec" can't become "40K users"
-    for num, unit in re.findall(r'(\d[\d,.]*\+?\s*[kKmMbB%]?)\s*\+?\s*([A-Za-z][a-z]{2,})', n):
+    for num, unit in re.findall(r'(\d[\d,.]*\+?(?:\s*[kKmMbB%](?![A-Za-z]))?)\s*\+?\s*([A-Za-z][a-z]{2,})', n):
         key = re.escape(num.strip()) + r'\s*\+?\s*'
         if unit.lower() in ('to', 'and', 'the', 'of', 'in', 'on', 'at', 'per', 'for', 'by', 'from', 'with'):
             continue
