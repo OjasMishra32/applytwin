@@ -228,7 +228,10 @@ RULES (hard):
   posting's exact terms where the bullet already proves them, cut filler, keep every fact. Keep **bold** on the 1-3
   most impressive facts per entry. No em/en dashes. No first person.
 - Each bullet: past-tense action verb first (present tense for current roles), 80-200 characters, ideally a number.
-- Choose 2-4 bullets per relevant role, 1-3 per project; drop entries that do not help this posting.
+- Fill one page with the strongest material: usually 4-6 entries and 14-18 bullets. 2-4 bullets per relevant role, 1-2 per
+  project or leadership entry; drop entries that do not help this posting.
+- Refer to bullets by the exact ids shown in the vault ("drift.0"). A number keeps its meaning ("40K events/sec" never
+  becomes "40K users").
 - Order sections for this reader. Ideal order for this field: {', '.join(rules.get('order', []))}.
 - What hiring managers in this field look for first: {rules.get('emphasize', 'the posting requirements and measurable results')}.
 {you}
@@ -613,6 +616,20 @@ def tailor(v, job, jd, mode='auto', plan=None, style=None, out_dir=None):
     else:
         mode = 'agent'
     res, rep = apply(v, plan, jd)
+    if mode == 'api' and rep['rejected']:   # one revision: show the model exactly what the fact checker refused, and why
+        fix = (prompt(v, job, jd, ctx) + '\n\nYOUR PREVIOUS PLAN:\n' + json.dumps(plan, ensure_ascii=False)[:12000] +
+               '\n\nTHE FACT CHECKER REJECTED THESE REWRITES (bullet, reason, your text):\n' +
+               '\n'.join(f"- {r['bullet']}: {r['reason']}: {r['text']}" for r in rep['rejected']) +
+               '\n\nReturn the same JSON plan with each rejected rewrite fixed: keep its facts exactly as the vault states them '
+               '(no new numbers, tools or claims), or use the bullet id as-is. Change nothing else.')
+        try:
+            plan2 = call_llm(fix, timeout=120)
+            if plan2:
+                res2, rep2 = apply(v, plan2, jd)
+                if len(rep2['rejected']) < len(rep['rejected']):
+                    plan, res, rep = plan2, res2, rep2
+        except Exception:
+            pass
     out_dir = out_dir or store.path('resumes', job.get('id', 'general'))
     name = (re.sub(r'[^\w]+', '_', res['basics'].get('name', 'Resume') or '', flags=re.UNICODE).strip('_') or 'Resume') + '_Resume.pdf'
     pdf = os.path.join(out_dir, name)
