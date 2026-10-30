@@ -235,8 +235,12 @@ def html_to_pdf(doc, out_pdf):
 
 
 def page_count(pdf):
-    data = open(pdf, 'rb').read()
-    return len(re.findall(rb'/Type\s*/Page(?![s\w])', data)) or 1
+    try:   # reads compressed PDFs too (LaTeX output hides its page objects from a plain text search)
+        from pypdf import PdfReader
+        return len(PdfReader(pdf).pages) or 1
+    except Exception:
+        data = open(pdf, 'rb').read()
+        return len(re.findall(rb'/Type\s*/Page(?![s\w])', data)) or 1
 
 
 def pdf_text(pdf):

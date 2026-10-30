@@ -17,7 +17,7 @@ PREAMBLE = r"""\documentclass[letterpaper,11pt]{article}
 \usepackage[english]{babel}
 \usepackage{tabularx}
 \usepackage[T1]{fontenc}
-\input{glyphtounicode}
+\ifdefined\pdfgentounicode\input{glyphtounicode}\fi  % pdfTeX only; tectonic/xelatex/lualatex skip it
 \pagestyle{empty}
 \addtolength{\oddsidemargin}{-0.5in}
 \addtolength{\evensidemargin}{-0.5in}
@@ -29,7 +29,7 @@ PREAMBLE = r"""\documentclass[letterpaper,11pt]{article}
 \raggedright
 \setlength{\tabcolsep}{0in}
 \titleformat{\section}{\vspace{-4pt}\scshape\raggedright\large}{}{0em}{}[\color{black}\titlerule \vspace{-5pt}]
-\pdfgentounicode=1
+\ifdefined\pdfgentounicode\pdfgentounicode=1\fi
 \newcommand{\resumeItem}[1]{\item\small{{#1 \vspace{-2pt}}}}
 \newcommand{\resumeSubheading}[4]{\vspace{-2pt}\item
   \begin{tabular*}{0.97\textwidth}[t]{l@{\extracolsep{\fill}}r}
@@ -50,6 +50,11 @@ SPECIAL = {'&': r'\&', '%': r'\%', '$': r'\$', '#': r'\#', '_': r'\_', '{': r'\{
            '^': r'\textasciicircum{}', '\\': r'\textbackslash{}'}
 
 
+def url(u):
+    """A link target that survives LaTeX, including inside table rows (& is a column separator there)."""
+    return (u or '').replace('\\', '/').replace('%', r'\%').replace('#', r'\#').replace('&', r'\&').replace('{', '').replace('}', '')
+
+
 def esc(s):
     return ''.join(SPECIAL.get(c, c) for c in (s or ''))
 
@@ -59,7 +64,7 @@ def tex(s):
     out, i = [], 0
     for m in re.finditer(r'\[([^\]]+)\]\(([^)\s]+)\)', s or ''):
         out.append(_bold(esc(s[i:m.start()])))
-        out.append(r'\href{%s}{%s}' % (m.group(2).replace('%', r'\%').replace('#', r'\#'), _bold(esc(m.group(1)))))
+        out.append(r'\href{%s}{%s}' % (url(m.group(2)), _bold(esc(m.group(1)))))
         i = m.end()
     out.append(_bold(esc((s or '')[i:])))
     return ''.join(out)
@@ -79,7 +84,7 @@ def build_tex(r, k=1.0):
     contact = [esc(x) for x in (b.get('phone'), b.get('email'), b.get('location')) if x]
     for l in b.get('links', []):
         label = l.get('label') or re.sub(r'^https?://(www\.)?', '', l.get('url', '')).rstrip('/')
-        contact.append(r'\href{%s}{\underline{%s}}' % (l.get('url', ''), esc(label)))
+        contact.append(r'\href{%s}{\underline{%s}}' % (url(l.get('url', '')), esc(label)))
     body = [r'\begin{center}', r'\textbf{\Huge \scshape %s} \\ \vspace{1pt}' % esc(b.get('name', ''))]
     if b.get('headline'):
         body.append(r'\small %s \\ \vspace{1pt}' % r' $\cdot$ '.join(tex(h) for h in b['headline']))
@@ -107,7 +112,7 @@ def build_tex(r, k=1.0):
         elif sec in ('experience', 'leadership', 'volunteering'):
             body.append(r'\resumeSubHeadingListStart')
             for e in data:
-                org = tex(e.get('org', '')) if not e.get('url') else r'\href{%s}{%s}' % (e['url'], tex(e.get('org', '')))
+                org = tex(e.get('org', '')) if not e.get('url') else r'\href{%s}{%s}' % (url(e['url']), tex(e.get('org', '')))
                 body.append(r'\resumeSubheading{%s}{%s}{%s}{%s}' % (org, dates(e), tex(e.get('title', '')), esc(e.get('location', ''))))
                 if e.get('bullets'):
                     body += [r'\resumeItemListStart'] + [r'\resumeItem{%s}' % tex(x) for x in e['bullets']] + [r'\resumeItemListEnd']
@@ -133,12 +138,16 @@ def build_tex(r, k=1.0):
                 else:
                     t = tex(x.get('title', ''))
                     if x.get('url'):
-                        t = r'\href{%s}{%s}' % (x['url'], t)
+                        t = r'\href{%s}{%s}' % (url(x['url']), t)
                     body.append(r'\item\small{%s%s%s}' % ((tex(x['role']) + ': ') if x.get('role') else '', t,
                                                            (r'. \textbf{%s}' % tex(x['venue'])) if x.get('venue') else ''))
             body.append(r'\end{itemize}')
-    size = r'\fontsize{%.1f}{%.1f}\selectfont' % (10.5 * k, 12.6 * k) if k < 1 else ''
-    return PREAMBLE + '\n\\begin{document}\n' + size + '\n' + '\n'.join(body) + '\n\\end{document}\n'
+    # \small and the headings are relative to the class size, so shrink by changing the class size (11pt -> 10pt), and at
+    # the last step also tighten the space between items
+    pre = PREAMBLE if k >= 0.99 else PREAMBLE.replace('[letterpaper,11pt]', '[letterpaper,10pt]')
+    if k < 0.93:
+        pre += '\n\\setlist{itemsep=-1pt}\n'
+    return pre + '\n\\begin{document}\n' + '\n'.join(body) + '\n\\end{document}\n'
 
 
 def engine():

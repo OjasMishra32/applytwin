@@ -79,6 +79,14 @@ def check_rewrite(orig, new, vault_txt, jd, entry_txt=None):
     extra_nums = nums(n) - nums(scope)
     if extra_nums:
         return 'adds numbers not in this entry: ' + ', '.join(sorted(extra_nums))
+    # a number keeps its meaning: "40K events/sec" can't become "40K users"
+    for num, unit in re.findall(r'(\d[\d,.]*\+?\s*[kKmMbB%]?)\s*\+?\s*([A-Za-z][a-z]{2,})', n):
+        key = re.escape(num.strip()) + r'\s*\+?\s*'
+        if unit.lower() in ('to', 'and', 'the', 'of', 'in', 'on', 'at', 'per', 'for', 'by', 'from', 'with'):
+            continue
+        if not re.search(key + r'(?:[A-Za-z-]+\s+){0,2}' + re.escape(unit[:5]), scope, re.I) and \
+                not re.search(re.escape(unit[:5]) + r'[a-z]*\s+(?:of\s+)?' + re.escape(num.strip()), scope, re.I):
+            return f'uses {num.strip()} for {unit}, but in this entry it counts something else'
     mags = {x.lower() for x in MAGNITUDE.findall(n)} - {x.lower() for x in MAGNITUDE.findall(scope)}
     if mags:
         return 'adds a scale claim not in this entry: ' + ', '.join(sorted(mags))
@@ -241,7 +249,7 @@ POSTING: {job.get('title', '')} at {job.get('company', '')} ({job.get('location'
 {jd[:9000]}
 
 CAREER VAULT (entry ids are the "id" fields; every bullet is shown with its exact id, like "drift.0": use those ids as given):
-{json.dumps(_with_bullet_ids(v), ensure_ascii=False)[:30000]}
+{_vault_for_prompt(v)}
 """
 
 
@@ -324,6 +332,22 @@ def _with_bullet_ids(v):
         out[sec] = [{**e, 'bullets': [{'id': f"{e['id']}.{i}", 'text': b} for i, b in enumerate(e.get('bullets', []))]}
                     for e in v.get(sec, [])]
     return out
+
+
+def _vault_for_prompt(v, limit=40000):
+    """The vault as JSON, short sections (skills, awards, education) first so nothing important is cut off, and alternate
+    phrasings dropped before any real content if it's too long."""
+    full = _with_bullet_ids(v)
+    first = ['basics', 'skills', 'awards', 'education', 'research', 'certifications']
+    ordered = {k: full[k] for k in first if k in full}
+    ordered.update({k: full[k] for k in full if k not in ordered})
+    out = json.dumps(ordered, ensure_ascii=False)
+    if len(out) > limit:
+        for sec in ENTRY_SECS:
+            for e in ordered.get(sec, []):
+                e.pop('alts', None)
+        out = json.dumps(ordered, ensure_ascii=False)
+    return out[:limit]
 
 
 def _words(s):
