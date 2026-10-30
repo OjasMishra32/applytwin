@@ -547,8 +547,9 @@ def _retire(con, name, jobs):
     token = token.split('|')[0]
     seen = [j['id'] for j in jobs]
     ph = ','.join('?' * len(seen))
-    con.execute(f"update jobs set status='closed' where status='new' and source=? and url like ? and id not in ({ph})",
-                [ats, f'%{token}%'] + seen)
+    # this exact board only ("ame" must not close "frame" or "epicgames"): its token is a whole path segment of the URL
+    con.execute(f"update jobs set status='closed' where status='new' and source=? and (url like ? or url like ? or url like ?) and id not in ({ph})",
+                [ats, f'%/{token}/%', f'%/{token}?%', f'%for={token}&%'] + seen)
 
 
 def _ingest(con, jobs, prof, vault_terms, stats, now):
@@ -569,7 +570,7 @@ def _ingest_one(con, j, prof, vault_terms, stats, now, match):
             con.execute('update jobs set fit=0, fit_why=? where id=?', (why, j['id']))
         return
     if cur:
-        con.execute('update jobs set fit=?, fit_why=?, company=?, description=coalesce(nullif(?,''),description) where id=?',
+        con.execute("update jobs set fit=?, fit_why=?, company=?, description=coalesce(nullif(?,''),description), status=case when status='closed' then 'new' else status end where id=?",
                     (fit, why, j['company'], j['description'], j['id']))
         return
     stats['new'] += 1

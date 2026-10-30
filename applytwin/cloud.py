@@ -72,7 +72,7 @@ def set_session(access_token, refresh_token, expires_in=3600):
 
 
 def token():
-    with _lock:
+    with _lock, store.file_lock('auth.json'):   # the app, MCP server and CLI may all refresh at once
         s = _session()
         if not s:
             return None

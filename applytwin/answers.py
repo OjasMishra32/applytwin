@@ -133,7 +133,8 @@ def match(question, bank, options=None):
     q = (question or '').strip()
     # "Why ...?", "Describe ...", "Tell us ...": always written for the job, even when a word inside ("major", "relocate")
     # would match a saved fact
-    if re.match(r'\s*(why|please (describe|explain|tell|share)|describe|explain|tell us|share|what (interest|excite|draw|motivat))', q, re.I) and open_ended(q):
+    if re.match(r'\s*(why|please (describe|explain|tell)|describe|explain|tell us|what (interest|excite|draw|motivat))', q, re.I) and open_ended(q) \
+            and not re.search(r'linkedin|github|portfolio|website|url|link|race|ethnic|gender|veteran|disab|authori[sz]|sponsor|visa|citizen', q, re.I):
         return {"question": q, "answer": None, "confidence": 0, "key": None, "action": "write", "how": WRITE_RULES}
     k = {r.get('key'): r.get('answer') for r in bank}
     if re.search(r'authori[sz]ed|eligible|permitted', q, re.I) and re.search(r'sponsor', q, re.I) and k.get('work_auth') and k.get('sponsorship'):

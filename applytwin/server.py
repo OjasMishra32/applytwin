@@ -120,6 +120,11 @@ class H(BaseHTTPRequestHandler):
         name = host[:host.find(']') + 1] if host.startswith('[') else host.split(':')[0]
         if name not in ('localhost', '127.0.0.1', '[::1]'):
             return False
+        # opening a page (including Google sending you back after sign-in, which Chrome marks cross-site) is fine; only the
+        # API and files must come from ApplyTwin's own pages
+        path = urllib.parse.urlparse(self.path).path
+        if not post and not path.startswith(('/api/', '/file')):
+            return True
         origin = self.headers.get('Origin')
         if origin is not None and urllib.parse.urlparse(origin).hostname not in ('localhost', '127.0.0.1', '::1'):
             return False

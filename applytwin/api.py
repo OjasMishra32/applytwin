@@ -313,11 +313,14 @@ def on_start():
         _next_followup()
 
 
-def release_claims(since=0.0, older_than=None):
+def release_claims(since=0.0, older_than=None, who=None):
     """Jobs a run claimed but never logged (it was stopped, crashed, or the app restarted). They go to Needs you with an
     honest note instead of vanishing from the queue forever."""
     q = 'select c.job_id, c.at from claims c where not exists (select 1 from applications a where a.job_id=c.job_id and a.at>=c.at)'
+    q = q.replace('select c.job_id, c.at', 'select c.job_id, c.at, c.who')
     for r in store.rows(q):
+        if who and r.get('who') != who:   # only this run's claims; another session may still be working on its own
+            continue
         if r['at'] < since or (older_than and time.time() - r['at'] < older_than):
             continue
         store.log_application(r['job_id'], 'Needs User', 'The run ended before this one was finished. Check whether it was '
@@ -569,7 +572,10 @@ def _next_followup():
             f = later.pop(0)
             store.save('followups.json', later)
         try:
-            start_run(f['agent'], len(f['job_ids']), prompt=f.get('prompt') or finish_prompt(f['job_ids'], f['submit']))
+            r = start_run(f['agent'], len(f['job_ids']), prompt=f.get('prompt') or finish_prompt(f['job_ids'], f['submit']))
+            if r.get('busy'):   # something else started first: put it back for the next opening
+                store.update('followups.json', lambda later: later.insert(0, f), [])
+                return False
             return True
         except Exception as e:
             notify("Couldn't finish an application", str(e), kind='error')
@@ -727,7 +733,7 @@ def _close_twin_windows():
                   f"Where-Object {{ $_.CommandLine -like '*{prof}*' }} | ForEach-Object {{ Stop-Process -Id $_.ProcessId -Force }}")
             subprocess.run(['powershell', '-NoProfile', '-Command', ps], capture_output=True, timeout=20, **store.NOWIN)
         else:
-            subprocess.run(['pkill', '-f', f'--user-data-dir={prof}( |$)'], capture_output=True, timeout=10)
+            subprocess.run(['pkill', '-f', '--', f'--user-data-dir={prof}( |$)'], capture_output=True, timeout=10)
     except Exception:
         pass
 
@@ -765,13 +771,15 @@ def _start_run(agent, n, model, prompt, restarts):
     _close_twin_windows()
     # run from the data folder, not the repo, so the agent loads the installed plugin rather than the repo's dev .mcp.json
     # the instructions go in on stdin: on Windows, claude/codex are .cmd wrappers and cmd.exe would mangle quotes in a long argument
-    proc = subprocess.Popen(cmd, stdout=f, stderr=subprocess.STDOUT, stdin=subprocess.PIPE, cwd=store.HOME, text=True, encoding='utf-8',
+    run_id = f'run-{int(time.time() * 1000)}'
+    env = {**os.environ, 'APPLYTWIN_RUN_ID': run_id}   # the agent's ApplyTwin tools tag their claims with this run
+    proc = subprocess.Popen(cmd, stdout=f, stderr=subprocess.STDOUT, stdin=subprocess.PIPE, cwd=store.HOME, text=True, encoding='utf-8', env=env,
                             errors='replace', **(store.NOWIN if os.name == 'nt' else {'start_new_session': True}))   # its own group: Stop ends its browser too
     proc.stdin.write(prompt)
     proc.stdin.close()
-    _run.update(proc=proc, agent=agent, log=logf, started=time.time(), stopped=False)
+    _run.update(proc=proc, agent=agent, log=logf, started=time.time(), stopped=False, id=run_id)
     import threading
-    threading.Thread(target=_watch_run, args=(proc, agent, logf, n, model, prompt, restarts), daemon=True).start()
+    threading.Thread(target=_watch_run, args=(proc, agent, logf, n, model, prompt, restarts, run_id), daemon=True).start()
     return run_status()
 
 
@@ -813,7 +821,7 @@ def _skip_stuck(since, minutes):
     return stuck[:1]
 
 
-def _watch_run(proc, agent, logf, n, model, prompt=None, restarts=0):
+def _watch_run(proc, agent, logf, n, model, prompt=None, restarts=0, run_id=None):
     # a run that makes no progress for apply.stuck_minutes is stuck on one application (waiting on a sign-in, a hung page):
     # skip that application and carry on with the rest instead of holding up the whole queue
     minutes = float(store.profile()['apply'].get('stuck_minutes') or 20)
@@ -829,7 +837,7 @@ def _watch_run(proc, agent, logf, n, model, prompt=None, restarts=0):
                 proc.kill()
     if stuck:
         skipped = _skip_stuck(started, minutes)
-        release_claims(since=started)
+        release_claims(since=started, who=run_id)
         done = len(store.rows('select 1 from applications where at >= ?', (started,)))
         left = n - done
         if skipped:
@@ -860,7 +868,7 @@ def _watch_run(proc, agent, logf, n, model, prompt=None, restarts=0):
         notify(f'Sign in to {name}', f'Your {name} login expired: {fix}, then press Launch again.', kind='signin')
     elif proc.returncode and not _run.get('stopped'):
         notify(f'{name} stopped early', f'Exit code {proc.returncode}. The last lines are in the Autopilot log.', kind='error')
-    release_claims(since=started)
+    release_claims(since=started, who=run_id)
     if not _run.get('stopped'):
         _next_followup()
     _run['stopped'] = False

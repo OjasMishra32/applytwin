@@ -3,6 +3,7 @@ find jobs, read them, tailor a resume, answer questions, pull the per-ATS playbo
 The agent does the browser part with its own computer-use / browser tools.
 """
 import json
+import os
 import sys
 import traceback
 
@@ -37,7 +38,7 @@ TOOLS = [
     ("applytwin_answer_questions", "Answer application questions from the user's bank. questions: strings or {question, options[]}. Answers with confidence < 0.45 come back null: ask the user, then applytwin_save_answer.", S(questions={"type": "array"}, job_id=STR), lambda a: api.answer_questions(a.get('questions', []), a.get('job_id'))),
     ("applytwin_save_answer", "Save a new or corrected answer so the user is never asked again.", S(question=STR, answer=STR, key=STR), lambda a: api.save_answer(a['question'], a['answer'], a.get('key'))),
     ("applytwin_playbook", "Step-by-step fill guide and gotchas for an ATS: greenhouse, lever, ashby, workday, smartrecruiters, icims, linkedin, general.", S(ats=STR), lambda a: {"playbook": api.playbook(a.get('ats', 'general'))}),
-    ("applytwin_claim", "Atomically claim a job before applying so parallel agents never double-apply. Returns claimed:false if taken.", S(job_id=STR), lambda a: api.claim(a['job_id'])),
+    ("applytwin_claim", "Atomically claim a job before applying so parallel agents never double-apply. Returns claimed:false if taken.", S(job_id=STR), lambda a: api.claim(a['job_id'], who=os.environ.get('APPLYTWIN_RUN_ID', 'agent'))),
     ("applytwin_log_application", "Record what happened: right after submitting (Applied | Needs User | Skipped | Failed), and later when the user hears back (Interview | Offer | Rejected). Outcomes teach ApplyTwin what works for this user.", S(job_id=STR, status=STR, notes=STR, resume_path=STR), lambda a: api.log_application(a['job_id'], a.get('status', 'Applied'), a.get('notes', ''), a.get('resume_path', ''))),
     ("applytwin_remember", "Learn a lasting preference from the user and apply it to every future resume: note (free text like 'keep it formal' or 'never mention my GPA'), pin (entry id or bullet id 'x.n' to always include), avoid (id to never include), or field+template (preferred template for a field).", S(note=STR, pin=STR, avoid=STR, field=STR, template=STR), lambda a: api.remember(a.get('note'), a.get('pin'), a.get('avoid'), a.get('field'), a.get('template'))),
     ("applytwin_forget", "Remove a stored preference (note, pin or avoid).", S(note=STR, pin=STR, avoid=STR), lambda a: api.forget(a.get('note'), a.get('pin'), a.get('avoid'))),

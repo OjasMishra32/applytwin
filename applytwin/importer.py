@@ -238,8 +238,7 @@ def parse(text):
             continue
         header = bool(re.search(r'\s[|·]\s|^\*\*|^\[', s2))   # "Tinydb | Rust", **Bold**, [Name](url): a new entry
         if cur is not None and cur.get('bullets') and not header and not RANGE.search(s2) and (
-                s2[:1].islower() or not re.search(r'[.!?)\]]$', cur['bullets'][-1].rstrip())
-                or (not ONE.search(s2[-12:]) and not split_loc(s2)[1])):
+                s2[:1].islower() or (not ONE.search(s2[-12:]) and not split_loc(s2)[1])):   # a place or a date starts a new entry
             cur['bullets'][-1] += ' ' + s2  # a bullet that wrapped onto the next line
             continue
         a, z, rest = _dates(s2)

@@ -76,7 +76,7 @@ def load(name, default=None):
     if not os.path.exists(p):
         return copy.deepcopy(default)
     try:
-        with open(p, encoding='utf-8') as f:
+        with open(p, encoding='utf-8-sig') as f:   # -sig: Notepad / PowerShell 5 add a byte-order mark
             data = json.load(f)
     except UnicodeDecodeError:   # written by an older version in the Windows code page; read it once, save as UTF-8
         with open(p, encoding='cp1252', errors='replace') as f:
@@ -84,7 +84,7 @@ def load(name, default=None):
         save(name, data)
     except ValueError:   # damaged (a crash mid-write on an old version): keep a copy aside and carry on with the default
         try:
-            os.replace(p, p + '.damaged')
+            os.replace(p, f"{p}.damaged-{time.strftime('%Y%m%d-%H%M%S')}")
         except OSError:
             pass
         return copy.deepcopy(default)
@@ -190,7 +190,7 @@ def clean(x):
     if isinstance(x, bool):
         return x
     if isinstance(x, (int, float)):
-        return ('%g' % x) if isinstance(x, float) else str(x)
+        return ('%.2f' % x).rstrip('0').rstrip('.') if isinstance(x, float) and x != int(x) else (('%.1f' % x) if isinstance(x, float) else str(x))
     return x
 
 

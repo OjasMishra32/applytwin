@@ -184,6 +184,32 @@ with store.db() as _con:
     _src._ingest(_con, [{'id': 'bad'}], store.profile(), set(), _st, 0)   # missing fields: skipped, not fatal
 _closed = {r['id']: r['status'] for r in store.rows("select id, status from jobs where id in ('g1','g2')")}
 res.append(ok(_closed == {'g1': 'new', 'g2': 'closed'}, f'closed postings leave the queue {_closed}'))
+# regressions found in review: board-name collisions, rescans, BOM files, share-your-link questions, co-op seasons, imports
+store.execute("insert or replace into jobs(id,source,company,title,url,apply_url,ats,found_at,fit,status) values('e1','greenhouse','Epic','Intern','https://boards.greenhouse.io/epicgames/jobs/1','','greenhouse',0,90,'new')")
+with store.db() as _con:
+    _src._retire(_con, 'greenhouse:ame', [{'id': 'zz'}])
+    _st = {'fetched': 0, 'new': 0, 'matched': 0, 'errors': 0}
+    _src._ingest(_con, [{'id': 'e1', 'source': 'greenhouse', 'company': 'Epic', 'title': 'Software Engineer Intern', 'location': 'Cary, NC',
+                         'url': 'https://boards.greenhouse.io/epicgames/jobs/1', 'apply_url': '', 'ats': 'greenhouse', 'posted': '', 'description': 'x'}],
+                 store.profile(), set(), _st, 0)
+_epic = store.rows("select status from jobs where id='e1'")[0]['status']
+open(store.path('bom.json'), 'w', encoding='utf-8-sig').write('{"a": 1}')
+_bom = store.load('bom.json', {}).get('a') == 1
+_share = _an.match('Please share your LinkedIn profile URL', _an.default_bank({'linkedin': 'linkedin.com/in/x'})).get('answer') == 'linkedin.com/in/x'
+_coop = _m.fit({'title': 'Software Engineer Co-op - Fall 2026', 'company': 'X'}, {'search': {'kind': 'co-op', 'season': '', 'roles': []}})[0] > 0
+_imp2 = _imp.parse('''Sam Park
+sam@x.edu
+Experience
+Stripe, San Francisco, CA
+Backend Engineering Intern, Jun 2025 – Aug 2025
+• Shipped a dashboard for 12 teams
+Acme, Austin, TX
+Data Intern, Jan 2025 – May 2025
+• Cleaned 3 years of sales data
+''')
+_orgs = [e.get('org') for e in _imp2['experience']]
+res.append(ok(_epic == 'new' and _st['errors'] == 0 and _bom and _share and _coop and _orgs[:2] == ['Stripe', 'Acme'],
+              f'review regressions stay fixed (board {_epic}, rescan errors {_st["errors"]}, bom {_bom}, share {_share}, co-op {_coop}, import {_orgs})'))
 from applytwin import telemetry as _tm
 res.append(ok(not _tm.enabled() and _tm.ping() is False and len(_tm.install_id()) == 36, 'install count is off in tests and uses only a random ID'))
 

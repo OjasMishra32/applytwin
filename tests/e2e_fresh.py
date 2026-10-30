@@ -143,6 +143,10 @@ def main():
                 if not chunk:
                     break
                 raw += chunk
+        with socket.create_connection(('127.0.0.1', PORT), timeout=10) as sk:   # Google sending you back after sign-in must open the app
+            sk.sendall(b'GET / HTTP/1.1\r\nHost: localhost\r\nSec-Fetch-Site: cross-site\r\nSec-Fetch-Mode: navigate\r\nConnection: close\r\n\r\n')
+            back = sk.recv(200)
+        check('returning from Google sign-in opens the app', back.startswith(b'HTTP/1.0 200'), back[:30].decode(errors='replace'))
         check('one reply per request', raw.count(b'HTTP/1.') == 1 and raw.startswith(b'HTTP/1.0 200'), raw[:40].decode(errors='replace'))
         d = http('/api/doctor')
         check('/api/doctor', 'items' in d, f"{sum(i['ok'] for i in d['items'])}/{len(d['items'])} ok")

@@ -226,8 +226,21 @@ def prompt(v, job, jd, ctx=None):
         you += 'NEVER INCLUDE: ' + ', '.join(ctx['avoid']) + '\n'
     if ctx.get('winning_bullets'):
         you += 'BULLETS THAT GOT THIS CANDIDATE INTERVIEWS BEFORE (prefer them when relevant):\n' + '\n'.join('- ' + b for b in ctx['winning_bullets'][:8]) + '\n'
-    return f"""You are an elite recruiter and resume writer for the {ctx.get('field', 'general')} field. Build the strongest possible ONE-PAGE resume for this
-specific posting, using ONLY facts in the candidate's Career Vault. The vault holds more than fits; your job is to choose.
+    return f"""You are an elite recruiter and resume writer for the {ctx.get('field', 'general')} field. Make this candidate read as the obvious
+hire for THIS specific posting, on ONE page, using ONLY facts in their Career Vault. The vault holds more than fits; your job
+is to choose and to frame.
+
+FIRST, POSITION (think it through before writing anything):
+1. What does this hiring manager screen for, in order? Name the top 3 requirements from the posting.
+2. What one-line story makes this candidate the obvious fit for exactly this role? (e.g. "a quant researcher who ships
+   production ML systems", "a robotics engineer who has run real hardware end to end").
+3. Which 2-3 entries prove that story best, and which single bullet proves requirement #1?
+THEN BUILD THE PAGE AROUND IT so a recruiter skimming for 6 seconds sees those three things in the top third:
+- The first entry in the first section, and its first bullet, prove requirement #1.
+- Headline tags lead with the identity this role wants (choose and reorder from the vault's headline list).
+- Frame every bullet in this role's language without changing a fact: the same work reads as latency and systems for a
+  quant/infra role, as perception and models for an ML role, as hardware and validation for a robotics role.
+- Skills: the line and the items this role cares about come first.
 
 RULES (hard):
 - Never invent: no new numbers, employers, tools, skills, titles, dates, awards or links. A fact guard rejects violations.
@@ -250,6 +263,8 @@ OUTPUT: only a JSON object:
   "projects": [same shape], "leadership": [same shape],
   "research": ["<research id>", ...], "awards": [<indexes>],
   "skills": [{{"label": "...", "items": [subset/reorder of that label's items]}}],
+  "positioning": "the one-line story from step 2",
+  "requirements": ["requirement 1", "requirement 2", "requirement 3"],
   "notes": "one line on the strategy"}}
 
 RESUME WRITING GUIDE (follow it):
@@ -384,7 +399,8 @@ def apply(v, plan, jd=''):
     plan = plan if isinstance(plan, dict) else {}
     vt = vault_text(v)
     out = {"basics": copy.deepcopy(v.get('basics', {})), "titles": v.get('titles', {})}
-    rep = {"rewrites": [], "rejected": [], "notes": plan.get('notes', '')}
+    rep = {"rewrites": [], "rejected": [], "notes": plan.get('notes', ''), "positioning": plan.get('positioning', ''),
+           "requirements": plan.get('requirements', [])}
     avoid = set(learn_avoid(v))
     head = v.get('basics', {}).get('headline', [])
     if plan.get('headline'):
@@ -665,4 +681,5 @@ def tailor(v, job, jd, mode='auto', plan=None, style=None, out_dir=None):
     return {"pdf": pdf, "tex": pdf[:-4] + '.tex', "pages": r['pages'], "dropped": r['dropped'], "mode": mode, "style": style,
             "coverage_vault": before.get('coverage'), "coverage": after.get('coverage'), "score": after['score'],
             "missing": [m['term'] for m in after.get('missing', []) if m['hard']][:12],
-            "rewrites": len(rep["rewrites"]), "rejected": rep["rejected"], "notes": rep["notes"], "field": ctx["field"], "added": rep.get("added", [])}
+            "rewrites": len(rep["rewrites"]), "rejected": rep["rejected"], "notes": rep["notes"], "field": ctx["field"], "added": rep.get("added", []),
+            "positioning": rep.get("positioning", ''), "requirements": rep.get("requirements", [])}

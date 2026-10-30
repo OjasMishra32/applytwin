@@ -285,13 +285,15 @@ def fit(job, prof, vault_terms=None):
         score += 10
         why.append('include keyword')
     season = (s.get('season') or '').lower()   # one or more terms, e.g. "Summer 2027, Fall 2027"
-    if not season and kind == 'internship':   # no cycle chosen: the one students are recruiting for now, never last year's
+    if not season and (s.get('kind') or 'internship') == 'internship':   # no cycle chosen: this recruiting cycle (co-ops run all year)
         from .store import next_summer
         season = f'summer {next_summer()}'
     want_years = set(re.findall(r'20\d\d', season))
-    yr = time.gmtime().tm_year
-    if want_years and max(int(y) for y in want_years) < yr:   # a cycle saved last year: roll it forward instead of rejecting everything
-        want_years = {str(int(y) + (yr - max(int(x) for x in want_years)) + (1 if time.gmtime().tm_mon >= 8 else 0)) for y in want_years}
+    from .store import next_summer
+    cycle = next_summer()
+    if want_years and max(int(y) for y in want_years) < cycle:   # a cycle saved last year: roll it forward instead of rejecting everything
+        shift = cycle - max(int(y) for y in want_years)
+        want_years = {str(int(y) + shift) for y in want_years}
     if want_years:
         years = set(re.findall(r'20\d\d', title))
         if not years and job.get('source') == 'community':
