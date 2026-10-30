@@ -211,7 +211,7 @@ function OneToMany() {
 }
 
 /* The heart of it, pinned while you scroll: a job's requirements light up one by one, and the resume rewrites itself
-   to prove each one. Ojasva's own resume; every rewrite keeps the original facts, as the real fact checker requires. */
+   to prove each one. The visitor's own resume, in spirit; every rewrite keeps the original facts, as the real fact checker requires. */
 const ROLE = { company: 'Hudson River Trading', domain: 'hudsonrivertrading.com', title: 'Algorithm Development Intern' }
 const STEPS = [
   { req: 'Statistical research on market data',
@@ -263,7 +263,7 @@ function Becomes() {
             </div>
           </div>
           <div className="sheet p-6 text-left sm:p-8" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
-            <div className="text-center text-[22px] font-bold tracking-[0.04em]">OJASVA MISHRA</div>
+            <div className="text-center text-[22px] font-bold tracking-[0.04em]">YOUR NAME</div>
             <div className="relative mt-1 h-[20px] overflow-hidden text-center text-[13px] font-semibold">
               <AnimatePresence mode="popLayout" initial={false}>
                 <motion.div key={role ? 'r' : 'g'} initial={{ y: 14, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -14, opacity: 0 }}
