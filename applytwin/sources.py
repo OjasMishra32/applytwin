@@ -161,14 +161,31 @@ def smartrecruiters_company(company):
                   f"https://jobs.smartrecruiters.com/{company}/{j['id']}", None, j.get('releasedDate', ''))
 
 
-def workday(spec, search='intern'):
+def _workday_search():
+    """What to search Workday for: interns see internships, co-op students co-ops too, new grads early-career roles, and
+    full-time searches see everything (matching filters it down afterwards)."""
+    kind = (store.profile().get('search') or {}).get('kind') or 'internship'
+    return {'internship': ['intern'], 'co-op': ['intern', 'co-op'], 'new-grad': ['new grad', 'university', 'early career', 'graduate'],
+            'full-time': ['']}.get(kind, ['intern'])
+
+
+def workday(spec, search=None):
     """spec = 'tenant.wd5/Site_Name', optionally '|Company Name' (tenant codes like 'ghr' or 'ms' aren't names)"""
+    seen = set()
+    for term in ([search] if search is not None else _workday_search()):
+        for j in _workday(spec, term):
+            if j['id'] not in seen:
+                seen.add(j['id'])
+                yield j
+
+
+def _workday(spec, search):
     spec, _, name = spec.partition('|')
     host, site = spec.split('/', 1)
     tenant = host.split('.')[0]
     base = f'https://{host}.myworkdayjobs.com'
-    off = 0
-    while off < 200:
+    off, cap = 0, 400 if search else 600   # big companies post hundreds of internships (Northrop: 1,600+)
+    while off < cap:
         d = get(f'{base}/wday/cxs/{tenant}/{site}/jobs',
                 {"appliedFacets": {}, "limit": 20, "offset": off, "searchText": search})
         posts = d.get('jobPostings', [])
