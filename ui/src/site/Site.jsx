@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { AnimatePresence, motion, useInView, useScroll, useTransform, useReducedMotion } from 'motion/react'
+import { AnimatePresence, motion, useInView, useMotionValueEvent, useScroll, useTransform, useReducedMotion } from 'motion/react'
 import { Check, ChevronRight, Copy, Laptop, Lock, KeyRound, ShieldCheck } from 'lucide-react'
 import { Toaster } from 'sonner'
 import { Avatar, Reveal } from '../components/ui'
@@ -56,6 +56,8 @@ export default function Site() {
       </section>
 
       <section className="px-4 pb-24"><Lid><AppWindow /></Lid></section>
+
+      <Becomes />
 
       <section id="how" className="bg-[var(--bg)] px-4 pb-24">
         <Reveal className="mx-auto max-w-[980px] text-center">
@@ -171,6 +173,94 @@ function Nav() {
         </nav>
       </div>
     </header>
+  )
+}
+
+/* The heart of it, pinned while you scroll: a job's requirements light up one by one, and the resume rewrites itself
+   to prove each one. An example candidate; every rewrite keeps the original facts, as the real fact checker requires. */
+const ROLE = { company: 'Hudson River Trading', domain: 'hudsonrivertrading.com', title: 'Algorithm Development Intern' }
+const STEPS = [
+  { req: 'Statistical research on market data',
+    before: 'Worked on a trading project at a hackathon.',
+    after: <>Ran a latency-arbitrage study on <b>13,084 markets</b>, confirmed out of sample with a deflated Sharpe and block bootstrap.</> },
+  { req: 'Real trading judgment',
+    before: 'Member of the student investment fund.',
+    after: <>Executed a <b>crack spread strategy</b> with a <b>64% win rate</b> across live trades at a ~$500K AUM student fund.</> },
+  { req: 'Strong Python and C++',
+    before: 'Languages: Java, HTML, Python, C++',
+    after: <><b>Quantitative research:</b> backtesting, NumPy, pandas · <b>Languages:</b> Python, C++</> },
+]
+
+function Becomes() {
+  const ref = useRef(null)
+  const { scrollYProgress } = useScroll({ target: ref, offset: ['start start', 'end end'] })
+  const [p, setP] = useState(0)
+  useMotionValueEvent(scrollYProgress, 'change', setP)
+  const still = useReducedMotion()
+  const at = i => (still ? 1 : Math.min(1, Math.max(0, (p - (0.12 + i * 0.24)) / 0.14)))
+  const done = STEPS.filter((_, i) => at(i) >= 1).length
+  const match = Math.round(38 + (94 - 38) * Math.min(1, (at(0) + at(1) + at(2)) / 3))
+  const role = at(0) > 0.5
+  return (
+    <section ref={ref} className="relative h-auto px-4 md:h-[320vh]">
+      <div className="mx-auto max-w-[1080px] md:sticky md:top-0 md:flex md:h-screen md:flex-col md:justify-center md:py-10">
+        <div className="text-center">
+          <h2 className="display text-[40px] font-semibold leading-[1.06] sm:text-[56px]">The right candidate.<br /><span className="muted">For every single role.</span></h2>
+          <p className="mx-auto mt-4 max-w-[600px] text-[19px] leading-[1.45] muted">Your twin reads what this team screens for, then rewrites your real experience to prove it. Nothing invented.</p>
+        </div>
+        <div className="mt-10 grid gap-5 md:grid-cols-[0.9fr_1.1fr]">
+          <div className="tile p-6 sm:p-8">
+            <div className="flex items-center gap-3"><Avatar name={ROLE.company} domain={ROLE.domain} size={36} />
+              <div><div className="text-[15px] font-semibold">{ROLE.title}</div><div className="text-[13px] muted">{ROLE.company}</div></div></div>
+            <div className="mt-6 text-[12px] font-semibold uppercase tracking-[0.05em] faint">What they screen for</div>
+            <div className="mt-3 space-y-2.5">
+              {STEPS.map((s, i) => (
+                <div key={s.req} className="flex items-center gap-3 rounded-[12px] px-3 py-2.5 transition-colors duration-500"
+                  style={{ background: at(i) > 0 ? 'var(--bg-3)' : 'transparent' }}>
+                  <span className="grid size-6 shrink-0 place-items-center rounded-full text-[12px] font-semibold transition-colors duration-500"
+                    style={{ background: at(i) >= 1 ? 'var(--green)' : at(i) > 0 ? 'var(--blue)' : 'var(--line)', color: at(i) > 0 ? '#fff' : 'var(--fg-3)' }}>
+                    {at(i) >= 1 ? <Check className="size-3.5" strokeWidth={3} /> : i + 1}</span>
+                  <span className={'text-[16px] transition-colors duration-500 ' + (at(i) > 0 ? '' : 'faint')}>{s.req}</span>
+                </div>))}
+            </div>
+            <div className="mt-8 flex items-end justify-between">
+              <div className="text-[13px] muted">Match for this role</div>
+              <div className="display text-[44px] font-semibold tabular-nums leading-none" style={{ color: done === 3 ? 'var(--green)' : 'var(--fg)' }}>{match}%</div>
+            </div>
+          </div>
+          <div className="sheet p-6 text-left sm:p-8" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
+            <div className="text-center text-[22px] font-bold tracking-[0.04em]">JORDAN LEE</div>
+            <div className="relative mt-1 h-[20px] overflow-hidden text-center text-[13px] font-semibold">
+              <AnimatePresence mode="popLayout" initial={false}>
+                <motion.div key={role ? 'r' : 'g'} initial={{ y: 14, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -14, opacity: 0 }}
+                  transition={{ duration: 0.5, ease: EASE }}>
+                  {role ? 'Quantitative Research · Systematic Trading · Computer Engineering' : 'Computer Engineering Student'}
+                </motion.div>
+              </AnimatePresence>
+            </div>
+            <div className="mt-5 border-b border-[var(--line)] pb-1 text-[12px] font-semibold tracking-[0.08em]">EXPERIENCE & PROJECTS</div>
+            <div className="mt-3 space-y-4">
+              {STEPS.map((s, i) => {
+                const k = at(i)
+                return (
+                  <div key={s.req} className="relative grid text-[15px] leading-[1.45]">
+                    <div className="col-start-1 row-start-1 flex gap-2 muted" style={{ opacity: 1 - k, filter: `blur(${k * 3}px)` }}>
+                      <span>•</span><span>{s.before}</span></div>
+                    <div className="col-start-1 row-start-1 flex gap-2" style={{ opacity: k, transform: `translateY(${(1 - k) * 8}px)` }}>
+                      <span style={{ color: 'var(--blue)' }}>•</span><span>{s.after}</span></div>
+                  </div>)
+              })}
+            </div>
+            <div className="mt-6 flex flex-wrap gap-2" style={{ fontFamily: 'inherit' }}>
+              {['out-of-sample testing', 'market data', 'Python', 'C++', 'systematic trading'].map((w, i) => (
+                <span key={w} className="rounded-full px-3 py-1 text-[12.5px] font-semibold text-[var(--bg)] transition-all duration-500"
+                  style={{ background: 'var(--fg)', opacity: done > i * 0.6 ? 1 : 0, transform: `scale(${done > i * 0.6 ? 1 : 0.85})`,
+                    fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}>{w}</span>))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
   )
 }
 
