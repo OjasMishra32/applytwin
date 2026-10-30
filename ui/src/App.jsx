@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
+import { HelpChat } from './components/HelpChat'
 import { Toaster, toast } from 'sonner'
 import { Radar, Sparkles, FileText, Upload } from 'lucide-react'
 import { api } from './lib/api'
@@ -113,6 +114,7 @@ export default function App() {
         ? <Sidebar page={route.page} go={go} onPalette={() => setPalette(true)} auth={auth} signIn={signIn} signOut={signOut} />
         : <><TopBar page={route.page} go={go} onPalette={() => setPalette(true)} matched={state.stats?.matched} auth={auth} signIn={signIn} signOut={signOut} /><TabBar page={route.page} go={go} /></>)}
       <Palette open={palette} setOpen={setPalette} go={go} jobs={jobs} actions={actions} />
+      {route.page !== 'welcome' && <HelpChat />}
       <motion.main key={route.page} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2, ease: 'easeOut' }}
         className={'relative min-h-full ' + (route.page !== 'welcome' ? 'md:pl-[220px]' : '')}>
         <Page arg={route.arg} />

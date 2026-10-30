@@ -963,12 +963,54 @@ def intent(text):
     return None
 
 
+HELP = 'help'   # the thread for "something's wrong / help me" about the app in general, not one application
+
+
+def help_prompt(text):
+    """Everything your agent needs to understand a problem with the app and fix what it can, without asking you."""
+    from . import update
+    p, v = store.profile(), store.resume()
+    last = (store.load('last_scan.json', {}) or {})
+    errs = ''
+    try:
+        errs = ''.join(open(store.path('llm.log'), encoding='utf-8', errors='replace').readlines()[-4:])[-1200:]
+    except OSError:
+        pass
+    needs = store.rows("select a.job_id, j.company, j.title, a.notes from applications a join jobs j on j.id=a.job_id "
+                       "where a.status='Needs User' order by a.at desc limit 5")
+    convo = '\n'.join(f"{'User' if r['role'] == 'you' else 'You'}: {r['text']}" for r in thread(HELP)[-10:])
+    waiting = '; '.join(f"{r['company']} {r['title']}: {r['notes']}" for r in needs)
+    return ("You are the user's ApplyTwin assistant, running on their computer through their own agent. They wrote to you "
+            "from the app's Help chat about a problem or a request. Understand it, then FIX it yourself with your ApplyTwin "
+            "tools (applytwin_*): read and update their profile, vault, answers and preferences; restore their resume with "
+            "applytwin_vault_backups / applytwin_restore_vault if it was lost; scan for jobs; rebuild a resume; skip or finish "
+            "an application. Don't edit ApplyTwin's own program files. If the problem is a bug in ApplyTwin itself, say so "
+            "plainly and include a short bug report they can paste to the developer (what happened, what they expected, "
+            "version). Never invent facts, never type passwords.\n\n"
+            f"Facts about their setup: ApplyTwin {update.check().get('current') or ''}, agent {p['apply'].get('agent') or 'claude'}; "
+            f"vault has {len(v.get('experience', []))} roles, {len(v.get('projects', []))} projects, "
+            f"{len(store.vault_backups())} backups saved; looking for {', '.join(p['search'].get('roles', [])[:6])} "
+            f"({p['search'].get('kind', 'internship')}, {p.get('class_standing', '')} {p.get('degree', '')}); "
+            f"last job scan: {last.get('stats') or 'never'}; waiting on them: "
+            f"{waiting or 'nothing'}.\n"
+            f"Recent errors from their agent calls: {errs or 'none'}\n\n"
+            f"The conversation so far:\n{convo}\n\n"
+            "Do what their last message asks. Then answer with applytwin_reply('help', text): two or three plain sentences on "
+            "what you found and what you did, and anything they still need to do.")
+
+
 def message(job_id, text):
     """You wrote to your twin about one application. Simple things are handled right away; anything else goes to the
     agent for that application, and its answer shows up in the same conversation."""
     text = (text or '').strip()
     if not text:
         return {"thread": thread(job_id)}
+    if job_id == HELP:   # the general help chat: always the agent, with a picture of their setup
+        _say(HELP, 'you', text)
+        r = _run_or_queue(HELP, help_prompt(text))
+        _say(HELP, 'twin', "Queued. I'll look at this right after the run I'm on." if r.get('queued') else
+             "Looking into it now. I'll reply here in a minute or two.")
+        return {"thread": thread(HELP)}
     _say(job_id, 'you', text)
     kind = intent(text)
     if kind == 'status':
@@ -991,7 +1033,8 @@ def message(job_id, text):
 def _run_or_queue(job_id, prompt):
     agent = _agent()
     if _run['proc'] and _run['proc'].poll() is None:
-        store.update('followups.json', lambda later: later.append({"job_ids": [job_id], "submit": False, "agent": agent, "prompt": prompt}), [])
+        store.update('followups.json', lambda later: later.append({"job_ids": [] if job_id == HELP else [job_id], "submit": False,
+                                                                  "agent": agent, "prompt": prompt}), [])
         return {"queued": True}
     return start_run(agent, 1, prompt=prompt)
 
