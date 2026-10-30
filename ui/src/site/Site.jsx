@@ -322,9 +322,9 @@ function Lid({ children }) {
 
 /* The app itself, at work: what you'd see on your Mac while your twin applies. It really runs through its steps. */
 function AppWindow() {
-  const queue = [['Google', 'google.com', 'Software Engineering Intern', 98], ['Pinterest', 'pinterest.com', 'Software Engineer Intern', 100],
-    ['NVIDIA', 'nvidia.com', 'Deep Learning Software Intern', 96], ['Jane Street', 'janestreet.com', 'Software Engineer Intern', 95],
-    ['Citadel', 'citadel.com', 'Quantitative Research Intern', 93], ['Two Sigma', 'twosigma.com', 'Quant Research Intern', 92]]
+  const queue = [['Google', 'google.com', 'Software Engineering Intern', 98], ['OpenAI', 'openai.com', 'Research Engineer Intern', 97],
+    ['Jane Street', 'janestreet.com', 'Software Engineer Intern', 96], ['Citadel', 'citadel.com', 'Quantitative Research Intern', 95],
+    ['Two Sigma', 'twosigma.com', 'Quant Research Intern', 94], ['Anthropic', 'anthropic.com', 'Software Engineer Intern', 94]]
   const STEPS = ['Opening the posting', 'Tailoring your resume', 'Filling the application', 'Submitted']
   const box = useRef(null)
   const seen = useInView(box, { margin: '-20% 0px' })
@@ -338,64 +338,82 @@ function AppWindow() {
   const step = STEPS[tick % STEPS.length]
   const cur = queue[job]
   const next = queue.slice(job + 1, job + 5)
-  const done = [[ 'Meta', 'meta.com', 'Software Engineer Intern'], ['Palantir', 'palantir.com', 'Forward Deployed Engineer Intern'],
-    ...queue.slice(0, job).map(([c, d, t]) => [c, d, t])].slice(-3).reverse()
-  const count = 2 + job + (step === 'Submitted' ? 1 : 0)
+  const done = [['Apple', 'apple.com', 'Software Engineering Intern'], ['Palantir', 'palantir.com', 'Forward Deployed Engineer Intern'],
+    ['Meta', 'meta.com', 'Software Engineer Intern'], ...queue.slice(0, job).map(([c, d, t]) => [c, d, t])].slice(-3).reverse()
+  const count = 3 + job + (step === 'Submitted' ? 1 : 0)
+  const nav = ['Today', 'Jobs', 'Resume', 'Answers', 'Applications', 'Autopilot']
   return (
-    <div ref={box} className="sheet mx-auto w-full max-w-[1080px] overflow-hidden">
-      <div className="flex h-11 items-center gap-2 border-b border-[var(--line)] px-4">
-        {['#ff5f57', '#febc2e', '#28c840'].map(c => <span key={c} className="size-3 rounded-full" style={{ background: c }} />)}
-        <span className="mx-auto pr-14 text-[13px] font-medium faint">ApplyTwin</span>
-      </div>
-      <div className="grid gap-8 p-5 text-left sm:p-10 md:grid-cols-[1.25fr_1fr] [&>*]:min-w-0">
-        <div>
-          <div className="text-[13px] font-medium" style={{ color: 'var(--green)' }}>Claude Code is applying</div>
-          <div className="relative mt-1 h-[40px] overflow-hidden sm:h-[46px]">
-            <AnimatePresence mode="popLayout" initial={false}>
-              <motion.div key={step + job} initial={{ y: 22, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -22, opacity: 0 }}
-                transition={{ duration: 0.55, ease: EASE }} className="display flex items-center gap-2 text-[30px] font-semibold leading-tight sm:text-[36px]">
-                {step}{step === 'Submitted' && <Check className="size-7" style={{ color: 'var(--green)' }} />}
-              </motion.div>
-            </AnimatePresence>
+    <div ref={box} className="mx-auto w-full max-w-[1120px] overflow-hidden rounded-[14px] text-left shadow-[0_30px_80px_rgb(0_0_0/.22),0_0_0_1px_rgb(0_0_0/.08)]"
+      style={{ background: '#1c1c1e', color: '#f5f5f7', colorScheme: 'dark' }}>
+      <div className="grid md:grid-cols-[200px_1fr] [&>*]:min-w-0">
+        {/* the real app's sidebar */}
+        <aside className="hidden flex-col border-r border-white/[.07] px-3 pb-4 pt-3 md:flex" style={{ background: '#232325' }}>
+          <div className="flex gap-2 px-1 pb-5 pt-1">{['#ff5f57', '#febc2e', '#28c840'].map(c => <span key={c} className="size-3 rounded-full" style={{ background: c }} />)}</div>
+          <div className="mb-4 flex items-center gap-2 px-2.5"><Logo size={18} /><span className="text-[14px] font-semibold">ApplyTwin</span></div>
+          {nav.map(n => (
+            <div key={n} className={'flex h-8 items-center rounded-[7px] px-2.5 text-[13px] ' + (n === 'Autopilot' ? 'bg-[#0a84ff] text-white' : 'text-white/80')}>{n}</div>))}
+          <div className="mt-auto px-2.5 text-[13px] text-white/60">Settings</div>
+        </aside>
+        <div className="min-w-0">
+          <div className="flex h-11 items-center gap-2 border-b border-white/[.07] px-4 md:hidden">
+            {['#ff5f57', '#febc2e', '#28c840'].map(c => <span key={c} className="size-3 rounded-full" style={{ background: c }} />)}
+            <span className="mx-auto pr-14 text-[13px] font-medium text-white/60">ApplyTwin</span>
           </div>
-          <div className="mt-1 text-[15px] muted">{cur[0]} · {cur[2]} · {count} of 25 done</div>
-          <div className="mt-5 h-[5px] max-w-[380px] overflow-hidden rounded-full bg-[var(--bg-2)]">
-            <motion.div className="h-full rounded-full bg-[var(--blue)]" animate={{ width: `${(count / 25) * 100}%` }} transition={{ duration: 0.9, ease: EASE }} /></div>
-          <div className="mt-8 text-[13px] font-semibold uppercase tracking-[0.04em] faint">Up next</div>
-          <div className="group mt-2 overflow-hidden">
-            <AnimatePresence initial={false}>
-              {next.map(([c, d, t, f]) => (
-                <motion.div layout key={c} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -14 }}
-                  transition={{ duration: 0.6, ease: EASE }} className="flex items-center gap-3 px-4 py-3">
-                  <Avatar name={c} domain={d} size={30} />
-                  <div className="min-w-0 flex-1"><div className="truncate text-[15px] font-medium">{t}</div><div className="text-[13px] muted">{c}</div></div>
-                  <div className="text-[15px] tabular-nums muted">{f}%</div>
-                </motion.div>))}
-            </AnimatePresence>
-          </div>
-        </div>
-        <div>
-          <div className="text-[13px] font-semibold uppercase tracking-[0.04em] faint">Needs you</div>
-          <div className="group mt-2 p-4">
-            <div className="flex items-center gap-3"><Avatar name="Booz Allen" domain="boozallen.com" size={30} />
-              <div><div className="text-[15px] font-medium">Sign in to Workday</div><div className="text-[13px] muted">Booz Allen · Data Scientist Intern</div></div></div>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <span className="rounded-full bg-[var(--blue)] px-3.5 py-1.5 text-[13px] font-medium text-white">I signed in, finish it</span>
-              <span className="rounded-full bg-[var(--bg-3)] px-3.5 py-1.5 text-[13px] font-medium ring-1 ring-[var(--line)]">Skip</span>
+          <div className="grid gap-7 p-5 sm:p-8 lg:grid-cols-[1.2fr_1fr] [&>*]:min-w-0">
+            <div>
+              <div className="text-[28px] font-bold tracking-[-0.02em]">Autopilot</div>
+              <div className="mt-4 rounded-[14px] p-5" style={{ background: '#2c2c2e' }}>
+                <div className="text-[12.5px] font-medium text-[#30d158]">Claude Code is applying</div>
+                <div className="relative mt-1 h-[34px] overflow-hidden">
+                  <AnimatePresence mode="popLayout" initial={false}>
+                    <motion.div key={step + job} initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -20, opacity: 0 }}
+                      transition={{ duration: 0.55, ease: EASE }} className="flex items-center gap-2 text-[26px] font-semibold tracking-[-0.02em]">
+                      {step}{step === 'Submitted' && <Check className="size-6 text-[#30d158]" />}
+                    </motion.div>
+                  </AnimatePresence>
+                </div>
+                <div className="flex items-center gap-2 text-[13.5px] text-white/60">
+                  <Avatar name={cur[0]} domain={cur[1]} size={18} />{cur[0]} · {cur[2]} · {count} of 25</div>
+                <div className="mt-4 h-[4px] overflow-hidden rounded-full bg-white/[.08]">
+                  <motion.div className="h-full rounded-full bg-[#0a84ff]" animate={{ width: `${(count / 25) * 100}%` }} transition={{ duration: 0.9, ease: EASE }} /></div>
+              </div>
+              <div className="mt-6 px-1 text-[12px] font-semibold uppercase tracking-[0.05em] text-white/45">Up next</div>
+              <div className="mt-2 overflow-hidden rounded-[14px]" style={{ background: '#2c2c2e' }}>
+                <AnimatePresence initial={false}>
+                  {next.map(([c, d, t, f]) => (
+                    <motion.div layout key={c} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }}
+                      transition={{ duration: 0.6, ease: EASE }} className="flex items-center gap-3 border-b border-white/[.06] px-4 py-2.5 last:border-0">
+                      <Avatar name={c} domain={d} size={28} />
+                      <div className="min-w-0 flex-1"><div className="truncate text-[14px] font-medium">{t}</div><div className="text-[12.5px] text-white/55">{c}</div></div>
+                      <div className="text-[13.5px] tabular-nums text-white/60">{f}%</div>
+                    </motion.div>))}
+                </AnimatePresence>
+              </div>
             </div>
-            <div className="mt-3 rounded-full bg-[var(--bg-3)] px-3.5 py-2 text-[13px] faint ring-1 ring-[var(--line)]">Message your twin about this one…</div>
-          </div>
-          <div className="mt-6 text-[13px] font-semibold uppercase tracking-[0.04em] faint">Today</div>
-          <div className="group mt-2 overflow-hidden">
-            <AnimatePresence initial={false}>
-              {done.map(([c, d, t]) => (
-                <motion.div layout key={c} initial={{ opacity: 0, y: -14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-                  transition={{ duration: 0.6, ease: EASE }} className="flex items-center gap-3 px-4 py-3">
-                  <Avatar name={c} domain={d} size={30} />
-                  <div className="min-w-0 flex-1"><div className="truncate text-[15px] font-medium">{t}</div><div className="text-[13px] muted">{c}</div></div>
-                  <Check className="size-4" style={{ color: 'var(--green)' }} />
-                </motion.div>))}
-            </AnimatePresence>
+            <div>
+              <div className="px-1 pt-1 text-[12px] font-semibold uppercase tracking-[0.05em] text-white/45 lg:mt-12">Needs you</div>
+              <div className="mt-2 rounded-[14px] p-4" style={{ background: '#2c2c2e' }}>
+                <div className="flex items-center gap-3"><Avatar name="NVIDIA" domain="nvidia.com" size={28} />
+                  <div className="min-w-0"><div className="text-[14px] font-medium">Sign in to Workday</div><div className="truncate text-[12.5px] text-white/55">NVIDIA · Deep Learning Software Intern</div></div></div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <span className="rounded-full bg-[#0a84ff] px-3 py-1.5 text-[12.5px] font-medium text-white">I signed in, finish it</span>
+                  <span className="rounded-full bg-white/[.08] px-3 py-1.5 text-[12.5px] font-medium">Skip this job</span>
+                </div>
+                <div className="mt-3 rounded-full bg-white/[.06] px-3.5 py-2 text-[12.5px] text-white/40">Message your twin about this one…</div>
+              </div>
+              <div className="mt-6 px-1 text-[12px] font-semibold uppercase tracking-[0.05em] text-white/45">Submitted today</div>
+              <div className="mt-2 overflow-hidden rounded-[14px]" style={{ background: '#2c2c2e' }}>
+                <AnimatePresence initial={false}>
+                  {done.map(([c, d, t]) => (
+                    <motion.div layout key={c} initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                      transition={{ duration: 0.6, ease: EASE }} className="flex items-center gap-3 border-b border-white/[.06] px-4 py-2.5 last:border-0">
+                      <Avatar name={c} domain={d} size={28} />
+                      <div className="min-w-0 flex-1"><div className="truncate text-[14px] font-medium">{t}</div><div className="text-[12.5px] text-white/55">{c}</div></div>
+                      <Check className="size-4 text-[#30d158]" />
+                    </motion.div>))}
+                </AnimatePresence>
+              </div>
+            </div>
           </div>
         </div>
       </div>
