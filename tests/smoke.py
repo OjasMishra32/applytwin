@@ -221,6 +221,16 @@ with store.db() as _con:
                          "url": 'u', "apply_url": 'u', "ats": 'greenhouse', "posted": '', "description": 'Summer 2027 Other'}],
                  store.profile(), set(), {'fetched': 0, 'new': 0, 'matched': 0}, 0)
 res.append(ok(store.rows("select description from jobs where id='desc-test'")[0]['description'] == _full, 'a rescan keeps the full job description'))
+# pressing Scan: the page's first "still running?" check must hear yes (it used to report 0 new jobs every time)
+import applytwin.sources as _srcs
+_orig_scan = _srcs.scan
+_srcs.scan = lambda *a, **k: (__import__('time').sleep(0.5), {"new": 3, "matched": 2, "fetched": 10})[1]
+api.scan(background=True)
+_first = api.scan_status()
+__import__('time').sleep(1.0)
+_after = api.scan_status()
+_srcs.scan = _orig_scan
+res.append(ok(_first['running'] and not _after['running'] and _after['stats'].get('new') == 3, 'a scan reads as running from the moment it starts'))
 # real form questions that used to get the wrong answer
 _pb = _an.default_bank({'name': 'Maya Chen', 'location': 'Austin, TX', 'grad_month': 'May', 'grad_year': '2028', 'major': 'Computer Science',
                         'work_authorized_us': True, 'needs_sponsorship': True, 'government_employee': False, 'willing_to_relocate': True})

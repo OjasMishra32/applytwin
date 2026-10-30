@@ -89,7 +89,8 @@ export default function App() {
         toast.loading(`Read ${(st.fetched || 0).toLocaleString()} postings`, { id, description: `${st.done || 0} of ${st.sources || '…'} sources · ${st.new || 0} new` })
         return setTimeout(tick, 1000)
       }
-      toast.success(`${st.new || 0} new jobs, ${st.matched || 0} strong matches`, { id, description: `${(st.fetched || 0).toLocaleString()} postings read` })
+      if (st.new) toast.success(`${st.new.toLocaleString()} new jobs, ${(st.matched || 0).toLocaleString()} fit you`, { id, description: `${(st.fetched || 0).toLocaleString()} postings read from ${st.sources || 0} sources` })
+      else toast.success("You're up to date", { id, description: `Read ${(st.fetched || 0).toLocaleString()} postings. Nothing new since your last scan; new roles appear here as companies post them.` })
       refresh(); loadJobs()
     }
     tick()

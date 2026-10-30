@@ -134,8 +134,11 @@ def scan(sources_list=None, background=False):
     if _scan['running']:
         return {"running": True, "stats": _scan['stats']}
 
+    # marked running BEFORE the thread starts: the page asks "still running?" right after pressing Scan, and used to hear
+    # "no" (the thread hadn't begun) and report "0 new jobs" for every scan while the real one ran on unseen
+    _scan.update(running=True, started=time.time(), stats={})
+
     def run():
-        _scan.update(running=True, started=time.time(), stats={})
         try:
             _scan['stats'] = sources.scan(sources_list, on_progress=lambda s: _scan.update(stats=s))
             store.save('last_scan.json', {"at": time.time(), "stats": _scan['stats']})
