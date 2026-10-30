@@ -178,6 +178,15 @@ _res11, _ = _tl.apply(_v11, {"experience": [{"id": "x"}], "order": ["education",
 _res12, _ = _tl.apply(_v11, {"experience": [{"id": "x"}], "research": ["p2"]})
 res.append(ok(len(_res11['research']) == 2 and 'research' in _res11['order'] and [p['id'] for p in _res12['research']] == ['p2', 'p1'],
               'publications always appear on the page (the plan only orders them)'))
+# live build progress: the real step, time left that only counts steps still to run, and learned step lengths
+_tk = _tl._Track('progress-test', ai=True)
+_v14a = _tl.progress('progress-test')
+_tk.stage('audit')   # the fact-check fix step didn't run this time
+_v14b = _tl.progress('progress-test')
+_tk.done()
+res.append(ok(_v14a['stage'] == 'plan' and _v14a['eta'] > _v14b['eta'] and [s['state'] for s in _v14b['steps']] == ['done', 'skipped', 'now', 'next']
+              and _tl.progress('progress-test') is None and _tl._timings()['plan']['n'] >= 1,
+              f"build progress: real step, honest time left, learned timings {_v14a['eta']} -> {_v14b['eta']}"))
 # real form questions that used to get the wrong answer
 _pb = _an.default_bank({'name': 'Maya Chen', 'location': 'Austin, TX', 'grad_month': 'May', 'grad_year': '2028', 'major': 'Computer Science',
                         'work_authorized_us': True, 'needs_sponsorship': True, 'government_employee': False, 'willing_to_relocate': True})

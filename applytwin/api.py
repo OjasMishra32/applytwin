@@ -471,7 +471,12 @@ def tailor_prompt(job_id):
                     "is better. Write a plan only if the user asked you to change something specific."}
 
 
-def tailor_apply(job_id, plan=None, template=None, mode='auto'):
+def tailor_progress(job_id):
+    """What the resume build for this job is doing now and about how long is left (None when nothing is building)."""
+    return {"progress": tailor.progress(job_id)}
+
+
+def tailor_apply(job_id, plan=None, template=None, mode='auto', fresh=False):
     """The tailored resume for a job. Without a plan: the dedicated writer's build (started at claim; waited for if still
     running), which is the best quality. With a plan: built from that plan."""
     j = get_job(job_id)
@@ -479,6 +484,12 @@ def tailor_apply(job_id, plan=None, template=None, mode='auto'):
         return {"error": "unknown job"}
     if isinstance(plan, str):
         plan = json.loads(plan)
+    if fresh and plan is None and mode in ('auto', 'api'):   # Rebuild: a new plan, not the saved one
+        slot = _tailoring.get(job_id)
+        if slot and slot['thread'].is_alive():
+            slot['thread'].join(timeout=420)
+        _tailoring.pop(job_id, None)
+        return tailor.tailor(get_vault(), j, j.get('description', ''), mode=mode, style=template)
     if plan is None and mode in ('auto', 'api'):
         pretailor(job_id)
         slot = _tailoring.get(job_id)
@@ -486,10 +497,12 @@ def tailor_apply(job_id, plan=None, template=None, mode='auto'):
             slot['thread'].join(timeout=420)
             if slot.get('result') and (not template or slot['result'].get('style') == template):
                 return slot['result']
-        else:   # a current dedicated build is already saved
+        try:   # a current dedicated build is saved: show it (in another template, the same plan re-set, no new AI plan)
             d = json.load(open(store.path('resumes', job_id, 'tailor.json'), encoding='utf-8'))
-            if not template or d.get('style') == template:
-                return tailor.tailor(get_vault(), j, j.get('description', ''), plan=d['plan'], style=d.get('style'), mode='agent')
+            if d.get('pipeline', 0) >= tailor.PIPELINE and d.get('mode') in ('api', 'agent') and d.get('plan'):
+                return tailor.tailor(get_vault(), j, j.get('description', ''), plan=d['plan'], style=template or d.get('style'), mode='agent')
+        except (OSError, ValueError):
+            pass
     return tailor.tailor(get_vault(), j, j.get('description', ''), mode=mode, plan=plan, style=template)
 
 

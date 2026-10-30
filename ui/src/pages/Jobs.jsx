@@ -60,29 +60,68 @@ export default function Jobs({ arg }) {
 }
 
 // the steps follow the real work: the agent's writing is the long one (about a minute), so it says so and counts up
-const STEPS = ['Reading the posting', 'Choosing your strongest evidence', 'Writing it with your agent', 'Fitting one page and checking it like an ATS']
+const clock = s => { s = Math.max(0, Math.round(s)); return s >= 60 ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` : `${s}s` }
+
+// Live progress of a resume build: the step it is really on, and time left from how long each step takes on this computer.
+// Polled twice a second; between polls the countdown runs locally so it moves smoothly.
+function BuildProgress({ p, since }) {
+  const [now, setNow] = useState(Date.now())
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 200); return () => clearInterval(t) }, [])
+  const drift = p ? (now - since) / 1000 : 0
+  const elapsed = (p?.elapsed || 0) + drift, left = Math.max(1, (p?.eta || 0) - drift)
+  const pct = p ? Math.min(97, (elapsed / (elapsed + left)) * 100) : 2
+  const steps = (p?.steps || []).filter(s => s.state !== 'skipped')
+  return (
+    <div className="mt-5">
+      <div className="flex items-baseline justify-between text-[13px]">
+        <span className="font-medium text-ink">{p ? steps.find(s => s.state === 'now')?.label || 'Starting' : 'Starting'}</span>
+        <span className="tabular-nums text-muted">{p ? `${p.slow ? 'taking a bit longer than usual · ' : ''}about ${clock(left)} left · ${clock(elapsed)}` : ''}</span>
+      </div>
+      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-mist">
+        <motion.div className="h-full rounded-full bg-signal" animate={{ width: `${pct}%` }} transition={{ ease: 'linear', duration: 0.25 }} />
+      </div>
+      <div className="mt-4 space-y-2">{steps.map(s => (
+        <div key={s.id} className={`flex items-center gap-3 text-[13.5px] ${s.state === 'next' ? 'opacity-40' : ''}`}>
+          <span className={`grid size-5 place-items-center rounded-full ${s.state === 'done' ? 'bg-good text-white' : s.state === 'now' ? 'bg-signal/10 text-signal' : 'bg-mist text-faint'}`}>
+            {s.state === 'done' ? <Check className="size-3" strokeWidth={3} /> : s.state === 'now' ? <Loader2 className="size-3 animate-spin" /> : null}</span>{s.label}</div>))}</div>
+    </div>)
+}
 
 function JobSheet({ id, onClose, onChange }) {
   const { templates } = useApp()
   const [job, setJob] = useState(null)
   const [rep, setRep] = useState(null)
   const [tpl, setTpl] = useState('')
-  const [run, setRun] = useState(-1)
+  const [building, setBuilding] = useState(false)
+  const [prog, setProg] = useState(null)   // [progress, when it was read]
   const [res, setRes] = useState(null)
-  const [secs, setSecs] = useState(0)
+  useEffect(() => {   // a build already running (Autopilot started it when it claimed this job) shows its progress too
+    if (!id) return
+    let alive = true
+    const poll = () => api(`/api/jobs/${id}/progress`).then(r => { if (alive) setProg(r.progress ? [r.progress, Date.now()] : null) }).catch(() => {})
+    poll(); const t = setInterval(poll, 500)
+    return () => { alive = false; clearInterval(t) }
+  }, [id])
   useEffect(() => {
-    setJob(null); setRep(null); setRes(null); setRun(-1)
+    setJob(null); setRep(null); setRes(null); setBuilding(false); setProg(null)
     if (!id) return
     api('/api/jobs/' + id).then(setJob); api(`/api/jobs/${id}/ats`).then(setRep)
   }, [id])
   const tailor = async () => {
-    setRes(null); setRun(0); setSecs(0)
-    const t0 = Date.now()
-    const timer = setInterval(() => { const s = (Date.now() - t0) / 1000; setSecs(Math.floor(s)); setRun(s < 1.2 ? 0 : s < 3 ? 1 : 2) }, 250)
+    const fresh = !!res
+    setRes(null); setBuilding(true)
+    const go = () => api(`/api/jobs/${id}/tailor`, { template: tpl || undefined, mode: 'auto', fresh })
     try {
-      const r = await api(`/api/jobs/${id}/tailor`, { template: tpl || undefined, mode: 'auto' })
-      clearInterval(timer); setRun(3); await new Promise(ok => setTimeout(ok, 500)); setRun(STEPS.length); setRes(r)
-    } catch (e) { clearInterval(timer); setRun(-1); toast.error('Could not build: ' + e.message) }
+      setRes(await go())
+    } catch (e) {
+      // the app restarts itself after an update; if that cut the build off, wait for it and build again once
+      if (e.server) toast.error('Could not build: ' + e.message)
+      else {
+        await new Promise(ok => setTimeout(ok, 5000))
+        try { setRes(await go()) } catch (e2) { toast.error('Could not build: ' + e2.message) }
+      }
+    }
+    setBuilding(false)
   }
   const mark = async st => {
     if (st === 'applied') { await api(`/api/jobs/${id}/log`, { status: 'Applied', notes: 'marked in app' }); toast.success('Logged as applied', { description: 'Nice. Your twin will remember what worked.' }) }
@@ -132,16 +171,12 @@ function JobSheet({ id, onClose, onChange }) {
                     <div className="flex items-center gap-2">
                       <select value={tpl} onChange={e => setTpl(e.target.value)} className="h-10 rounded-full bg-white/[.05] px-4 text-[13.5px] outline-none">
                         <option value="">Best template for this field</option>{templates.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}</select>
-                      <Button onClick={tailor} loading={run >= 0 && run < STEPS.length}><Sparkles className="size-4" />{res ? 'Rebuild' : 'Build it'}</Button>
+                      <Button onClick={tailor} loading={building}><Sparkles className="size-4" />{res ? 'Rebuild' : 'Build it'}</Button>
                     </div>
                   </div>
-                  <AnimatePresence>{run >= 0 && run < STEPS.length && (
+                  <AnimatePresence>{(building || prog) && !res && (
                     <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                      <div className="mt-5 space-y-2.5">{STEPS.map((s, i) => (
-                        <motion.div key={s} initial={{ opacity: 0, x: -8 }} animate={{ opacity: i <= run ? 1 : 0.35, x: 0 }} transition={{ delay: i * 0.05 }} className="flex items-center gap-3 text-[14px]">
-                          <span className={`grid size-6 place-items-center rounded-full ${i < run ? 'bg-good text-white' : i === run ? 'bg-signal/10 text-signal' : 'bg-mist text-faint'}`}>
-                            {i < run ? <Check className="size-3.5" strokeWidth={3} /> : i === run ? <Loader2 className="size-3.5 animate-spin" /> : i + 1}</span>{s}
-                          {i === 2 && run === 2 && <span className="text-[12.5px] text-faint">{secs}s · {secs < 90 ? 'usually about a minute' : 'almost there; it falls back to the built-in writer at 2½ minutes'}</span>}</motion.div>))}</div>
+                      <BuildProgress p={prog?.[0]} since={prog?.[1] || Date.now()} />
                     </motion.div>)}</AnimatePresence>
                   {res && (
                     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={spring}>

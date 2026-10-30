@@ -644,7 +644,8 @@ Flag a NEW version if it claims anything the ORIGINAL does not support, even sli
 - a purpose, audience, scope, outcome or causal link that is not stated ("to support due diligence", "driving a 1.8% lift" for "showed a 1.8% lift")
 - a dropped qualifier that changes the claim ("top 3 of 17" without "in the New England region"; "estimated" savings stated as real)
 - a number attached to a different thing, or a different kind of test/equipment ("shaker rig" for "rig")
-Rewording, reordering, mirroring the posting's vocabulary for the SAME fact, and cutting words are fine.
+Rewording, reordering, mirroring the posting's vocabulary for the SAME fact, and cutting words are fine. A tool, title or
+detail stated in the item's "entry" (the same role or project: its title, tech list, other bullets) is supported too.
 Reply with ONLY JSON: {"overclaims": [{"id": "<item id>", "why": "<short reason>"}]}
 
 ITEMS:
@@ -654,7 +655,13 @@ ITEMS:
 def audit(res, rep):
     """A second, quick read of every rewrite against its original: any that claims more than the vault says goes back to
     the user's own words (the fact checker catches new numbers and names, not a quietly upgraded verb or a dropped qualifier)."""
-    items = [{"id": str(i), "original": r['from'], "new": r['to']} for i, r in enumerate(rep['rewrites'])]
+    ents = {e.get('id'): e for sec in ENTRY_SECS for e in res.get(sec, []) if e.get('id')}
+
+    def entry(bid):   # the role/project the bullet belongs to: its tools and title back a rewrite too
+        e = ents.get(str(bid).rsplit('.', 1)[0]) or {}
+        return ' | '.join(x for x in [e.get('title', ''), e.get('org', '') or e.get('name', ''), e.get('tagline', ''),
+                                       ', '.join(e.get('tech', []) or [])] if x)[:400]
+    items = [{"id": str(i), "original": r['from'], "new": r['to'], "entry": entry(r['bullet'])} for i, r in enumerate(rep['rewrites'])]
     try:
         out = call_llm(AUDIT + json.dumps(items, ensure_ascii=False), timeout=120)   # Sonnet: Haiku let quiet overclaims through
     except Exception:
@@ -911,8 +918,105 @@ def learn_avoid(v):
         return []
 
 
+# ---------------------------------------------------------------- live progress
+# what a resume build is doing right now, per job, with a time-left estimate from how long each step has actually taken
+# on this computer (Claude/Codex speed differs a lot between people and plans)
+STAGES = [('plan', 'Writing your resume plan'), ('fix', 'Fixing lines the fact checker flagged'),
+          ('audit', 'Checking every rewrite is true'), ('fit', 'Fitting one page and making the PDF')]
+DEFAULT_SECS = {'plan': 140, 'fix': 110, 'audit': 25, 'fit': 20}   # Sonnet-speed starting points; each computer learns its own
+PROGRESS = {}
+
+
+def _timings():
+    from . import store
+    t = store.load('timings.json', {}) or {}
+    return {k: {'avg': float((t.get(k) or {}).get('avg', d)), 'n': int((t.get(k) or {}).get('n', 0)),
+                'p': float((t.get(k) or {}).get('p', 0.6 if k == 'fix' else 1.0))} for k, d in DEFAULT_SECS.items()}
+
+
+def _record(secs):
+    """Learn each step's typical length (and how often the optional fix step runs) from finished builds."""
+    from . import store
+    try:
+        t = _timings()
+        for k in DEFAULT_SECS:
+            r = t[k]
+            w = 0.5 if r['n'] < 3 else 0.25   # quick to learn this machine, then steady
+            if k in secs:
+                r['avg'] = (1 - w) * r['avg'] + w * secs[k] if r['n'] else secs[k]
+                r['n'] += 1
+            if k == 'fix' and 'plan' in secs:
+                r['p'] = (1 - w) * r['p'] + w * (1.0 if 'fix' in secs else 0.0)
+        store.save('timings.json', t)
+    except Exception:
+        pass
+
+
+class _Track:
+    def __init__(self, key, ai):
+        import time
+        self.key, self.t0, self.secs, self.cur, self.at = key, time.time(), {}, None, time.time()
+        self.skip = set() if ai else {'plan', 'fix'}
+        PROGRESS[key] = self
+        if ai:
+            self.stage('plan')
+
+    def stage(self, name):
+        import time
+        now = time.time()
+        if self.cur:
+            self.secs[self.cur] = now - self.at
+        for k, _ in STAGES:   # steps between the last one and this one didn't happen this time
+            if k == name:
+                break
+            if k not in self.secs and k != self.cur:
+                self.skip.add(k)
+        self.cur, self.at = name, now
+
+    def done(self):
+        import time
+        if self.cur:
+            self.secs[self.cur] = time.time() - self.at
+        _record(self.secs)
+        PROGRESS.pop(self.key, None)
+
+    def view(self):
+        import time
+        now, t = time.time(), _timings()
+        order = [k for k, _ in STAGES]
+        cur = self.cur or 'audit'   # a build from a ready plan starts at the checks
+        i = order.index(cur)
+        left = 0.0
+        for k in order[i + 1:]:
+            if k not in self.skip:
+                left += t[k]['avg'] * (t[k]['p'] if k == 'fix' else 1)
+        inside = now - self.at
+        avg = t[cur]['avg']
+        # past its usual length a step is nearly done, but never "0 seconds" while it is still running
+        left += max(avg - inside, min(20.0, 0.15 * inside + 3))
+        return {"stage": cur, "elapsed": round(now - self.t0, 1), "eta": round(left, 1), "slow": inside > avg * 1.15 + 5,
+                "steps": [{"id": k, "label": lab, "state": 'done' if k in self.secs else 'now' if k == cur else
+                           'skipped' if k in self.skip else 'next'} for k, lab in STAGES]}
+
+
+def progress(key):
+    p = PROGRESS.get(key)
+    return p.view() if p else None
+
+
 def tailor(v, job, jd, mode='auto', plan=None, style=None, out_dir=None):
     """Full pipeline -> {pdf, pages, ats before/after, rewrites}."""
+    track = _Track(job.get('id', 'general'), ai=plan is None and mode in ('auto', 'api'))
+    try:
+        r = _tailor(v, job, jd, mode, plan, style, out_dir, track)
+        track.done()
+        return r
+    except Exception:
+        PROGRESS.pop(track.key, None)
+        raise
+
+
+def _tailor(v, job, jd, mode, plan, style, out_dir, track):
     from . import learn, render, store
     ctx = learn.context_for(job)
     style = style or ctx['template']
@@ -939,6 +1043,7 @@ def tailor(v, job, jd, mode='auto', plan=None, style=None, out_dir=None):
         mode = 'agent'
     res, rep = apply(v, plan, jd)
     if mode == 'api' and rep['rejected']:   # one revision: show the model exactly what the fact checker refused, and why
+        track.stage('fix')
         fix = (prompt(v, job, jd, ctx) + '\n\nYOUR PREVIOUS PLAN:\n' + json.dumps(plan, ensure_ascii=False)[:12000] +
                '\n\nTHE FACT CHECKER REJECTED THESE REWRITES (bullet, reason, your text):\n' +
                '\n'.join(f"- {r['bullet']}: {r['reason']}: {r['text']}" for r in rep['rejected']) +
@@ -953,7 +1058,9 @@ def tailor(v, job, jd, mode='auto', plan=None, style=None, out_dir=None):
         except Exception:
             pass
     if mode in ('api', 'agent') and rep['rewrites']:   # Autopilot's own plans get the same honesty check
+        track.stage('audit')
         audit(res, rep)
+    track.stage('fit')
     out_dir = out_dir or store.path('resumes', job.get('id', 'general'))
     name = (re.sub(r'[^\w]+', '_', res['basics'].get('name', 'Resume') or '', flags=re.UNICODE).strip('_') or 'Resume') + '_Resume.pdf'
     pdf = os.path.join(out_dir, name)
