@@ -1057,6 +1057,8 @@ def rescore(force=False):
                 j['company'] = name
                 con.execute('update jobs set company=? where id=?', (name, j['id']))
             f, why = match.fit(j, prof, terms)
+            if j.get('source') == 'manual':   # a job you added yourself stays in your queue, whatever the matcher thinks
+                f, why = max(f, prof['search'].get('min_fit', 65) + 10), why or 'added by you'
             con.execute('update jobs set fit=?, fit_why=? where id=?', (f, why, j['id']))
             n += 1
     store.save('rescore.json', {"mark": mark, "at": time.time()})

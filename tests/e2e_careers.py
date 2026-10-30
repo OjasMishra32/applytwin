@@ -147,15 +147,23 @@ p = store.profile(); p['search'].update(kind='internship', roles=spec['roles'], 
 p.update(work_authorized_us=True, needs_sponsorship=False, grad_month='May', grad_year='2028')   # answered in onboarding
 api.update_profile(p)
 g = api.add_job('https://jobs.example.com/good-' + spec['field'], spec['good'][0], 'Acme ' + spec['field'].title(), spec['good'][1])
-b = api.add_job('https://jobs.example.com/bad-' + spec['field'], spec['bad'][0], 'Other Co', spec['bad'][1])
-api.rescore()
+# the unrelated job arrives the way scanned jobs do (a job you add yourself always makes your queue)
+from applytwin import sources
+_b = sources.job('greenhouse', 'https://jobs.example.com/bad-' + spec['field'], 'Other Co', spec['bad'][0], 'Remote', 'https://jobs.example.com/bad-' + spec['field'],
+                 'https://jobs.example.com/bad-' + spec['field'], '2026-10-01', spec['bad'][1])
+store.execute('insert or replace into jobs(id,source,company,title,location,url,apply_url,ats,posted,description,found_at,fit,fit_why)'
+              ' values(?,?,?,?,?,?,?,?,?,?,?,?,?)', (_b['id'], 'greenhouse', 'Other Co', spec['bad'][0], 'Remote', _b['url'], _b['url'], '', '2026-10-01',
+                                                     spec['bad'][1], 0, 0, ''))
+b = {"id": _b['id']}
+m = api.add_job('https://jobs.example.com/mine-' + spec['field'], spec['bad'][0] + ' (mine)', 'Mine Co', spec['bad'][1])
+api.rescore(force=True)
 q = api.queue(50)
 ids = [j['id'] for j in q['jobs']]
 job = store.rows('select * from jobs where id=?', (g['id'],))[0]
 t = api.tailor_apply(g['id'], None, None, 'heuristic')
 ans = api.answer_questions(['Are you legally authorized to work in the United States?', 'What is your expected graduation date?'])
 v = store.resume()
-print(json.dumps({"vault": sum(len(v.get(k, [])) for k in ('experience', 'research', 'projects', 'leadership')), "good_in": g['id'] in ids, "bad_in": b['id'] in ids,
+print(json.dumps({"vault": sum(len(v.get(k, [])) for k in ('experience', 'research', 'projects', 'leadership')), "good_in": g['id'] in ids, "bad_in": b['id'] in ids, "mine_in": m['id'] in ids,
                   "field": learn.field_for(job), "style": t.get('style'), "pages": t.get('pages'), "pdf": bool(t.get('pdf')),
                   "answers": [a.get('answer') for a in ans]}))
 '''
@@ -203,6 +211,7 @@ def main():
         check(f'{who}: resume imported', d['vault'] >= 1, f"{d['vault']} entries")
         check(f'{who}: relevant job queued', d['good_in'])
         check(f'{who}: unrelated job kept out', not d['bad_in'])
+        check(f'{who}: a job you added stays queued after a rescore', d['mine_in'])
         check(f'{who}: field rules', d['field'] == spec['field'], d['field'])
         check(f'{who}: template', d['style'] == spec['template'], d['style'])
         check(f'{who}: one-page PDF', d['pdf'] and d['pages'] == 1)
