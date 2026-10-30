@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { toast } from 'sonner'
 import { Check, ChevronRight, ExternalLink, Loader2, Plus, Search, Sparkles, X, FileDown, Bot } from 'lucide-react'
-import { api, fileUrl } from '../lib/api'
+import { api, fileUrl, safeUrl } from '../lib/api'
 import { ago } from '../lib/utils'
 import { useApp, Page } from '../App'
 import { Avatar, Badge, Button, Fit, GlideList, Reveal, Ring, Segmented, Stagger, Title, item, spring } from '../components/ui'
@@ -109,7 +109,7 @@ function JobSheet({ id, onClose, onChange }) {
                       <Badge tone="sky">fit {Math.round(job.fit)}</Badge>{job.fit_why && <span className="text-faint">{job.fit_why}</span>}</div></div>
                 </div>
                 <div className="mt-5 flex flex-wrap gap-2">
-                  <a href={job.apply_url || job.url} target="_blank" rel="noreferrer"><Button variant="sky"><ExternalLink className="size-4" />Open application</Button></a>
+                  <a href={safeUrl(job.apply_url || job.url)} target="_blank" rel="noreferrer"><Button variant="sky"><ExternalLink className="size-4" />Open application</Button></a>
                   <Button variant="white" onClick={() => { navigator.clipboard.writeText(`twin: apply to job ${job.id}`); toast('Copied. Paste it into Claude Code or Codex.') }}><Bot className="size-4" />Have my agent apply</Button>
                   <Button variant="white" onClick={() => mark('applied')}><Check className="size-4" />I applied</Button>
                   <Button variant="danger" onClick={() => mark('skipped')}>Skip</Button>

@@ -4,4 +4,6 @@ export async function api(path, body) {
   if (j && j.error) throw new Error(j.error)
   return j
 }
+/* Links from job boards or the agent: only real web pages, never javascript: or other schemes. */
+export const safeUrl = u => (/^https?:\/\//i.test(u || '') ? u : undefined)
 export const fileUrl = p => '/file?path=' + encodeURIComponent(p)

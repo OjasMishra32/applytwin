@@ -85,7 +85,7 @@ def answer_questions(questions, job_id=None):
     for r in out:
         if r.get('answer') is None and r.get('action') != 'write':   # open-ended ones the agent writes; never ask the user
             known = r.get('key') in profile_keys
-            title = f"Add your answer: {r['question'][:80]}"
+            title = f"Add your answer: {r['question'][:300]}"
             if not store.rows('select 1 from inbox where title=? and resolved is null', (title,)):
                 notify(title, ("Forms keep asking this and it's blank in your profile. Add it in Settings so your twin never "
                                "has to guess." if known else "A form asked this and ApplyTwin doesn't know your answer yet. "
@@ -318,6 +318,8 @@ def templates():
 
 def preview_html(template='classic', job_id=None, plan=None):
     v = get_vault()
+    if job_id and not re.fullmatch(r'[\w-]+', job_id):
+        raise ValueError('bad job id')
     saved = store.path('resumes', job_id or '_', 'tailor.json')
     if job_id and not plan and os.path.exists(saved):
         res = json.load(open(saved, encoding='utf-8'))['resume']
@@ -620,6 +622,8 @@ def open_in_twin_browser(url):
     """Open a page in the twin's own browser profile, so a sign-in you do there is the one the twin uses."""
     import subprocess
     from . import install
+    if not re.match(r'https?://[^\s]+$', url or '', re.I):   # a web page, never a Chrome command-line flag
+        raise RuntimeError('That is not a web link.')
     # mid-run this is fine too: Chrome passes the page to the twin's open window as a new tab in the same profile
     os.makedirs(install.BROWSER_PROFILE, exist_ok=True)
     # same keychain flags Playwright uses for this profile: with the real keychain Chrome can't read the logins the twin

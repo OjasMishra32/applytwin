@@ -112,7 +112,24 @@ class H(BaseHTTPRequestHandler):
                     return self._send(500, {"error": str(e)})
         return None
 
+    def _trusted(self, post=False):
+        """Only this computer's own pages may talk to ApplyTwin. Without this, any website you visit could drive it
+        (cross-site requests) or reach it through DNS rebinding."""
+        host = (self.headers.get('Host') or '').lower()
+        name = host[:host.find(']') + 1] if host.startswith('[') else host.split(':')[0]
+        if name not in ('localhost', '127.0.0.1', '[::1]'):
+            return False
+        origin = self.headers.get('Origin')
+        if origin is not None and urllib.parse.urlparse(origin).hostname not in ('localhost', '127.0.0.1', '::1'):
+            return False
+        if self.headers.get('Sec-Fetch-Site') == 'cross-site':
+            return False
+        # a JSON content type makes browsers ask permission (a preflight we never grant) before any cross-site POST
+        return not post or (self.headers.get('Content-Type') or '').split(';')[0].strip() == 'application/json'
+
     def do_GET(self):
+        if not self._trusted():
+            return self._send(403, {"error": "forbidden"})
         u = urllib.parse.urlparse(self.path)
         qs = urllib.parse.parse_qs(u.query)
         if u.path.startswith('/api/'):
@@ -126,10 +143,12 @@ class H(BaseHTTPRequestHandler):
             try:
                 return self._send(200, api.preview_html(_q(qs, 'template', 'classic'), _q(qs, 'job')), 'text/html')
             except Exception as e:
-                return self._send(500, f'<pre>{e}</pre>', 'text/html')
-        if u.path == '/file':
+                import html as _h
+                return self._send(500, f'<pre>{_h.escape(str(e))}</pre>', 'text/html')
+        if u.path == '/file':   # tailored resumes only: never the sign-in tokens or the twin's browser data
             p = os.path.realpath(_q(qs, 'path', ''))
-            if not p.startswith(os.path.realpath(store.HOME)) or not os.path.isfile(p):
+            if (not p.startswith(os.path.realpath(store.path('resumes')) + os.sep) or not os.path.isfile(p)
+                    or not p.lower().endswith(('.pdf', '.tex', '.png', '.json'))):
                 return self._send(403, {"error": "forbidden"})
             return self._send(200, open(p, 'rb').read(), mimetypes.guess_type(p)[0] or 'application/octet-stream')
         rel = 'index.html' if u.path in ('/', '') else u.path.lstrip('/')
@@ -139,6 +158,8 @@ class H(BaseHTTPRequestHandler):
         self._send(200, open(f, 'rb').read(), mimetypes.guess_type(f)[0] or 'text/plain')
 
     def do_POST(self):
+        if not self._trusted(post=True):
+            return self._send(403, {"error": "forbidden"})
         n = int(self.headers.get('Content-Length') or 0)
         try:
             body = json.loads(self.rfile.read(n) or b'{}')
@@ -281,7 +302,7 @@ def serve(port=4747, open_browser=True):
     # on start: re-apply the current matching rules to saved jobs (so fixes like the skip list reach existing queues),
     # then refresh jobs if the last scan is old
     from . import install
-    threading.Thread(target=lambda: (install.refresh_skills(), install.refresh_browser(), api.rescore(), api.scan_if_stale()), daemon=True).start()
+    threading.Thread(target=lambda: (install.refresh_skills(), install.refresh_agents(), api.rescore(), api.scan_if_stale()), daemon=True).start()
     threading.Thread(target=_update_loop, daemon=True).start()
     threading.Thread(target=_code_watch, daemon=True).start()
     from . import telemetry

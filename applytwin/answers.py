@@ -42,7 +42,8 @@ def default_bank(p):
          _yn(p.get('onsite_ok'))),
         ('start', 'When can you start?', r'start date|available to start|earliest (start|date)|when can you (start|begin)',
          p.get('earliest_start', '')),
-        ('grad', 'What is your expected graduation date?', r'graduat(ion|e) (date|month|year)|expected graduation|when (do|will) you graduate',
+        ('grad_year', 'Graduation year', r'graduation year|class of|year of graduation|(what|which) year (will|do) you graduate', p.get('grad_year', '')),
+        ('grad', 'What is your expected graduation date?', r'graduat(ion|e) (date|month)|expected graduation|when (do|will) you graduate',
          grad),
         ('standing', 'What is your current class standing / year in school?',
          r'class (standing|level|year)|(current|academic) (year|standing)|year in (school|college|university)|what year are you',
@@ -50,7 +51,6 @@ def default_bank(p):
         ('standing_summer', 'What will your class standing be during the internship?',
          r'rising|standing (during|at the time)|year (during|at the time of) the internship|(entering|going into) your',
          standing(p)[1]),
-        ('grad_year', 'Graduation year', r'graduation year|class of|year of graduation', p.get('grad_year', '')),
         ('school', 'School / university', r'(school|university|college|institution)( name)?$|which (school|university)',
          p.get('school', '')),
         ('degree', 'Degree', r'^degree|degree (type|level|pursuing)|highest (level of )?education|degree are you', p.get('degree', '')),
@@ -60,17 +60,22 @@ def default_bank(p):
          _yn(p.get('enrolled'))),
         ('age', 'Are you at least 18 years old?', r'18 (years|or older)|at least 18|over the age', _yn(p.get('over_18'))),
         ('background', 'Will you consent to a background check?', r'background (check|screen)|drug (test|screen)', _yn(p.get('background_check_ok'))),
-        ('prior_employee', 'Have you previously worked for this company?',
-         r'(previously|ever|currently) (been )?(employed|worked) (by|for|at)|former employee|worked (for|at) .* before', 'No'),
-        ('referral', 'Were you referred by an employee?', r'referr?(ed|al)|who referred', 'No'),
         ('hear', 'How did you hear about us?', r'how did you (hear|find|learn)|source of (application|referral)|where did you (hear|find)',
          'Company careers website'),
+        ('government', 'Are you a current or former government employee?',
+         r'government (official|employee|entity|agency)|employee of (the |a |any )?(u\.?s\.? |federal |state )?government|public official|federal employee',
+         _yn(p.get('government_employee'))),
+        ('prior_employee', 'Have you previously worked for this company?',
+         r'^(?!.*government)(?=.*(previously|ever|currently|before|former))(.*(employed|worked) (by|for|at)|.*former employee)', 'No'),
+        ('referral', 'Were you referred by an employee?', r'\breferr(ed|al)\b|who referred', 'No'),
         ('noncompete', 'Are you subject to a non-compete or non-solicit agreement?', r'non-?compete|non-?solicit|restrictive covenant',
          _yn(p.get('has_noncompete'))),
-        ('government', 'Are you a current or former government employee?', r'government (official|employee)|public official',
-         _yn(p.get('government_employee'))),
+
         ('salary', 'What are your salary expectations?', r'salary|compensation (expectation|requirement)|pay (expectation|range)|desired (pay|rate)',
          p.get('salary_expectation', '')),
+        ('first_name', 'First name', r'^(legal |preferred )?(first|given) name|^preferred name', (p.get('name') or '').split(' ')[0]),
+        ('last_name', 'Last name', r'^(legal )?(last|family) name|^surname', (p.get('name') or '').split(' ')[-1] if ' ' in (p.get('name') or '') else ''),
+        ('full_name', 'Full name', r'^(full |legal )?name$|^(your )?full (legal )?name', p.get('name', '')),
         ('linkedin', 'LinkedIn profile', r'linkedin', p.get('linkedin', '')),
         ('github', 'GitHub', r'github', p.get('github', '')),
         ('website', 'Website / portfolio', r'website|portfolio|personal (site|url)', p.get('website', '')),
@@ -92,6 +97,7 @@ def default_bank(p):
         ('pronouns', 'Pronouns', r'pronoun', s.get('pronouns', '')),
         ('sms', 'Do you consent to SMS / text messages?', r'\bsms\b|text messag', _yn(p.get('sms_ok'))),
         ('ai_review', 'May AI tools help review your application?', r'automated tools|\bai\b.*(review|process)', _yn(p.get('ai_review_ok'))),
+        ('arbitration', 'Do you agree to the arbitration agreement?', r'arbitrat|class[- ]action waiver|jury trial|waive', ''),
         ('privacy', 'Do you acknowledge the privacy policy / certify your answers?', r'privacy (policy|notice)|certify|acknowledge|attest|i agree',
          'Yes'),
     ]
@@ -125,6 +131,16 @@ def open_ended(question):
 def match(question, bank, options=None):
     """Best answer for one question. options = the dropdown/radio choices, if any (we pick the closest)."""
     q = (question or '').strip()
+    # "Why ...?", "Describe ...", "Tell us ...": always written for the job, even when a word inside ("major", "relocate")
+    # would match a saved fact
+    if re.match(r'\s*(why|please (describe|explain|tell|share)|describe|explain|tell us|share|what (interest|excite|draw|motivat))', q, re.I) and open_ended(q):
+        return {"question": q, "answer": None, "confidence": 0, "key": None, "action": "write", "how": WRITE_RULES}
+    k = {r.get('key'): r.get('answer') for r in bank}
+    if re.search(r'authori[sz]ed|eligible|permitted', q, re.I) and re.search(r'sponsor', q, re.I) and k.get('work_auth') and k.get('sponsorship'):
+        # "authorized to work WITHOUT sponsorship": yes only if both are true
+        both = k['work_auth'] == 'Yes' and k['sponsorship'] == 'No'
+        ans = 'Yes' if both else 'No'
+        return {"question": q, "answer": pick_option(ans, options) if options else ans, "confidence": 0.9, "key": 'work_auth'}
     best, conf = None, 0.0
     for row in bank:
         pat = row.get('pattern')
@@ -135,6 +151,15 @@ def match(question, bank, options=None):
                     break
             except re.error:
                 pass
+    if best is not None and best.get('answer') in (None, '') and best.get('key') != 'arbitration':
+        # the profile field is blank, but the user may have saved this same question in their own words
+        qt = _tokens(q)
+        for row in bank:
+            if row.get('source') == 'user' and row.get('answer') not in (None, ''):
+                rt = _tokens(row.get('question'))
+                if qt and rt and len(qt & rt) / len(qt | rt) >= 0.5:
+                    best = row
+                    break
     if not best:
         qt = _tokens(q)
         for row in bank:

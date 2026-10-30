@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { api } from '../lib/api'
+import { api, safeUrl } from '../lib/api'
 
 /* The right buttons for anything that needs you. The twin fills forms in its own browser, so "Open" never means a blank
    form in yours: a filled application gets Refill / Submit it; a sign-in opens in the twin's browser (so the login sticks)
@@ -58,7 +58,7 @@ export function ItemActions({ item, onDone, compact }) {
         {job && <button disabled={!!busy} onClick={() => finish(false)} className={primary}>{busy === 'refill' ? 'Starting…' : 'I signed in, finish it'}</button>}
       </>}
       {kind === 'question' && job && <button disabled={!!busy} onClick={() => finish(false)} className={secondary}>{busy === 'refill' ? 'Starting…' : 'Answered, finish it'}</button>}
-      {kind === 'other' && item.url && <a href={item.url} target="_blank" rel="noreferrer" className={secondary + ' inline-flex items-center'}>Open</a>}
+      {kind === 'other' && safeUrl(item.url) && <a href={safeUrl(item.url)} target="_blank" rel="noreferrer" className={secondary + ' inline-flex items-center'}>Open</a>}
       {job && (kind === 'ready' || kind === 'signin' || /captcha|submit/i.test(`${item.title} ${item.message || ''} ${item.notes || ''}`)) &&
         <button disabled={!!busy} onClick={() => said('I submitted it')} className={secondary}>I submitted it</button>}
       {job && kind !== 'other' && <button disabled={!!busy} onClick={skip} className={secondary}>{busy === 'skip' ? 'Skipping…' : 'Skip this job'}</button>}

@@ -65,19 +65,60 @@ def install_claude():
     if shutil.which('npx'):
         subprocess.run([claude, 'mcp', 'remove', '--scope', 'user', 'playwright'], capture_output=True)
         subprocess.run([claude, 'mcp', 'add', '--scope', 'user', 'playwright', '--'] + PLAYWRIGHT, capture_output=True)
-    # the plugin launches `python3`, which usually isn't on PATH on Windows; there, register this exact Python instead
-    r2 = None
-    if platform.system() != 'Windows':
-        subprocess.run([claude, 'plugin', 'marketplace', 'add', APP], capture_output=True, text=True, encoding='utf-8', errors='replace')
-        r2 = subprocess.run([claude, 'plugin', 'install', 'applytwin@applytwin'], capture_output=True, text=True, encoding='utf-8', errors='replace')
-    if r2 is not None and r2.returncode == 0:
-        return 'Claude Code: installed plugin applytwin@applytwin (skills + MCP). Restart Claude Code.'
-    subprocess.run([claude, 'mcp', 'remove', '--scope', 'user', 'applytwin'], capture_output=True)
-    r3 = subprocess.run([claude, 'mcp', 'add', '--scope', 'user', 'applytwin', '--', sys.executable, APPLYTWIN_BIN, 'mcp'],
-                        capture_output=True, text=True, encoding='utf-8', errors='replace')
-    _copy_skills(os.path.expanduser('~/.claude/skills'))
+    _drop_plugin(claude)
+    r3 = _claude_direct(claude)
     return ('Claude Code: MCP server added and skills copied to ~/.claude/skills' if r3.returncode == 0
             else f'Claude Code: could not add MCP ({r3.stderr.strip()[:200]})')
+
+
+def _python():
+    """The Python to register for the MCP server: a console one (pythonw, which the Windows Startup shortcut uses, has no
+    stdin/stdout, so an MCP server started with it can't talk)."""
+    py = sys.executable
+    if os.path.basename(py).lower() == 'pythonw.exe':
+        py = os.path.join(os.path.dirname(py), 'python.exe')
+    return py
+
+
+def _claude_direct(claude):
+    """Register ApplyTwin's MCP server straight from the installed app (not Claude Code's plugin cache, which keeps a frozen
+    copy from install day: none of the self-updates ever reached the agent that way) and copy the skills."""
+    subprocess.run([claude, 'mcp', 'remove', '--scope', 'user', 'applytwin'], capture_output=True, timeout=60)
+    r = subprocess.run([claude, 'mcp', 'add', '--scope', 'user', 'applytwin', '--', _python(), APPLYTWIN_BIN, 'mcp'],
+                       capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=60)
+    _copy_skills(os.path.expanduser('~/.claude/skills'))
+    return r
+
+
+def _plugin_installed():
+    try:
+        d = json.load(open(os.path.expanduser('~/.claude/plugins/installed_plugins.json'), encoding='utf-8'))
+        return 'applytwin@applytwin' in (d.get('plugins', d) or {})
+    except (OSError, ValueError):
+        return False
+
+
+def _drop_plugin(claude):
+    if _plugin_installed():
+        subprocess.run([claude, 'plugin', 'uninstall', '--scope', 'user', 'applytwin@applytwin'], capture_output=True, timeout=60)
+
+
+def refresh_agents():
+    """On every start: make Claude Code run the live app (moving installs off the frozen plugin copy) and keep the twin's
+    browser settings current."""
+    refresh_browser()
+    claude = shutil.which('claude')
+    if not claude:
+        return
+    try:
+        cj = os.path.expanduser('~/.claude.json')
+        cur = (json.load(open(cj, encoding='utf-8')).get('mcpServers') or {}).get('applytwin') if os.path.exists(cj) else None
+        stale = _plugin_installed() or not cur or cur.get('command') != _python() or cur.get('args') != [APPLYTWIN_BIN, 'mcp']
+        if stale and (cur or _plugin_installed() or os.path.isdir(os.path.expanduser('~/.claude/skills/applytwin-apply'))):
+            _drop_plugin(claude)
+            _claude_direct(claude)
+    except Exception:
+        pass
 
 
 def install_codex():
@@ -86,7 +127,7 @@ def install_codex():
     cfg = os.path.join(cfg_dir, 'config.toml')
     txt = open(cfg, encoding='utf-8').read() if os.path.exists(cfg) else ''
     q = json.dumps   # TOML basic strings use JSON escaping, so Windows paths (C:\\Users\\...) stay valid
-    block = (f'\n[mcp_servers.applytwin]\ncommand = {q(sys.executable)}\nargs = [{q(APPLYTWIN_BIN)}, "mcp"]\n'
+    block = (f'\n[mcp_servers.applytwin]\ncommand = {q(_python())}\nargs = [{q(APPLYTWIN_BIN)}, "mcp"]\n'
              f'startup_timeout_sec = 20\ntool_timeout_sec = 300\ndefault_tools_approval_mode = "approve"\n')
     if '[mcp_servers.applytwin]' not in txt:
         with open(cfg, 'a', encoding='utf-8') as f:

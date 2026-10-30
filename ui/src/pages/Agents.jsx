@@ -236,7 +236,7 @@ function CopyRow({ label, text }) {
 }
 
 function NeedsYou({ item, onDone }) {
-  const question = item.kind === 'question' ? (item.message.match(/asks?:\s*(.+?\?|.+?\.)(\s|$)/)?.[1] || item.message) : ''
+  const question = item.kind === 'question' ? (item.title || '').replace(/^Add your answer:\s*/, '') : ''
   const [text, setText] = useState('')
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)

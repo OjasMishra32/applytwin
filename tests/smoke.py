@@ -95,6 +95,17 @@ _plan2 = {"experience": [{"id": e['id'], "bullets": [{"from": f"{e['id']}.{len(e
 _res2, _ = _tl.apply(_v, _plan2)
 _ok2 = all(len(r['bullets']) >= 2 and e['bullets'][-1] in r['bullets'] for r, e in zip(_res2['experience'], _roles))
 res.append(ok(_ok1 and _ok2, 'bullets numbered from 1 still land right, and no role is left with fewer than 2'))
+# real form questions that used to get the wrong answer
+_pb = _an.default_bank({'name': 'Maya Chen', 'location': 'Austin, TX', 'grad_month': 'May', 'grad_year': '2028', 'major': 'Computer Science',
+                        'work_authorized_us': True, 'needs_sponsorship': True, 'government_employee': False, 'willing_to_relocate': True})
+_cases = {'Preferred First Name': 'Maya', 'Graduation Year': '2028', 'Major': 'Computer Science', 'Last Name': 'Chen',
+          'How did you hear about this job? (Referral, LinkedIn, Other)': 'Company careers website',
+          'Are you authorized to work in the US without the need for employer sponsorship, now or in the future?': 'No',
+          'Are you a current or former employee of the U.S. government?': 'No'}
+_bad = {q: _an.match(q, _pb).get('answer') for q, want in _cases.items() if _an.match(q, _pb).get('answer') != want}
+_arb = _an.match('I agree to the Mutual Arbitration Agreement', _pb).get('answer')
+_essay = _an.match('Please describe any major challenges you faced', _pb).get('action')
+res.append(ok(not _bad and _arb is None and _essay == 'write', f'real form questions get the right answer {_bad or ""}'))
 from applytwin import telemetry as _tm
 res.append(ok(not _tm.enabled() and _tm.ping() is False and len(_tm.install_id()) == 36, 'install count is off in tests and uses only a random ID'))
 

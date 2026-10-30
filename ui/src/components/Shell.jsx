@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react'
 import { Command } from 'cmdk'
 import { Bell, Search, Settings2, Sparkles } from 'lucide-react'
 import { cn } from '../lib/utils'
+import { api } from '../lib/api'
 import { spring } from './ui'
 import { StarButton } from '../lib/star'
 import { ItemActions } from './ItemActions'
@@ -70,7 +71,7 @@ function Inbox() {
     f(); return () => clearTimeout(t)
   }, [])
   const n = d.items.length
-  const done = async id => { await fetch(`/api/inbox/${id}/resolve`, { method: 'POST', body: '{}' }); setD(x => ({ ...x, items: x.items.filter(i => i.id !== id) })) }
+  const done = async id => { await api(`/api/inbox/${id}/resolve`, {}); setD(x => ({ ...x, items: x.items.filter(i => i.id !== id) })) }
   return (
     <div className="relative">
       <button onClick={() => setOpen(o => !o)} className="relative grid size-8 place-items-center rounded-full bg-white/[.05] text-muted transition hover:text-ink" title="Needs you">
