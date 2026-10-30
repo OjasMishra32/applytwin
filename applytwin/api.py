@@ -454,7 +454,7 @@ def queue(n=50):
     return {"total": len(out), "dream": sum(j['dream'] for j in out), "remaining_today": left, "jobs": out[:int(n)]}
 
 
-_run = {"proc": None, "agent": None, "log": None}
+_run = {"proc": None, "agent": None, "log": None, "stopped": False}
 
 
 def run_prompt(n):
@@ -464,7 +464,8 @@ def run_prompt(n):
             "submit only if my profile allows auto_submit, and log the result with applytwin_log_application. "
             "If a site asks for an emailed verification code: if my profile.apply.email_codes is 'agent', read the newest code from that company "
             "in my email (your email/Gmail tool, or my webmail tab in the browser) and enter it; otherwise call applytwin_notify and move on. "
-            "For sign-ins, passwords, CAPTCHAs or anything only I can do: applytwin_notify, log Needs User, leave the tab open, continue. "
+            "For sign-ins, passwords, CAPTCHAs or anything only I can do: applytwin_notify, log Needs User, leave the tab open, and go straight to the next job. "
+            "Never wait for me and never retry a blocked page more than twice: anything that is not moving in a few minutes gets logged Needs User and skipped. "
             "At the end, check applytwin_pending_jobs and finish any I have unblocked. Judge class-year and start-date requirements by my standing DURING the internship (applytwin_get_profile class_standing: a sophomore now is a rising junior next summer); skip only when I am clearly ineligible, and when unsure, apply. Never invent facts. Give a 1-line update every 5 jobs.")
 
 
@@ -493,22 +494,47 @@ def finish_jobs(job_ids, submit=False, agent=None):
     """Re-open and finish specific applications in the twin's browser (refill a form that was closed, continue after a
     sign-in, or submit one you approved)."""
     agent = agent or store.profile()['apply'].get('agent') or 'claude'
+    if _run['proc'] and _run['proc'].poll() is None:   # mid-run: do it right after, instead of silently doing nothing
+        later = store.load('followups.json', [])
+        later.append({"job_ids": list(job_ids), "submit": bool(submit), "agent": agent})
+        store.save('followups.json', later)
+        return {"queued": True, "running": True}
     return start_run(agent, len(job_ids), prompt=finish_prompt(job_ids, submit))
+
+
+def _next_followup():
+    """Start the next queued finish request (from a button pressed while a run was going). Returns True if one started."""
+    later = store.load('followups.json', [])
+    while later:
+        f = later.pop(0)
+        store.save('followups.json', later)
+        try:
+            start_run(f['agent'], len(f['job_ids']), prompt=finish_prompt(f['job_ids'], f['submit']))
+            return True
+        except Exception as e:
+            notify("Couldn't finish an application", str(e), kind='error')
+    return False
+
+
+def skip_job(job_id, why='Skipped by you'):
+    """Never apply to this one (the Skip button on anything that needs you)."""
+    store.execute("update jobs set status='skipped' where id=?", (job_id,))
+    store.execute('update inbox set resolved=? where job_id=? and resolved is null', (time.time(), job_id))
+    return {"ok": True}
 
 
 def open_in_twin_browser(url):
     """Open a page in the twin's own browser profile, so a sign-in you do there is the one the twin uses."""
     import subprocess
     from . import install
-    if _run['proc'] and _run['proc'].poll() is None:
-        raise RuntimeError('Your twin is using its browser right now. Wait for the run to finish, then open it.')
+    # mid-run this is fine too: Chrome passes the page to the twin's open window as a new tab in the same profile
     os.makedirs(install.BROWSER_PROFILE, exist_ok=True)
     subprocess.Popen([render.chrome(), f'--user-data-dir={install.BROWSER_PROFILE}', '--no-first-run', '--no-default-browser-check', url],
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return {"opened": True}
 
 
-def start_run(agent='claude', n=25, model=None, prompt=None):
+def start_run(agent='claude', n=25, model=None, prompt=None, restarts=0):
     import shutil
     import subprocess
     if _run['proc'] and _run['proc'].poll() is None:
@@ -536,9 +562,9 @@ def start_run(agent='claude', n=25, model=None, prompt=None):
     proc = subprocess.Popen(cmd, stdout=f, stderr=subprocess.STDOUT, stdin=subprocess.PIPE, cwd=store.HOME, text=True, encoding='utf-8', errors='replace')
     proc.stdin.write(prompt)
     proc.stdin.close()
-    _run.update(proc=proc, agent=agent, log=logf)
+    _run.update(proc=proc, agent=agent, log=logf, started=time.time())
     import threading
-    threading.Thread(target=_watch_run, args=(proc, agent, logf, n, model, prompt), daemon=True).start()
+    threading.Thread(target=_watch_run, args=(proc, agent, logf, n, model, prompt, restarts), daemon=True).start()
     return run_status()
 
 
@@ -546,9 +572,63 @@ AUTH_ERRORS = ('failed to authenticate', 'oauth session expired', 'not logged in
                'unauthorized', 'status 401')
 
 
-def _watch_run(proc, agent, logf, n, model, prompt=None):
+def _kill(proc):
+    """Stop the agent and everything it started. On Windows, claude/codex are .cmd wrappers: killing only the wrapper
+    would leave the real agent running in the background."""
+    if os.name == 'nt':
+        import subprocess
+        subprocess.run(['taskkill', '/T', '/F', '/PID', str(proc.pid)], capture_output=True)
+    else:
+        proc.terminate()
+
+
+def _last_activity(since):
+    """When the agent last made progress: claimed a job, logged one, or asked the user for something."""
+    t = [since]
+    for q in ('select max(at) m from claims', 'select max(at) m from applications', 'select max(at) m from inbox'):
+        t.append((store.rows(q) or [{}])[0].get('m') or 0)
+    return max(t)
+
+
+def _skip_stuck(since, minutes):
+    """Log the application the agent was stuck on as Needs User, so the next run moves past it."""
+    logged = {r['job_id'] for r in store.rows('select job_id from applications where at >= ?', (since,))}
+    stuck = [r['job_id'] for r in store.rows('select job_id from claims where at >= ? order by at desc', (since,)) if r['job_id'] not in logged]
+    for j in stuck[:1]:
+        log_application(j, 'Needs User', f'Skipped after {minutes:g} minutes with no progress. Open it to finish by hand, or press Refill.')
+    return stuck[:1]
+
+
+def _watch_run(proc, agent, logf, n, model, prompt=None, restarts=0):
+    # a run that makes no progress for apply.stuck_minutes is stuck on one application (waiting on a sign-in, a hung page):
+    # skip that application and carry on with the rest instead of holding up the whole queue
+    minutes = float(store.profile()['apply'].get('stuck_minutes') or 20)
+    started, stuck = time.time(), False
+    while proc.poll() is None:
+        time.sleep(min(15, minutes * 15))
+        if proc.poll() is None and time.time() - _last_activity(started) > minutes * 60:
+            stuck = True
+            _kill(proc)
+            try:
+                proc.wait(timeout=20)
+            except Exception:
+                proc.kill()
+    if stuck:
+        skipped = _skip_stuck(started, minutes)
+        done = len(store.rows('select 1 from applications where at >= ?', (started,)))
+        left = n - done
+        notify('Skipped a stuck application', f'No progress for {minutes:g} minutes, so your twin moved on'
+               + (f' and kept going with {left} more.' if left > 0 and prompt is None and restarts < 5 else '.'),
+               job_id=skipped[0] if skipped else '', kind='info')
+        if left > 0 and prompt is None and restarts < 5:
+            try:
+                start_run(agent, left, model=model, restarts=restarts + 1)
+            except Exception:
+                pass
+        else:
+            _next_followup()
+        return
     # when the agent exits early because its own sign-in lapsed, tell the user how to fix it instead of failing silently
-    proc.wait()
     tail = open(logf, encoding='utf-8', errors='replace').read()[-3000:].lower() if os.path.exists(logf) else ''
     name = 'Claude Code' if agent == 'claude' else 'Codex'
     if agent == 'codex' and 'model_not_found' in tail and not model:
@@ -559,13 +639,17 @@ def _watch_run(proc, agent, logf, n, model, prompt=None):
     if any(e in tail for e in AUTH_ERRORS):
         fix = 'run `claude` in a terminal and type /login' if agent == 'claude' else 'run `codex login` in a terminal'
         notify(f'Sign in to {name}', f'Your {name} login expired: {fix}, then press Launch again.', kind='signin')
-    elif proc.returncode:
+    elif proc.returncode and not _run.get('stopped'):
         notify(f'{name} stopped early', f'Exit code {proc.returncode}. The last lines are in the Autopilot log.', kind='error')
+    if not _run.get('stopped'):
+        _next_followup()
+    _run['stopped'] = False
 
 
 def stop_run():
     if _run['proc'] and _run['proc'].poll() is None:
-        _run['proc'].terminate()
+        _run['stopped'] = True   # you pressed Stop: don't start queued work either
+        _kill(_run['proc'])
     return run_status()
 
 

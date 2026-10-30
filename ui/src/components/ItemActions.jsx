@@ -18,9 +18,15 @@ export function ItemActions({ item, onDone, compact }) {
   const [busy, setBusy] = useState('')
   const kind = kindOf(item)
   const job = item.job_id
-  const run = async (label, fn, msg) => {
+  const run = async (label, fn, msg, keep) => {
     setBusy(label)
-    try { await fn(); toast.success(msg.title, { description: msg.body }); if (item.id && typeof item.id === 'number') await api(`/api/inbox/${item.id}/resolve`, {}); onDone?.() }
+    try {
+      const r = await fn()
+      if (r?.queued) toast.success('Queued', { description: 'Your twin is in the middle of a run. It does this one as soon as that run ends.' })
+      else toast.success(msg.title, { description: msg.body })
+      if (!keep && typeof item.id === 'number') await api(`/api/inbox/${item.id}/resolve`, {})
+      onDone?.()
+    }
     catch (e) { toast.error(e.message) }
     setBusy('')
   }
@@ -28,7 +34,8 @@ export function ItemActions({ item, onDone, compact }) {
     submit ? { title: 'Submitting it', body: 'Your twin is filling and submitting this one application.' }
       : { title: 'Refilling it', body: 'Your twin is filling it again in its browser and will stop at review.' })
   const openTwin = () => run('open', () => api('/api/open-twin', { url: item.url }),
-    { title: "Opened in your twin's browser", body: "Sign in there; your twin uses that same browser, so the login sticks." })
+    { title: "Opened in your twin's browser", body: "Sign in there, then press I signed in, finish it. Your twin uses that same browser, so the login sticks." }, true)
+  const skip = () => run('skip', () => api(`/api/jobs/${job}/skip`, {}), { title: 'Skipped', body: 'Your twin won\'t apply to this one.' })
   const btn = 'h-8 rounded-full px-3.5 text-[12.5px] font-semibold transition disabled:opacity-50'
   const primary = btn + ' bg-signal text-white hover:bg-[#2b95ff]', secondary = btn + ' bg-white/[.08] text-white hover:bg-white/[.13]'
   return (
@@ -43,6 +50,7 @@ export function ItemActions({ item, onDone, compact }) {
       </>}
       {kind === 'question' && job && <button disabled={!!busy} onClick={() => finish(false)} className={secondary}>{busy === 'refill' ? 'Starting…' : 'Answered, finish it'}</button>}
       {kind === 'other' && item.url && <a href={item.url} target="_blank" rel="noreferrer" className={secondary + ' inline-flex items-center'}>Open</a>}
+      {job && kind !== 'other' && <button disabled={!!busy} onClick={skip} className={secondary}>{busy === 'skip' ? 'Skipping…' : 'Skip this job'}</button>}
       {typeof item.id === 'number' && <button onClick={async () => { await api(`/api/inbox/${item.id}/resolve`, {}); onDone?.() }} className="h-8 px-2 text-[12.5px] text-muted hover:text-white">Dismiss</button>}
     </div>
   )

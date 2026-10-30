@@ -71,6 +71,7 @@ export default function Settings() {
           <Row label="Applies with" hint="The agent Autopilot uses."><div className="flex justify-end"><Segmented id="agentset" value={a.agent || 'claude'} onChange={v => sa('agent', v)} options={[['claude', 'Claude Code'], ['codex', 'Codex']]} /></div></Row>
           <Row label="Tailor a resume for every job" hint="A new one-page resume, rewritten for each posting."><div className="flex justify-end"><Switch checked={a.tailor_every_resume} onChange={v => sa('tailor_every_resume', v)} /></div></Row>
           <Row label={`Up to ${a.daily_limit} applications a day`}><Slider value={a.daily_limit} min={5} max={200} step={5} onChange={v => sa('daily_limit', v)} /></Row>
+          <Row label={`Skip an application stuck for ${a.stuck_minutes || 20} minutes`} hint="Waiting on a sign-in or a page that won't load: it moves on and leaves that one in Needs you."><Slider value={a.stuck_minutes || 20} min={5} max={60} step={5} onChange={v => sa('stuck_minutes', v)} /></Row>
           <Row label={`At most ${a.per_company_cap} per company`} hint="Many companies cap or flag repeat applicants."><Slider value={a.per_company_cap} min={1} max={10} step={1} onChange={v => sa('per_company_cap', v)} /></Row>
         </Group>
         <Group title="What you're looking for">

@@ -55,6 +55,7 @@ POST = {
     r'/api/dump': lambda m, qs, b: api.save_dump(b.get('text', '')),
     r'/api/scan': lambda m, qs, b: api.scan(b.get('sources'), background=True),
     r'/api/jobs': lambda m, qs, b: api.add_job(b['url'], b.get('title', ''), b.get('company', ''), b.get('description', '')),
+    r'/api/jobs/([\w-]+)/skip': lambda m, qs, b: api.skip_job(m.group(1)),
     r'/api/jobs/([\w-]+)/status': lambda m, qs, b: api.set_job_status(m.group(1), b['status']),
     r'/api/jobs/([\w-]+)/tailor': lambda m, qs, b: api.tailor_apply(m.group(1), b.get('plan'), b.get('template'), b.get('mode', 'auto')),
     r'/api/jobs/([\w-]+)/prompt': lambda m, qs, b: api.tailor_prompt(m.group(1)),

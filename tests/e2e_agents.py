@@ -44,6 +44,8 @@ if a[:1] == ['mcp']: sys.exit(0)
 if a[:1] == ['plugin']: sys.exit(1)
 data = sys.stdin.read()
 open(os.path.join(os.environ['APPLYTWIN_HOME'], f'{name}_stdin.txt'), 'w', encoding='utf-8').write(data)
+if 'HANG' in data:   # an agent stuck on one application
+    import time; time.sleep(120)
 if '-o' in a:   # codex exec -o FILE: last message goes to the file
     open(a[a.index('-o') + 1], 'w').write('{"ok": true, "from": "%s"}' % name)
 print(f'{name} received {len(data)} chars')
@@ -121,6 +123,31 @@ def main():
         time.sleep(0.2)
     got = open(os.path.join(os.environ['APPLYTWIN_HOME'], 'claude_stdin.txt'), encoding='utf-8').read()
     check('finish one application: the agent gets that job and the submit go-ahead', j['id'] in got and 'SUBMIT each one' in got)
+
+    # a run stuck on one application gets skipped past, and a "finish it" pressed mid-run is queued, then done right after
+    j2 = sources.job('manual', 'https://jobs.lever.co/acme/5678', 'Acme', 'Data Intern', '', 'https://jobs.lever.co/acme/5678')
+    store.execute('insert or replace into jobs(id,source,company,title,url,apply_url,ats,found_at,fit,status) values(?,?,?,?,?,?,?,?,?,?)',
+                  (j2['id'], 'manual', 'Acme', 'Data Intern', j2['url'], j2['url'], 'lever', time.time(), 80, 'new'))
+    store.save('profile.json', {**store.profile(), "apply": {**store.profile()['apply'], "stuck_minutes": 0.1}})
+    api.start_run('claude', 1, prompt='HANG on this one')
+    time.sleep(0.5)
+    api.claim(j2['id'])
+    q = api.finish_jobs([j['id']], submit=False, agent='claude')
+    t0 = time.time()
+    while time.time() - t0 < 60:
+        got = open(os.path.join(os.environ['APPLYTWIN_HOME'], 'claude_stdin.txt'), encoding='utf-8').read()
+        if 'Finish these specific' in got and 'Stop on the review screen' in got:
+            break
+        time.sleep(0.5)
+    st = store.rows('select status from applications where job_id=? order by at desc', (j2['id'],))
+    check('mid-run "finish it" is queued, not dropped', q.get('queued') and 'Stop on the review screen' in got)
+    check('a stuck application is skipped (logged Needs User) after the timeout', st and st[0]['status'] == 'Needs User',
+          f'{time.time() - t0:.0f}s')
+    for _ in range(100):
+        if not api.run_status()['running']:
+            break
+        time.sleep(0.2)
+    store.save('profile.json', {**store.profile(), "apply": {**store.profile()['apply'], "stuck_minutes": 20}})
 
     # roles already applied to elsewhere (found in email) stay out of the queue, even ones a later scan finds
     r = api.import_applied([{'company': 'Initech', 'title': 'Software Engineer Intern - Summer 2027'},
