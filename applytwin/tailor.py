@@ -497,8 +497,6 @@ def _fill_page(v, res, jd, style, probe, k=1.0):
     this posting (from the same roles first, then roles/projects the plan left out), never past one page."""
     from . import render
     v = ensure_ids(copy.deepcopy(v))
-    if render.fits(res, style, k * 1.03, probe) is False:   # no real room left
-        return []
     kws = ats.keywords(jd)
     avoid = set(learn_avoid(v))
     shown = {e.get('id') for sec in ENTRY_SECS for e in res.get(sec, [])}
@@ -514,10 +512,20 @@ def _fill_page(v, res, jd, style, probe, k=1.0):
         for e in v.get(sec, []):
             if e['id'] not in shown and e.get('bullets') and not OLD.search(json.dumps(e)):
                 cands.append((_kw_score(ats.plain(' '.join(e['bullets'])), kws) - 1, 'entry', sec, e['id'], e))
+    shown_skills = {s.get('label') for s in res.get('skills', [])}
+    for s in v.get('skills', []):   # a skills line trimmed to fit is one short line: often exactly what a gap needs
+        if s.get('label') not in shown_skills and s.get('items'):
+            cands.append((_kw_score(ats.plain(' '.join(s['items'])), kws) + 1, 'skills', 'skills', s.get('label'), s))
     cands.sort(key=lambda c: -c[0])
-    added = []
-    for score, kind, sec, eid, x in cands[:10]:
-        if kind == 'bullet':
+    best, rest = cands[:8], sorted(cands[8:], key=lambda c: len(json.dumps(c[4])))   # strongest first, then the shortest
+    added, misses = [], 0
+    for score, kind, sec, eid, x in best + rest[:10]:
+        if misses >= 6:   # six in a row didn't fit: the page is full
+            break
+        if kind == 'skills':
+            res.setdefault('skills', []).append(x)
+            undo = lambda: res['skills'].pop()
+        elif kind == 'bullet':
             tgt = next(e for e in res[sec] if e.get('id') == eid)
             tgt['bullets'].append(x)
             undo = lambda: tgt['bullets'].pop()
@@ -530,10 +538,10 @@ def _fill_page(v, res, jd, style, probe, k=1.0):
             undo = lambda: res[sec].pop()
         if not render.fits(res, style, k, probe):
             undo()
+            misses += 1
             continue   # too big for the space left: try the next, smaller candidate
-        added.append(f"{sec}: {ats.plain(x if isinstance(x, str) else x.get('org') or x.get('name', ''))[:60]}")
-        if not render.fits(res, style, k * 1.02, probe):   # full enough
-            break
+        misses = 0
+        added.append(f"{sec}: {ats.plain(x if isinstance(x, str) else x.get('org') or x.get('name') or x.get('label', ''))[:60]}")
     return added
 
 
@@ -666,6 +674,12 @@ def tailor(v, job, jd, mode='auto', plan=None, style=None, out_dir=None):
             rep['added'] = added
             res = base
             r = render.render(res, style, pdf, worth=worth)
+        if r['pages'] == 1 and r['scale'] < 1 and not r['dropped']:
+            # the content is final: set the type as large as one page allows, so the page ends full instead of short
+            k2 = next((k for k in (1.0, .99, .98, .97, .96) if k > r['scale'] and render.fits(res, style, k, pdf + '.probe.pdf')), None)
+            if k2:
+                render.fits(res, style, k2, pdf)
+                r['scale'] = k2
         for f in (pdf + '.probe.pdf',):
             if os.path.exists(f):
                 os.remove(f)
