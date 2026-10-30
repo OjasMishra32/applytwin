@@ -367,7 +367,7 @@ def _claude_stream(cmd, text, timeout, env, sink):
                 if d.get('type') == 'text_delta':
                     parts.append(d.get('text', ''))
                     n += len(d.get('text', ''))
-                    sink(n)
+                    sink(n, parts)
             elif e.get('type') == 'result':
                 result = e.get('result') if not e.get('is_error') else None
     finally:
@@ -1073,11 +1073,46 @@ class _Track:
         except OSError:
             pass
 
-    def written(self, n):
+    def written(self, n, parts=None):
         import time
         if self.first is None:
             self.first = time.time()
         self.chars = n
+        if parts is not None and self.cur in ('plan', 'fix'):
+            self.parts = parts   # the plan so far, for the live "watch it tailor" view (not the checker's own reply)
+
+    def plan_ready(self, plan, v):
+        """The finished plan (and each bullet's original wording), so the live view shows every rewrite even when the
+        agent didn't stream (Codex)."""
+        self.parts = [json.dumps(plan, ensure_ascii=False)]
+        self.src = {f"{e['id']}.{i}": b for sec in ENTRY_SECS for e in ensure_ids(copy.deepcopy(v)).get(sec, [])
+                    for i, b in enumerate(e.get('bullets', []))}
+
+    def watch(self):
+        """What the plan has decided so far, read from the reply as it streams: the requirements, the story and the
+        rewrites (original -> new), so the user watches their resume being written instead of a spinner."""
+        text = ''.join(getattr(self, 'parts', None) or [])
+        if not text:
+            return None
+        s = lambda x: _unq(x)
+        out = {}
+        m = re.search(r'"requirements"\s*:\s*\[(.*?)(?:\]|$)', text, re.S)
+        if m:
+            out['requirements'] = [s(x) for x in re.findall(r'"((?:[^"\\]|\\.)*)"', m.group(1))][:3]
+        m = re.search(r'"positioning"\s*:\s*"((?:[^"\\]|\\.)*)', text)
+        if m:
+            out['positioning'] = s(m.group(1))
+        src = getattr(self, 'src', {}) or {}
+        rw = []
+        for fid, new in re.findall(r'\{\s*"from"\s*:\s*"([^"]+)"\s*,\s*"text"\s*:\s*"((?:[^"\\]|\\.)*)', text):
+            rw.append({"from": ats.plain(src.get(fid, ''))[:260], "to": ats.plain(s(new))[:260]})
+        out['rewrites'] = rw[-8:]
+        prev = getattr(self, '_seen', {}) or {}   # a revision streams from the start: keep showing what was there until it catches up
+        for k in ('requirements', 'positioning', 'rewrites'):
+            if not out.get(k) or (k == 'rewrites' and len(out[k]) < len(prev.get(k) or [])):
+                out[k] = prev.get(k) or out.get(k)
+        self._seen = out
+        return out
 
     def _close(self, now):
         if self.cur:
@@ -1141,9 +1176,16 @@ class _Track:
             slow_now = inside > avg * 1.15 + 5
         left += here
         return {"stage": cur, "elapsed": round(now - self.t0, 1), "eta": round(left, 1), "slow": slow_now,
-                "written": self.chars if cur in ('plan', 'fix') else 0,
+                "written": self.chars if cur in ('plan', 'fix') else 0, "live": self.watch(),
                 "steps": [{"id": k, "label": lab, "state": 'done' if k in self.secs else 'now' if k == cur else
                            'skipped' if k in self.skip else 'next'} for k, lab in STAGES]}
+
+
+def _unq(x):
+    try:
+        return json.loads('"' + x + '"')
+    except ValueError:   # cut mid-escape while streaming
+        return x.replace('\\"', '"').replace('\\n', ' ')
 
 
 def progress(key):
@@ -1170,6 +1212,8 @@ def progress(key):
 def tailor(v, job, jd, mode='auto', plan=None, style=None, out_dir=None):
     """Full pipeline -> {pdf, pages, ats before/after, rewrites}."""
     track = _Track(job.get('id', 'general'), ai=plan is None and mode in ('auto', 'api'))
+    track.src = {f"{e['id']}.{i}": b for sec in ENTRY_SECS for e in ensure_ids(copy.deepcopy(v)).get(sec, [])
+                 for i, b in enumerate(e.get('bullets', []))}
     _SINK.fn = track.written   # this thread's model calls report the reply as it's written
     try:
         r = _tailor(v, job, jd, mode, plan, style, out_dir, track)
@@ -1205,6 +1249,7 @@ def _tailor(v, job, jd, mode, plan, style, out_dir, track):
             mode = 'heuristic'
         else:
             mode = 'api'
+            track.plan_ready(plan, v)
     else:
         mode = 'agent'
     res, rep = apply(v, plan, jd)

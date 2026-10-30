@@ -24,7 +24,7 @@ export function Logo({ size = 20 }) {
 }
 
 /* Scales a fixed-size drawing to the width it is given, so every scene is laid out once and stays crisp everywhere. */
-function Stage({ w, h, max = 1.15, children }) {
+function Stage({ w, h, max = 1.45, children }) {
   const ref = useRef(null)
   const [cw, setCw] = useState(w)
   useLayoutEffect(() => {
@@ -79,66 +79,78 @@ export function HowItWorks() {
   )
 }
 
-/* 01. A floor of postings slides toward you through a scan line. Everything that doesn't fit drops out;
-   the three that do lift off the floor and land in front of you. */
-const FLOOR = ['google.com', 'meta.com', 'apple.com', 'nvidia.com', 'janestreet.com', 'citadel.com', 'palantir.com', 'anduril.com', 'stripe.com',
-  'openai.com', 'twosigma.com', 'anthropic.com', 'figma.com', 'airbnb.com', 'uber.com', 'netflix.com', 'databricks.com', 'snowflake.com',
-  'microsoft.com', 'amazon.com', 'adobe.com', 'tesla.com', 'spacex.com', 'robinhood.com', 'coinbase.com', 'notion.so', 'ramp.com', 'salesforce.com']
-const NAMES = { 'janestreet.com': 'Jane Street', 'twosigma.com': 'Two Sigma', 'openai.com': 'OpenAI', 'spacex.com': 'SpaceX', 'notion.so': 'Notion' }
-const nameOf = d => NAMES[d] || d.split('.')[0].replace(/^./, c => c.toUpperCase())
-const FITS = [   // [row, col, company, domain, role, city]
-  [15, 1, 'Stripe', 'stripe.com', 'Software Engineer Intern', 'San Francisco'],
-  [13, 3, 'Two Sigma', 'twosigma.com', 'Quantitative Research Intern', 'New York'],
-  [11, 2, 'Anduril', 'anduril.com', 'Autonomy Engineer Intern', 'Costa Mesa']]
-const COLS = 5, ROWS = 18, FIRST = -13, ROW = 62, PLANE = 1120, TRAVEL = 760
+/* 01. New postings rise through a frosted filter. The ones that don't fit dim and fall away under it; the ones that do
+   turn green, pass through, and settle into your queue above. One list, a handful of rows, nothing repeated. */
+const STREAM = [   // [company, domain, role, city, fits]
+  ['Netflix', 'netflix.com', 'Content Strategy Intern', 'Los Gatos'], ['Salesforce', 'salesforce.com', 'Sales Operations Intern', 'Chicago'],
+  ['Databricks', 'databricks.com', 'Software Engineer Intern', 'Seattle'], ['Adobe', 'adobe.com', 'Marketing Intern', 'San Jose'],
+  ['Uber', 'uber.com', 'Senior Software Engineer', 'San Francisco'],
+  ['Two Sigma', 'twosigma.com', 'Quantitative Research Intern', 'New York', true],
+  ['Coinbase', 'coinbase.com', 'Product Design Intern', 'Remote'], ['Airbnb', 'airbnb.com', 'Finance Intern', 'San Francisco'],
+  ['Microsoft', 'microsoft.com', 'Program Manager, Full-time', 'Redmond'], ['Robinhood', 'robinhood.com', 'Legal Intern', 'Menlo Park'],
+  ['Anduril', 'anduril.com', 'Autonomy Engineer Intern', 'Costa Mesa', true],
+  ['Snowflake', 'snowflake.com', 'Recruiting Coordinator', 'Bozeman'], ['Notion', 'notion.so', 'Community Intern', 'New York'],
+  ['Ramp', 'ramp.com', 'Account Executive', 'Miami'], ['Figma', 'figma.com', 'Brand Design Intern', 'London'],
+  ['Meta', 'meta.com', 'Data Center Technician', 'Prineville'], ['Tesla', 'tesla.com', 'Service Advisor', 'Austin'],
+  ['Amazon', 'amazon.com', 'Area Manager Intern', 'Nashville'], ['Palantir', 'palantir.com', 'Business Development Intern', 'Washington'],
+  ['Apple', 'apple.com', 'Retail Specialist', 'Gainesville']]
+const FIRST = ['Stripe', 'stripe.com', 'Software Engineer Intern', 'San Francisco']
+const RH = 58, GAP = 10, BAND = 300, BAND_H = 64, START = BAND + BAND_H + 18, TRAVEL = 980
 function Sift({ p }) {
-  const t = range(p, 0.1, 0.8)
+  const t = range(p, 0.1, 0.82)
   const off = t * TRAVEL
-  const checked = Math.round(612 * clamp(t * 1.12))
-  const yOf = r => r * ROW + 30 + off - (ROWS * ROW - PLANE + 240)   // a row's place on the floor; PLANE is the scan line at the front edge
-  const landed = FITS.filter(([r]) => yOf(r) > PLANE - 50).length
-  const fade = 'linear-gradient(to bottom, transparent 0%, transparent 30%, #000 62%, #000 100%)'
+  const yOf = i => START + i * (RH + GAP) - off                      // a row's top inside the stage
+  const through = i => smooth(range(BAND + BAND_H / 2 - yOf(i), 0, 70))   // 0 below the band's middle, 1 once it has passed
+  const checked = Math.round(380 + 860 * t)
+  const fits = STREAM.map((r, i) => [r, i]).filter(([r]) => r[4])
+  const queue = [[FIRST, 1], ...fits.map(([r, i]) => [r, through(i)])]
+  const inQueue = queue.filter(([, k]) => k > 0.5).length
+  const fade = 'linear-gradient(to bottom, #000 0%, #000 70%, transparent 100%)'
+  const row = ([c, d, role, city], extra) => (
+    <><Avatar name={c} domain={d} size={34} />
+      <div className="min-w-0 flex-1"><div className="truncate text-[15px] font-semibold">{role}</div><div className="truncate text-[13px] muted">{c} · {city}</div></div>{extra}</>)
+  const check = <span className="grid size-6 shrink-0 place-items-center rounded-full" style={{ background: 'var(--green)' }}><Check className="size-3.5 text-white" strokeWidth={3} /></span>
   return (
-    <Stage w={600} h={580}>
-      {/* the floor of postings, seen from above, sliding toward you */}
-      <div className="absolute inset-x-0 top-0 h-[330px]" style={{ perspective: 1000, perspectiveOrigin: '50% -30%' }}>
-        <div className="absolute bottom-0 left-1/2 w-[680px]" style={{ height: PLANE, marginLeft: -340, transform: 'rotateX(58deg)', transformOrigin: '50% 100%', maskImage: fade, WebkitMaskImage: fade }}>
-          {Array.from({ length: (ROWS - FIRST) * COLS }, (_, i) => {
-            const r = FIRST + Math.floor(i / COLS), c = i % COLS
-            const y = yOf(r)
-            if (y > PLANE + 10 || y < -60) return null
-            const fit = FITS.find(f => f[0] === r && f[1] === c)
-            const d = fit ? fit[3] : FLOOR[(i * 7 + r * 3 + 400) % FLOOR.length]
-            const past = y > PLANE - 50
-            return (
-              <div key={i} className="absolute flex h-[48px] w-[124px] items-center gap-2 rounded-[11px] px-2.5"
-                style={{ left: 6 + c * 136, top: y - 48, background: 'var(--bg-3)', boxShadow: fit && y > PLANE - 200 ? '0 0 0 2px var(--green), 0 8px 20px rgb(0 0 0 / .08)' : '0 0 0 1px var(--line), 0 8px 20px rgb(0 0 0 / .06)',
-                  opacity: past ? 0 : 1, transition: 'opacity .35s, box-shadow .35s' }}>
-                <Avatar name={fit ? fit[2] : nameOf(d)} domain={d} size={24} />
-                <span className="truncate text-[13px] font-medium">{fit ? fit[2] : nameOf(d)}</span>
-              </div>)
-          })}
+    <Stage w={560} h={600}>
+      {/* your queue */}
+      <div className="absolute inset-x-0 top-0">
+        <div className="flex items-baseline justify-between px-1">
+          <div className="text-[13px] font-semibold uppercase tracking-[0.06em] faint">Your queue</div>
+          <div className="text-[13px] tabular-nums muted">{inQueue} of {checked.toLocaleString()}</div>
         </div>
-        {/* the scan line every posting passes through */}
-        <div className="absolute bottom-[-2px] left-[-20px] right-[-20px] h-[3px] rounded-full" style={{ background: 'var(--blue)', boxShadow: '0 0 28px 6px rgb(0 113 227 / .35)' }} />
-        <div className="absolute bottom-[14px] right-0 flex items-baseline gap-5 rounded-full px-4 py-2 text-[13px] backdrop-blur-xl" style={{ background: 'color-mix(in srgb, var(--bg-3) 80%, transparent)', boxShadow: '0 0 0 1px var(--line)' }}>
-          <span><b className="tabular-nums">{checked}</b> <span className="muted">checked</span></span>
-          <span><b className="tabular-nums" style={{ color: 'var(--green)' }}>{landed}</b> <span className="muted">fit you</span></span>
+        <div className="mt-3 space-y-2.5">
+          {queue.map(([r, k]) => (
+            <div key={r[0]} className="sheet flex items-center gap-3 rounded-[16px] px-4"
+              style={{ height: RH + 4, opacity: k, transform: `translateY(${(1 - k) * 60}px) scale(${0.96 + 0.04 * k})`, visibility: k > 0.01 ? 'visible' : 'hidden' }}>
+              {row(r, check)}
+            </div>))}
         </div>
       </div>
-      {/* what made it through */}
-      <div className="absolute inset-x-[30px] top-[352px] space-y-2.5">
-        {FITS.map(([r, , c, d, role, city]) => {
-          const k = smooth(range(yOf(r), PLANE - 50, PLANE + 40))
+      {/* incoming postings, rising into the filter */}
+      <div className="absolute inset-x-0 overflow-hidden" style={{ top: BAND, bottom: 0, maskImage: fade, WebkitMaskImage: fade }}>
+        {STREAM.map((r, i) => {
+          const y = yOf(i) - BAND
+          if (y > 330 || y < -RH) return null
+          const near = smooth(range(START + 40 - yOf(i), 0, 90))   // how close it is to the filter
+          const fit = r[4]
           return (
-            <div key={c} className="relative h-[64px] rounded-[16px]" style={{ boxShadow: `inset 0 0 0 1.5px color-mix(in srgb, var(--line) ${100 - k * 100}%, transparent)` }}>
-            <div className="sheet absolute inset-0 flex items-center gap-3 rounded-[16px] px-4"
-              style={{ opacity: k, transform: `translateY(${(1 - k) * -28}px) scale(${0.94 + 0.06 * k})` }}>
-              <Avatar name={c} domain={d} size={36} />
-              <div className="min-w-0 flex-1"><div className="truncate text-[16px] font-semibold">{role}</div><div className="text-[13px] muted">{c} · {city}</div></div>
-              <span className="rounded-full px-2.5 py-1 text-[12.5px] font-semibold" style={{ color: 'var(--green)', background: 'color-mix(in srgb, var(--green) 14%, transparent)' }}>Fits you</span>
-            </div></div>)
+            <div key={r[0]} className="absolute inset-x-[14px] flex items-center gap-3 rounded-[14px] px-4"
+              style={{ top: y, height: RH, background: 'var(--bg-3)', boxShadow: fit && near > 0.2 ? '0 0 0 2px var(--green), var(--shadow)' : '0 0 0 1px var(--line)',
+                opacity: fit ? 1 : 1 - 0.7 * near, transform: fit ? 'none' : `scale(${1 - 0.04 * near})`, filter: fit ? 'none' : `grayscale(${near})` }}>
+              {row(r, fit ? <span style={{ opacity: near }}>{check}</span> : <span className="text-[12px] faint" style={{ opacity: near }}>Doesn't fit</span>)}
+            </div>)
         })}
+      </div>
+      {/* the filter itself */}
+      <div className="absolute inset-x-0 flex items-center justify-between rounded-[18px] px-5 backdrop-blur-2xl"
+        style={{ top: BAND, height: BAND_H, background: 'color-mix(in srgb, color-mix(in srgb, var(--blue) 9%, var(--bg-2)) 78%, transparent)', boxShadow: '0 0 0 1px color-mix(in srgb, var(--blue) 35%, transparent), 0 12px 32px rgb(0 0 0 / .08)' }}>
+        <div className="flex items-center gap-3">
+          <span className="relative grid size-8 place-items-center rounded-full" style={{ background: 'var(--blue)' }}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round"><path d="M2 4h12M4.5 8h7M7 12h2" /></svg>
+          </span>
+          <div><div className="text-[15px] font-semibold">Your field, cycle and cities</div><div className="text-[12.5px] muted">Software · Summer 2027 · NYC, SF, LA</div></div>
+        </div>
+        <div className="text-right"><div className="display-l text-[24px] tabular-nums leading-none">{checked.toLocaleString()}</div><div className="mt-0.5 text-[12px] muted">postings checked</div></div>
       </div>
     </Stage>
   )
@@ -157,7 +169,7 @@ function Turn({ p }) {
   const cur = Math.round(s)
   const still = useMemo(() => (ok ? null : typeof document !== 'undefined' ? paperCanvas('Google', 98).toDataURL('image/png') : null), [ok])
   return (
-    <div ref={ref} className="relative grid grid-cols-1 items-center gap-2 sm:h-[600px] sm:grid-cols-[200px_minmax(0,1fr)]">
+    <div ref={ref} className="relative grid grid-cols-1 items-center gap-2 sm:h-[600px] sm:grid-cols-[200px_minmax(0,1fr)] min-[1800px]:h-[740px]">
       <div className="relative z-10">
         <div className="mb-3 px-1 text-[12px] font-semibold uppercase tracking-[0.06em] faint">Written for</div>
         <div className="flex gap-1 sm:block sm:space-y-2">

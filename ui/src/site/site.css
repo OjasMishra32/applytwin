@@ -39,7 +39,7 @@
     color-scheme: dark;
   }
 }
-html:has(.site), html:has(.site) body { background: var(--bg, #fff); }
+html:has(.site), html:has(.site) body { background: var(--bg, #fff); overflow-x: clip; }
 .site .display { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", system-ui, sans-serif; letter-spacing: -0.022em; }
 .site .nav { background: var(--nav); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px); border-bottom: 1px solid var(--line); }
 .site .tile { background: var(--bg-2); border-radius: 28px; }

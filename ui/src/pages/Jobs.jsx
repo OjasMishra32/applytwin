@@ -89,7 +89,45 @@ function BuildProgress({ p, since }) {
         <div key={s.id} className={`flex items-center gap-3 text-[13.5px] ${s.state === 'next' ? 'text-faint' : s.state === 'done' ? 'text-muted' : 'text-ink'}`}>
           <span className={`grid size-5 shrink-0 place-items-center rounded-full ${s.state === 'done' ? 'bg-good text-white' : s.state === 'now' ? 'bg-signal/15 text-signal-ink' : 'ring-[1.5px] ring-inset ring-white/15'}`}>
             {s.state === 'done' ? <Check className="size-3" strokeWidth={3} /> : s.state === 'now' ? <Loader2 className="size-3 animate-spin" /> : null}</span>{s.label}</div>))}</div>
+      {p?.live && <Watch live={p.live} />}
     </div>)
+}
+
+// Watch it tailor: what the plan has decided so far, read live from the plan as it's written. The requirements this
+// posting screens for, the story it tells about you, and each line turning from your words into the posting's.
+function Watch({ live }) {
+  const reqs = live.requirements || [], rw = (live.rewrites || []).slice(-3)
+  if (!reqs.length && !live.positioning && !rw.length) return null
+  return (
+    <div className="mt-6 space-y-5 border-t border-line pt-5">
+      {reqs.length > 0 && <div>
+        <div className="text-[11.5px] font-semibold uppercase tracking-[0.06em] text-faint">What they screen for</div>
+        <div className="mt-2 flex flex-wrap gap-1.5"><AnimatePresence initial={false}>{reqs.map((r, i) => (
+          <motion.span key={i} layout initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={spring}
+            className="rounded-full bg-white/[.06] px-3 py-1 text-[12.5px] text-ink"><span className="mr-1.5 text-faint">{i + 1}</span>{r}</motion.span>))}
+        </AnimatePresence></div></div>}
+      {live.positioning && <div>
+        <div className="text-[11.5px] font-semibold uppercase tracking-[0.06em] text-faint">Your story for this job</div>
+        <div className="mt-1.5 text-[15px] leading-snug text-ink">{live.positioning}</div></div>}
+      {rw.length > 0 && <div>
+        <div className="text-[11.5px] font-semibold uppercase tracking-[0.06em] text-faint">Rewriting your lines</div>
+        <div className="mt-2 space-y-2.5"><AnimatePresence initial={false}>{rw.map(x => (
+          <motion.div key={x.from || x.to} layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={spring}
+            className="rounded-[12px] bg-white/[.04] px-3.5 py-2.5">
+            {x.from && <div className="text-[12px] leading-snug text-faint line-through decoration-white/20">{x.from}</div>}
+            <div className="mt-1 text-[13.5px] leading-snug text-ink"><Diff from={x.from} to={x.to} /></div>
+          </motion.div>))}
+        </AnimatePresence></div></div>}
+    </div>)
+}
+
+// the words the rewrite brought in, tinted, so you see exactly what changed
+function Diff({ from, to }) {
+  const old = new Set((from || '').toLowerCase().match(/[a-z0-9+#.]+/g) || [])
+  return (to || '').split(/(\s+)/).map((w, i) => {
+    const k = w.toLowerCase().replace(/[^a-z0-9+#.]/g, '')
+    return k && !old.has(k) ? <span key={i} className="text-signal">{w}</span> : <span key={i}>{w}</span>
+  })
 }
 
 function JobSheet({ id, onClose, onChange }) {

@@ -65,7 +65,10 @@ def get(url, data=None, timeout=20):
 
 
 def strip_html(s):
-    s = html.unescape(s or '')
+    # what a browser never shows (styles, scripts, icons, the head) goes first: a page's @font-face CSS was being saved
+    # as the job description
+    s = re.sub(r'<(style|script|noscript|svg|head|template)\b[^>]*>.*?</\1\s*>', ' ', s or '', flags=re.I | re.S)
+    s = html.unescape(s)
     s = re.sub(r'<(br|/p|/li|/h\d)[^>]*>', '\n', s, flags=re.I)
     s = re.sub(r'<li[^>]*>', '\n- ', s, flags=re.I)
     s = re.sub(r'<[^>]+>', ' ', s)
@@ -597,6 +600,16 @@ def fetch_description(j):
             secs = (d.get('jobAd') or {}).get('sections') or {}
             text = '\n'.join(strip_html((secs.get(k) or {}).get('text', '')) for k in
                              ('companyDescription', 'jobDescription', 'qualifications', 'additionalInformation'))
+        elif re.search(r'jobs\.lever\.co/([^/?#]+)/([0-9a-f-]{36})', url):
+            m = re.search(r'jobs\.lever\.co/([^/?#]+)/([0-9a-f-]{36})', url)
+            d = get(f'https://api.lever.co/v0/postings/{m.group(1)}/{m.group(2)}')
+            text = '\n'.join([d.get('descriptionPlain') or strip_html(d.get('description', ''))] +
+                              [f"{x.get('text', '')}\n{strip_html(x.get('content', ''))}" for x in d.get('lists') or []] +
+                              [d.get('additionalPlain') or ''])
+        elif re.search(r'(?:boards|job-boards)\.greenhouse\.io/([^/?#]+)/jobs/(\d+)', url):
+            m = re.search(r'(?:boards|job-boards)\.greenhouse\.io/([^/?#]+)/jobs/(\d+)', url)
+            d = get(f'https://boards-api.greenhouse.io/v1/boards/{m.group(1)}/jobs/{m.group(2)}')
+            text = strip_html(d.get('content', ''))
         elif 'myworkdayjobs.com' in url:
             m = re.match(r'https://([^/]+)/(?:[a-z]{2}-[A-Z]{2}/)?([^/]+)(/job/.+)', url)
             host, site, ext = m.groups()

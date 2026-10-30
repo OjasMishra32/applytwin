@@ -49,7 +49,7 @@ export default function Site() {
 
       {/* 1. What it is, with the app itself as the picture */}
       <section className="px-4 pt-28 sm:pt-36">
-        <div className="mx-auto max-w-[1120px] text-center">
+        <div className="mx-auto max-w-[1120px] min-[1800px]:max-w-[1360px] text-center">
           <h1 className="display-xl text-[clamp(44px,7.4vw,104px)] [text-wrap:balance]">
             <span style={{ animationDelay: '0.04s' }} className="rise block">You apply once.</span>
             <span style={{ animationDelay: '0.12s' }} className="rise block muted">Your twin does the rest.</span>
@@ -63,8 +63,8 @@ export default function Site() {
             <StarButton n={stars} />
           </div>
         </div>
-        <div className="mx-auto mt-14 max-w-[1120px] sm:mt-20"><Lid><AppWindow /></Lid></div>
-        <p className="mx-auto mt-5 max-w-[1120px] text-center text-[13px] faint">Autopilot, mid-run. Twenty-five applications queued, three already in.</p>
+        <div className="mx-auto mt-14 max-w-[1120px] min-[1800px]:max-w-[1360px] sm:mt-20"><Lid><AppWindow /></Lid></div>
+        <p className="mx-auto mt-5 max-w-[1120px] min-[1800px]:max-w-[1360px] text-center text-[13px] faint">Autopilot, mid-run. Twenty-five applications queued, three already in.</p>
       </section>
 
       {/* 2. One resume becomes many */}
@@ -75,7 +75,7 @@ export default function Site() {
 
       {/* 4. The four things it does, one at a time */}
       <section id="how" className="px-4 pt-24 sm:pt-32">
-        <div className="mx-auto max-w-[1120px]">
+        <div className="mx-auto max-w-[1120px] min-[1800px]:max-w-[1360px]">
           <Reveal><h2 className="display-l max-w-[820px] text-[clamp(38px,6vw,72px)] [text-wrap:balance]">Everything between you and Submit.</h2></Reveal>
           <HowItWorks />
         </div>
@@ -83,7 +83,7 @@ export default function Site() {
 
       {/* 5. Where it applies */}
       <section className="px-4 pt-20 sm:pt-28">
-        <div className="mx-auto max-w-[1120px]">
+        <div className="mx-auto max-w-[1120px] min-[1800px]:max-w-[1360px]">
           <Scrub className="display-l max-w-[1040px] text-[clamp(32px,5.2vw,64px)] [text-wrap:balance]" parts={[
             ['It applies at', 0], ['Google, Meta, Apple, NVIDIA, Jane Street, Citadel, Palantir, Anduril, Stripe, OpenAI, Two Sigma', 1],
             ['and more than 600 other companies, straight through their own career sites.', 0]]} />
@@ -95,7 +95,7 @@ export default function Site() {
 
       {/* 7. Price */}
       <section className="px-4 pt-24 sm:pt-36">
-        <div className="mx-auto grid max-w-[1120px] gap-8 md:grid-cols-[auto_minmax(0,1fr)] md:items-end md:gap-16">
+        <div className="mx-auto grid max-w-[1120px] min-[1800px]:max-w-[1360px] gap-8 md:grid-cols-[auto_minmax(0,1fr)] md:items-end md:gap-16">
           <Reveal><div className="display-xl text-[clamp(120px,20vw,240px)] leading-[0.82]">$0</div></Reveal>
           <Reveal delay={0.1} className="pb-2">
             <h2 className="display-l text-[clamp(28px,3.4vw,40px)] [text-wrap:balance]">No API key. No new subscription.</h2>
@@ -108,7 +108,7 @@ export default function Site() {
 
       {/* 8. Install */}
       <section id="start" className="px-4 pt-24 sm:pt-36">
-        <div className="mx-auto max-w-[1120px] text-center">
+        <div className="mx-auto max-w-[1120px] min-[1800px]:max-w-[1360px] text-center">
           <Reveal><h2 className="display-l text-[clamp(38px,6vw,72px)]">Set up in one line.</h2></Reveal>
           <Reveal delay={0.05} className="mx-auto mt-4 max-w-[560px] text-[19px] leading-[1.45] muted [text-wrap:balance]">Paste this into your terminal. It installs ApplyTwin, connects your agent and opens the app.</Reveal>
           <Reveal delay={0.1} className="mx-auto mt-10 max-w-[760px] text-left"><InstallBox /></Reveal>
@@ -133,7 +133,7 @@ export default function Site() {
 
       {/* 9. Questions */}
       <section id="faq" className="px-4 pt-24 sm:pt-36">
-        <div className="mx-auto grid max-w-[1120px] gap-8 md:grid-cols-[minmax(0,4fr)_minmax(0,7fr)] md:gap-16">
+        <div className="mx-auto grid max-w-[1120px] min-[1800px]:max-w-[1360px] gap-8 md:grid-cols-[minmax(0,4fr)_minmax(0,7fr)] md:gap-16">
           <Reveal><h2 className="display-l text-[clamp(34px,4.4vw,48px)] md:sticky md:top-24">Questions.</h2></Reveal>
           <Reveal delay={0.05}><div className="border-t border-[var(--line)]">{FAQ.map(([q, a]) => <Faq key={q} q={q} a={a} />)}</div></Reveal>
         </div>
@@ -141,7 +141,7 @@ export default function Site() {
 
       {/* 10. Close */}
       <section className="px-4 pb-28 pt-28 sm:pb-40 sm:pt-40">
-        <Reveal className="mx-auto max-w-[1120px] text-center">
+        <Reveal className="mx-auto max-w-[1120px] min-[1800px]:max-w-[1360px] text-center">
           <h2 className="display-xl text-[clamp(56px,10vw,128px)]">Get hired.</h2>
           <p className="mx-auto mt-5 max-w-[520px] text-[19px] leading-[1.45] muted [text-wrap:balance]">ApplyTwin is free and has no ads. A star on GitHub is how other students find it.</p>
           <div className="mt-9 flex flex-wrap items-center justify-center gap-x-7 gap-y-3">
@@ -152,7 +152,7 @@ export default function Site() {
       </section>
 
       <footer className="border-t border-[var(--line)] bg-[var(--bg-2)] px-4 py-8 text-[12px] faint">
-        <div className="mx-auto flex max-w-[1120px] flex-wrap items-center justify-between gap-3">
+        <div className="mx-auto flex max-w-[1120px] min-[1800px]:max-w-[1360px] flex-wrap items-center justify-between gap-3">
           <span>Copyright © 2026 Ojasva Mishra. ApplyTwin, from Twinly.</span>
           <span className="flex gap-5"><a href="/app" className="hover:underline">Your account</a><a href={REPO_URL} target="_blank" rel="noreferrer" className="hover:underline">GitHub</a></span>
         </div>
@@ -164,7 +164,7 @@ export default function Site() {
 function Nav({ stars }) {
   return (
     <header className="nav fixed inset-x-0 top-0 z-50">
-      <div className="mx-auto flex h-12 max-w-[1120px] items-center justify-between px-4">
+      <div className="mx-auto flex h-12 max-w-[1120px] min-[1800px]:max-w-[1360px] items-center justify-between px-4">
         <a href="#" className="flex items-center gap-2 text-[15px] font-semibold"><Logo size={18} />ApplyTwin</a>
         <nav className="flex items-center gap-5 text-[13px]">
           <a href="#how" className="hidden opacity-80 hover:opacity-100 sm:block">How it works</a>
@@ -196,7 +196,7 @@ function OneToMany() {
     <section ref={ref} className="relative mt-16 h-[210vh] sm:mt-24">
       <div className="sticky top-0 h-[100svh] overflow-hidden">
         <div className="pointer-events-none absolute inset-x-0 top-[11vh] z-10 px-4">
-          <h2 className="display-l mx-auto max-w-[1120px] text-[clamp(38px,6vw,72px)]">
+          <h2 className="display-l mx-auto max-w-[1120px] min-[1800px]:max-w-[1360px] text-[clamp(38px,6vw,72px)]">
             <span className="block">One resume.</span>
             <span className="block" style={{ color: 'var(--fg-2)', opacity: 0.18 + 0.82 * t }}>A version for every job.</span>
           </h2>
@@ -205,7 +205,7 @@ function OneToMany() {
           {show && <Suspense fallback={null}><Fan3D progress={progress} /></Suspense>}
         </div>
         <div className="pointer-events-none absolute inset-x-0 bottom-[6vh] z-10 px-4">
-          <div className="mx-auto flex max-w-[1120px] items-baseline justify-between gap-4 text-[14px]">
+          <div className="mx-auto flex max-w-[1120px] min-[1800px]:max-w-[1360px] items-baseline justify-between gap-4 text-[14px]">
             <span className="muted"><span className="font-semibold tabular-nums text-[var(--fg)]">{n} {n === 1 ? 'resume' : 'resumes'}</span>{n > 1 ? ', each written for one company' : ', yours'}</span>
             <span className="hidden items-center gap-2 faint sm:flex"><span className="inline-block h-[3px] w-5 rounded-full bg-[var(--blue)]" />rewritten for that job</span>
           </div>
@@ -239,7 +239,7 @@ function Never() {
   const { scrollYProgress } = useScroll({ target: ref, offset: ['start 0.75', 'end 0.6'] })
   return (
     <section className="band mt-24 px-4 py-24 sm:mt-32 sm:py-32">
-      <div ref={ref} className="mx-auto max-w-[1120px]">
+      <div ref={ref} className="mx-auto max-w-[1120px] min-[1800px]:max-w-[1360px]">
         <div className="text-[17px] font-semibold sm:text-[19px]" style={{ color: 'var(--band-fg-2)' }}>What it will never do</div>
         <ul className="mt-6">
           {NEVER.map((l, i) => <NeverLine key={l} p={scrollYProgress} i={i} n={NEVER.length}>{l}</NeverLine>)}
@@ -292,7 +292,7 @@ function Becomes() {
   const role = at(0) > 0.5
   return (
     <section ref={ref} className="relative h-auto px-4 pt-20 md:h-[250vh] md:pt-0">
-      <div className="mx-auto max-w-[1120px] md:sticky md:top-0 md:flex md:h-screen md:flex-col md:justify-center md:pb-6 md:pt-16">
+      <div className="mx-auto max-w-[1120px] min-[1800px]:max-w-[1360px] md:sticky md:top-0 md:flex md:h-screen md:flex-col md:justify-center md:pb-6 md:pt-16">
         <h2 className="display-l max-w-[900px] text-[clamp(38px,5.4vw,64px)] [text-wrap:balance]">Same person.<br /><span className="muted">Proven for this job.</span></h2>
         <p className="mt-4 max-w-[640px] text-[19px] leading-[1.45] muted [text-wrap:pretty]">It reads what the team screens for, then rewrites your real experience to prove each point. Here is Elon Musk's public record, aimed at one NASA posting.</p>
         <div className="mt-8 grid gap-5 md:grid-cols-[0.9fr_1.1fr]">
@@ -390,7 +390,7 @@ function AppWindow() {
   const count = 3 + job + (step === 'Submitted' ? 1 : 0)
   const nav = ['Today', 'Jobs', 'Resume', 'Answers', 'Applications', 'Autopilot']
   return (
-    <div ref={box} className="mx-auto w-full max-w-[1120px] overflow-hidden appwin rounded-[14px] text-left"
+    <div ref={box} className="mx-auto w-full max-w-[1120px] min-[1800px]:max-w-[1360px] overflow-hidden appwin rounded-[14px] text-left"
       style={{ background: '#1c1c1e', color: '#f5f5f7', colorScheme: 'dark' }}>
       <div className="grid md:grid-cols-[200px_1fr] [&>*]:min-w-0">
         {/* the real app's sidebar */}

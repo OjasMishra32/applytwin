@@ -231,6 +231,10 @@ __import__('time').sleep(1.0)
 _after = api.scan_status()
 _srcs.scan = _orig_scan
 res.append(ok(_first['running'] and not _after['running'] and _after['stats'].get('new') == 3, 'a scan reads as running from the moment it starts'))
+# a job page's styles and scripts never become its description
+from applytwin.sources import strip_html as _sh
+_t = _sh('<html><head><style>@font-face{font-family:Meta}</style></head><body><script>var x=1</script><h1>Robotics Intern</h1><p>Build robots in C++.</p><svg><text>icon</text></svg></body></html>')
+res.append(ok('font-face' not in _t and 'var x' not in _t and 'icon' not in _t and 'Build robots' in _t, f'page code is never kept as a job description ({_t!r})'))
 # real form questions that used to get the wrong answer
 _pb = _an.default_bank({'name': 'Maya Chen', 'location': 'Austin, TX', 'grad_month': 'May', 'grad_year': '2028', 'major': 'Computer Science',
                         'work_authorized_us': True, 'needs_sponsorship': True, 'government_employee': False, 'willing_to_relocate': True})

@@ -399,6 +399,11 @@ def on_start():
         refresh_resumes()
     except Exception:
         pass
+    try:   # descriptions saved from a page's code (an older text extractor kept its CSS/JS) are fetched again, cleanly
+        store.execute("update jobs set description='' where description like '%@font-face%' or description like '%font-family:%' "
+                      "or description like '%function(%' or description like '%{display:%'")
+    except Exception:
+        pass
     threading.Thread(target=_hydrate_loop, daemon=True).start()
     time.sleep(20)
     if not (_run['proc'] and _run['proc'].poll() is None):
