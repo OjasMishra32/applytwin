@@ -10,6 +10,12 @@ $Repo = 'OjasMishra32/applytwin'
 $Dir = if ($env:APPLYTWIN_DIR) { $env:APPLYTWIN_DIR } else { Join-Path $env:USERPROFILE '.applytwin-app' }
 function Ok($m) { Write-Host "  v $m" -ForegroundColor Green }
 function Warn($m) { Write-Host "  ! $m" -ForegroundColor Yellow }
+# Windows PowerShell 5.1 turns anything a program prints to stderr (even a warning) into a stopping error while
+# ErrorActionPreference is Stop, so external programs run through this, with their own exit code deciding success.
+function Run { param([Parameter(ValueFromRemainingArguments)]$cmd)
+  $prev = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+  try { & $cmd[0] @($cmd | Select-Object -Skip 1) 2>&1 | ForEach-Object { "$_" } } finally { $ErrorActionPreference = $prev }
+}
 function Die($m) { Write-Host "  x $m" -ForegroundColor Red; throw "ApplyTwin install stopped: $m" }
 
 Write-Host "Installing ApplyTwin" -ForegroundColor White
@@ -18,8 +24,8 @@ Write-Host "Installing ApplyTwin" -ForegroundColor White
 $Py = $null
 foreach ($c in @(@('py', '-3'), @('python'), @('python3'))) {
   try {
-    $exe = & $c[0] $c[1..9] -c "import sys; print(sys.executable if sys.version_info >= (3, 9) else '')" 2>$null
-    if ($LASTEXITCODE -eq 0 -and $exe) { $Py = $exe.Trim(); break }
+    $exe = Run $c[0] @($c | Select-Object -Skip 1) -c "import sys; print(sys.executable if sys.version_info >= (3, 9) else '')" | Select-Object -Last 1
+    if ($LASTEXITCODE -eq 0 -and $exe -and (Test-Path $exe.Trim())) { $Py = $exe.Trim(); break }
   } catch {}
 }
 if (-not $Py) { Die "ApplyTwin needs Python 3.9+. Install it with:  winget install Python.Python.3.12   then run this again." }
@@ -66,12 +72,12 @@ Set-Content "$Dir\applytwin.cmd" "@`"$Py`" `"%~dp0bin\applytwin`" %*" -Encoding 
 $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
 if (($userPath -split ';') -notcontains $Dir) { [Environment]::SetEnvironmentVariable('Path', "$userPath;$Dir", 'User') }
 $env:Path = "$env:Path;$Dir"
-& $Py -m pip install --quiet --user pypdf 2>$null   # optional: lets the ATS check read PDFs
+Run $Py -m pip install --quiet --user pypdf | Out-Null   # optional: lets the ATS check read PDFs; never stops the install
 
 Write-Host "`nConnecting your agents" -ForegroundColor White
-& $Py "$Dir\bin\applytwin" install-agents
+Run $Py "$Dir\bin\applytwin" install-agents | Write-Host
 Write-Host "`nChecking your setup" -ForegroundColor White
-& $Py "$Dir\bin\applytwin" doctor
+Run $Py "$Dir\bin\applytwin" doctor | Write-Host
 $global:LASTEXITCODE = 0   # doctor reports missing steps with a non-zero code; that's advice, not a failed install
 Write-Host "`n* Free for every student. If it helps you, star it: https://github.com/OjasMishra32/applytwin" -ForegroundColor Yellow
 if ($env:APPLYTWIN_NO_APP) { return }

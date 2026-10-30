@@ -30,9 +30,9 @@ jobs:
       - name: Install (Mac and Linux)
         if: runner.os != 'Windows'
         run: APPLYTWIN_REF=${{ github.sha }} APPLYTWIN_NO_APP=1 bash scripts/install-remote.sh
-      - name: Install (Windows)
+      - name: Install (Windows PowerShell 5.1, what Windows ships with)
         if: runner.os == 'Windows'
-        shell: pwsh
+        shell: powershell
         run: |
           $env:APPLYTWIN_REF = '${{ github.sha }}'; $env:APPLYTWIN_NO_APP = '1'
           Get-Content scripts/install-remote.ps1 -Raw | Invoke-Expression   # exactly how users run it (irm | iex)
