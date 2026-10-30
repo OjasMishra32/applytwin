@@ -1214,7 +1214,9 @@ def _tailor(v, job, jd, mode, plan, style, out_dir, track):
         if added:
             rep['added'] = added
             res = base
+            first_cut = r['dropped']
             r = render.render(res, style, pdf, worth=worth)
+            r['dropped'] = first_cut + [x for x in r['dropped'] if x not in first_cut]   # what the first fit cut stays reported
         if r['pages'] == 1 and r['scale'] < 1 and not r['dropped']:
             # the content is final: set the type as large as one page allows, so the page ends full instead of short
             k2 = next((k for k in (1.0, .99, .98, .97, .96) if k > r['scale'] and render.fits(res, style, k, pdf + '.probe.pdf')), None)
