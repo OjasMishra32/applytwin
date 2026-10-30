@@ -11,6 +11,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import time
 
 
 def degree_line(e):
@@ -227,18 +228,59 @@ def chrome():
     raise RuntimeError('No Chrome/Chromium/Edge found. Install Chrome or set APPLYTWIN_CHROME=/path/to/chrome')
 
 
+def _print(cmd, out_pdf, limit=60):
+    """Run Chrome until the PDF is written. Headless Chrome now and then writes the file and never exits (or hangs before
+    writing): stop it once the PDF has stopped growing, or at the limit, so a stuck browser never fails a resume."""
+    p = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    t0, last = time.time(), -1
+    try:
+        while time.time() - t0 < limit:
+            if p.poll() is not None:
+                return os.path.exists(out_pdf)
+            size = os.path.getsize(out_pdf) if os.path.exists(out_pdf) else -1
+            if size > 0 and size == last and _pdf_complete(out_pdf):
+                return True   # written and finished: Chrome is just slow to exit
+            last = size
+            time.sleep(0.25)
+        return False
+    finally:
+        if p.poll() is None:
+            p.kill()
+            try:
+                p.wait(5)
+            except Exception:
+                pass
+
+
+def _pdf_complete(pdf):
+    try:
+        with open(pdf, 'rb') as f:
+            f.seek(max(0, os.path.getsize(pdf) - 1024))
+            return b'%%EOF' in f.read()
+    except OSError:
+        return False
+
+
 def html_to_pdf(doc, out_pdf):
     os.makedirs(os.path.dirname(os.path.abspath(out_pdf)), exist_ok=True)
-    with tempfile.TemporaryDirectory() as td:
+    td = tempfile.mkdtemp()
+    try:
         src = os.path.join(td, 'resume.html')
         with open(src, 'w', encoding='utf-8') as f:
             f.write(doc)
         # --use-mock-keychain / --password-store=basic: a fresh Chrome profile otherwise asks the macOS keychain (or the
         # Linux keyring) for its password store on every launch, which pops "A keychain cannot be found" over and over
-        cmd = [chrome(), '--headless=new', '--disable-gpu', '--no-sandbox', '--no-pdf-header-footer', '--use-mock-keychain',
-               '--password-store=basic', '--no-first-run', '--no-default-browser-check', '--disable-extensions', '--disable-sync',
-               '--print-to-pdf-no-header', f'--user-data-dir={td}/profile', f'--print-to-pdf={out_pdf}', pathlib.Path(src).as_uri()]   # file:///C:/... on Windows too
-        subprocess.run(cmd, capture_output=True, timeout=90)
+        for attempt in range(2):
+            if os.path.exists(out_pdf):
+                os.unlink(out_pdf)
+            cmd = [chrome(), '--headless=new', '--disable-gpu', '--no-sandbox', '--no-pdf-header-footer', '--use-mock-keychain',
+                   '--password-store=basic', '--no-first-run', '--no-default-browser-check', '--disable-extensions', '--disable-sync',
+                   '--print-to-pdf-no-header', f'--user-data-dir={td}/profile{attempt}', f'--print-to-pdf={out_pdf}',
+                   pathlib.Path(src).as_uri()]   # file:///C:/... on Windows too
+            if _print(cmd, out_pdf):
+                break
+    finally:
+        shutil.rmtree(td, ignore_errors=True)   # a just-stopped Chrome can still hold its profile files on Windows
     if not os.path.exists(out_pdf):
         raise RuntimeError('Chrome did not produce a PDF')
     return out_pdf
