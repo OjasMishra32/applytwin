@@ -284,7 +284,9 @@ FIRST, POSITION (think it through before writing anything):
 3. Which 2-3 entries prove that story best, and which single bullet proves requirement #1?
 THEN BUILD THE PAGE AROUND IT so a recruiter skimming for 6 seconds sees those three things in the top third:
 - The first entry in the first section, and its first bullet, prove requirement #1.
-- Headline tags lead with the identity this role wants (choose and reorder from the vault's headline list).
+- Headline tags are the first thing read. The FIRST tag names the identity this posting hires, in its terms where the vault
+  backs them ("Recommendation Systems", "Vehicle Hardware", "Python & TypeScript"); drop vault tags that point at a different
+  job ("Semiconductors" for a vehicle-hardware role, "Vehicle Dynamics" for robot enclosures).
 - Frame every bullet in this role's language without changing a fact: the same work reads as latency and systems for a
   quant/infra role, as perception and models for an ML role, as hardware and validation for a robotics role.
 - Skills: the line and the items this role cares about come first.
@@ -518,9 +520,9 @@ def apply(v, plan, jd=''):
     kws = ats.keywords(jd) if jd else []
     head = v.get('basics', {}).get('headline', [])
     if plan.get('headline'):
-        vw = _words(vt)
+        stems = {w[:5] for w in _words(vt)}   # 'Recommendation Systems' is backed by a vault that says 'recommender system'
         ok = [h for h in plan['headline'] if isinstance(h, str) and (h in head or (
-            len(h) <= 40 and _words(h) and all(w in vw or w in ('and', 'engineering', 'engineer') for w in _words(h))))]
+            len(h) <= 40 and _words(h) and all(w[:5] in stems or w in GENERIC_TAG for w in _words(h))))]
         out['basics']['headline'] = ok[:4] or head
     out['education'] = v.get('education', [])
     # a plan that numbers bullets from 1 never uses .0 and points one past the end somewhere: shift it back
@@ -603,7 +605,8 @@ def apply(v, plan, jd=''):
         out['education'][0]['honors'] = list(out['education'][0].get('honors') or []) + out['awards']
         out['awards'] = []
     out['certifications'] = v.get('certifications', [])
-    out['skills'] = _pick_skills(v.get('skills', []), plan.get('skills'))
+    out['skills'] = _named_tools(_pick_skills(v.get('skills', []), plan.get('skills')), v, jd)
+    out['education'] = [_courses_for(e, jd) for e in out['education']]
     # every section the plan selected is shown, education leads, and experience is newest first
     order = [s for s in (plan.get('order') or v.get('order') or []) if out.get(s)]
     order += [s for s in (v.get('order') or []) if s not in order and out.get(s) and s not in ('research', 'awards')]
@@ -803,6 +806,42 @@ def _pick_awards(aw, picks):
         if a is not None and a not in out:
             out.append(a)
     return out or aw
+
+
+GENERIC_TAG = {'and', 'systems', 'system', 'engineering', 'engineer', 'development', 'design', 'analysis', 'research', 'methods',
+               'tools', 'applications'}   # words that frame a tag without claiming anything
+
+
+def _named_tools(skills, v, jd):
+    """A tool the posting asks for by name ('Proficiency with Microsoft Excel') that the user really used (in a role's or
+    project's tech or a bullet) belongs in the skills section, not only buried in a line of text."""
+    if not jd or not skills:
+        return skills
+    shown = ats.plain(json.dumps(skills, ensure_ascii=False))
+    tech = [t for sec in ENTRY_SECS for e in v.get(sec, []) for t in (e.get('tech') or []) if isinstance(t, str)]
+    low = shown.lower()
+    add = []
+    for t, w, n in ats.keywords(jd)[:15]:
+        hit = next((x for x in tech if ats.PATTERNS[t].search(x)), None)   # a tool listed on a real role or project
+        if t not in ats.SOFT and hit and not ats.PATTERNS[t].search(shown) and hit.lower() not in low and hit not in add:
+            add.append(hit)
+    if not add:
+        return skills
+    skills = copy.deepcopy(skills)
+    tgt = next((s for s in skills if re.search(r'tool|software|technolog|program|languag', s.get('label', ''), re.I)), skills[0])
+    tgt['items'] = tgt.get('items', []) + add[:3]
+    return skills
+
+
+def _courses_for(e, jd):
+    """Coursework this posting cares about first, at most six (a list of every class reads as filler)."""
+    cw = e.get('coursework') or []
+    if not jd or len(cw) <= 4:
+        return e
+    jdw = _jd_words(jd)
+    score = lambda c: sum(jdw.get(w, 0) + (1 if w[:5] in {x[:5] for x in jdw} else 0) for w in _words(c) if len(w) > 2)
+    keep = sorted(range(len(cw)), key=lambda i: (-score(cw[i]), i))[:6]
+    return {**e, 'coursework': [cw[i] for i in keep]}
 
 
 def _pick_skills(vault_skills, picks):

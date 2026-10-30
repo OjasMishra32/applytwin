@@ -147,6 +147,16 @@ _res7 = {"projects": [{"bullets": ["Merged **5 PRs** into kubernetes/kubectl, in
                                    "Reviewed pull requests and triaged open issues as part of SIG CLI."]}]}
 _w7 = _tl.trim_worth(_res7, _ats.keywords(_jd7), _jd7)
 res.append(ok(_w7(_res7["projects"][0]["bullets"][0]) > _w7(_res7["projects"][0]["bullets"][1]), 'trimming keeps measured results over keyword-only lines'))
+# the headline can name the role in vault-backed words; a tool the posting names joins skills; coursework is trimmed to fit
+_v8 = {"basics": {"name": "T", "headline": ["NLP"]}, "education": [{"school": "U", "coursework": ["Organic Chemistry", "Process Control",
+       "Biochemistry", "Transport Phenomena", "Lean Manufacturing", "Poetry", "Statistics for Engineers"]}],
+       "projects": [{"id": "rec", "name": "Recipe Recommender", "tech": ["Python", "Excel"], "bullets": ["Built a recommender system with matrix factorization over 2M ratings."]}],
+       "skills": [{"label": "Software", "items": ["Python"]}]}
+_jd8 = "Process engineering intern: lean manufacturing, process control, statistics. Proficiency with Microsoft Excel required."
+_res8, _ = _tl.apply(_v8, {"headline": ["Recommendation Systems", "Quantum Gravity", "NLP"], "projects": [{"id": "rec"}]}, _jd8)
+res.append(ok(_res8['basics']['headline'] == ["Recommendation Systems", "NLP"] and 'Excel' in _res8['skills'][0]['items']
+              and len(_res8['education'][0]['coursework']) == 6 and 'Poetry' not in _res8['education'][0]['coursework'],
+              f"role-named headline from vault words, posting's named tools in skills, coursework trimmed {_res8['basics']['headline']}"))
 # real form questions that used to get the wrong answer
 _pb = _an.default_bank({'name': 'Maya Chen', 'location': 'Austin, TX', 'grad_month': 'May', 'grad_year': '2028', 'major': 'Computer Science',
                         'work_authorized_us': True, 'needs_sponsorship': True, 'government_employee': False, 'willing_to_relocate': True})
