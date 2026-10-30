@@ -198,7 +198,7 @@ def main():
                 check('signed-out run is refused', False)
             except urllib.error.HTTPError as e:
                 msg = json.loads(e.read()).get('error', '')
-                check('signed-out run is refused with the fix', 'signed out' in msg.lower() and ('login' in msg), msg)
+                check('signed-out run is refused with the fix', 'signed out' in msg.lower() and 'sign in' in msg.lower(), msg)
     finally:
         srv.terminate()
 
