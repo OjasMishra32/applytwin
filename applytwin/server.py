@@ -64,6 +64,7 @@ POST = {
     r'/api/import': lambda m, qs, b: api.import_resume(b.get('name', ''), b.get('data'), b.get('text')),
     r'/api/run': lambda m, qs, b: api.start_run(b.get('agent', 'claude'), int(b.get('n', 25))),
     r'/api/run/stop': lambda m, qs, b: api.stop_run(),
+    r'/api/update': lambda m, qs, b: update_now(),
     r'/api/finish': lambda m, qs, b: api.finish_jobs(b.get('job_ids') or [], bool(b.get('submit'))),
     r'/api/open-twin': lambda m, qs, b: api.open_in_twin_browser(b['url']),
     r'/api/history': lambda m, qs, b: api.import_history(text=b.get('text', '')),
@@ -135,30 +136,77 @@ class H(BaseHTTPRequestHandler):
             self._send(404, {"error": "not found"})
 
 
-def _self_update():
-    """Installed copies update themselves on start (git checkouts never do); turn off with apply.auto_update = false."""
+def _restart():
+    """Start again on the new code. The new process waits for this one's port instead of picking another."""
+    os.environ['APPLYTWIN_RESTART'] = '1'
+    if os.name == 'nt':
+        import subprocess
+        subprocess.Popen([sys.executable] + sys.argv, env=os.environ.copy())
+        os._exit(0)
+    os.execv(sys.executable, [sys.executable] + sys.argv)
+
+
+def _self_update(restart=True):
+    """Installed copies update themselves (git checkouts never do); turn off with apply.auto_update = false.
+    Returns the update result, restarting on the new code when restart=True."""
     from . import update
     if update.is_checkout() or store.profile().get('apply', {}).get('auto_update') is False:
-        return
+        return {"updated": False}
     st = update.check()
-    if st['available']:
-        print(f"Updating ApplyTwin ({st['current'] or 'new'} -> {st['latest']})...")
-        try:
-            if update.apply().get('updated'):   # restart on the new code
-                if os.name == 'nt':
-                    import subprocess
-                    subprocess.Popen([sys.executable] + sys.argv)
-                    sys.exit(0)
-                os.execv(sys.executable, [sys.executable] + sys.argv)
-        except Exception as e:
-            print(f'Update skipped: {e}')
+    if not st['available']:
+        return {"updated": False, **st}
+    print(f"Updating ApplyTwin ({st['current'] or 'new'} -> {st['latest']})...")
+    try:
+        r = update.apply()
+        if r.get('updated') and restart:
+            _restart()
+        return r
+    except Exception as e:
+        print(f'Update skipped: {e}')
+        return {"updated": False, "reason": str(e)}
+
+
+def _update_loop(hours=6):
+    """The app now runs from login for days at a time, so it also checks while running. It never restarts in the
+    middle of an Autopilot run; it waits for the run to finish."""
+    import time
+    while True:
+        time.sleep(hours * 3600)
+        while api.run_status().get('running'):
+            time.sleep(300)
+        _self_update()
+
+
+def update_now():
+    """Settings > Check for updates: install the newest tested version now (even with auto-update off) and restart;
+    the page reloads by itself."""
+    from . import update
+    if api.run_status().get('running'):
+        return {"updated": False, "reason": "Autopilot is running. Update after it finishes."}
+    st = update.check()
+    if not st['managed']:
+        return {"updated": False, **st, "reason": "This is a developer copy. Run git pull in its folder."}
+    if not st['available']:
+        return {"updated": False, **st, "reason": "You're on the newest version."}
+    r = update.apply()
+    if r.get('updated'):
+        threading.Timer(1.0, _restart).start()   # answer the request first, then restart
+    return {**st, **r}
 
 
 def serve(port=4747, open_browser=True):
+    import time as _t
     import urllib.request
     _self_update()
     srv = None
-    for p in range(port, port + 20):
+    if os.environ.pop('APPLYTWIN_RESTART', None):   # restarting after an update: wait for the old process to free the port
+        for _ in range(40):
+            try:
+                srv = ThreadingHTTPServer(('127.0.0.1', port), H)
+                break
+            except OSError:
+                _t.sleep(0.25)
+    for p in ([] if srv else range(port, port + 20)):
         try:
             srv = ThreadingHTTPServer(('127.0.0.1', p), H)
             break
@@ -181,6 +229,7 @@ def serve(port=4747, open_browser=True):
     # then refresh jobs if the last scan is old
     from . import install
     threading.Thread(target=lambda: (install.refresh_skills(), api.rescore(), api.scan_if_stale()), daemon=True).start()
+    threading.Thread(target=_update_loop, daemon=True).start()   # keep updating while it runs for days
     print(f'ApplyTwin is running at {url}  (data in {store.HOME})')
     if open_browser:
         import webbrowser

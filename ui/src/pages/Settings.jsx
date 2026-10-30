@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { X } from 'lucide-react'
 import { api } from '../lib/api'
@@ -85,7 +85,39 @@ export default function Settings() {
         </Group>
         <div className="mb-3 px-4 text-[13px] text-muted">Your application answers, used on every form</div>
         <div className="mb-8"><ProfileQuestions qs={qs} p={p} setP={setP} showMissing /></div>
+        <Group title="ApplyTwin">
+          <Row label="Update automatically" hint="Installs each tested version on start and every 6 hours, never mid-run."><div className="flex justify-end"><Switch checked={a.auto_update !== false} onChange={v => sa('auto_update', v)} /></div></Row>
+          <UpdateRow />
+        </Group>
       </div>
     </Page></div>
+  )
+}
+
+/* Shows the installed version and installs the newest tested one on demand; the app restarts and the page reloads. */
+function UpdateRow() {
+  const [st, setSt] = useState(null)
+  const [busy, setBusy] = useState(false)
+  useEffect(() => { api('/api/update').then(setSt).catch(() => {}) }, [])
+  const go = async () => {
+    setBusy(true)
+    try {
+      const r = await api('/api/update', {})
+      if (!r.updated) { toast(r.reason || "You're on the newest version."); setSt(r); setBusy(false); return }
+      toast.success('Updating', { description: 'ApplyTwin is restarting on the new version.' })
+      const t0 = Date.now()
+      const wait = async () => {   // reload once the restarted app answers
+        await new Promise(res => setTimeout(res, 1500))
+        try { await api('/api/update'); location.reload() } catch { if (Date.now() - t0 < 60000) wait(); else setBusy(false) }
+      }
+      wait()
+    } catch (e) { toast.error(e.message); setBusy(false) }
+  }
+  const hint = !st ? 'Checking…' : !st.managed ? 'Developer copy: update with git pull.'
+    : st.available ? `Version ${st.current || '?'} · ${st.latest} is ready` : `Version ${st.current || '?'} · up to date`
+  return (
+    <Row label="Version" hint={hint}>
+      <div className="flex justify-end"><Button variant="white" size="sm" onClick={go} disabled={busy || (st && !st.managed)}>{busy ? 'Updating…' : st?.available ? 'Update now' : 'Check for updates'}</Button></div>
+    </Row>
   )
 }
