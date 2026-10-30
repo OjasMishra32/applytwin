@@ -79,12 +79,15 @@ function Talk({ job, onDone }) {
   const [t, setT] = useState('')
   const [busy, setBusy] = useState(false)
   const box = useRef(null)
+  const last = msgs.at(-1)
+  const waiting = !!last && (last.role === 'you' || /^(On it|Queued|Submitting)/.test(last.text))   // a reply is on its way
   useEffect(() => {
     let live = true
     const load = () => api(`/api/jobs/${job}/thread`).then(r => { if (live) setMsgs(r.thread) }).catch(() => {})
-    load(); const i = setInterval(load, 5000)
-    return () => { live = false; clearInterval(i) }
-  }, [job])
+    load()
+    const i = waiting ? setInterval(load, 4000) : null   // only check while the twin owes you an answer
+    return () => { live = false; if (i) clearInterval(i) }
+  }, [job, waiting])
   useEffect(() => { if (box.current) box.current.scrollTop = box.current.scrollHeight }, [msgs.length])
   const first = msgs.findIndex(m => m.role === 'you')
   const shown = first < 0 ? [] : msgs.slice(first)
