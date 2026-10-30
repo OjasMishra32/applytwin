@@ -160,7 +160,7 @@ def main():
     t1 = api.message(j3['id'], 'did you submit this?')['thread']
     check('"did you submit this?" gets an instant, true answer', t1[-1]['role'] == 'twin' and t1[-1]['text'].startswith('No, it isn'), t1[-1]['text'][:60])
     api.message(j3['id'], 'use my "CMU" project for the why-us answer & resubmit')
-    for _ in range(100):
+    for _ in range(300):   # a busy CI machine can take a while to start the stand-in agent
         if not api.run_status()['running']:
             break
         time.sleep(0.2)

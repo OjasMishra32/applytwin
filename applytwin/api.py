@@ -911,6 +911,16 @@ def open_in_twin_browser(url):
 _RUN_LOCK = threading.Lock()
 
 
+def pick_agent(agent):
+    """The agent to run: the one asked for if it's installed and signed in, otherwise whichever one is (someone with only
+    Codex pressing 'Find them in my email' got 'Claude Code is not installed')."""
+    import shutil
+    ready = lambda a: bool(shutil.which(a)) and agents.status(a, fresh=True)['signed_in']
+    if ready(agent):
+        return agent
+    return next((a for a in agents.NAMES if a != agent and ready(a)), agent)
+
+
 def start_run(agent='claude', n=25, model=None, prompt=None, restarts=0):
     with _RUN_LOCK:   # two clicks at once must never start two agents on one browser
         return _start_run(agent, n, model, prompt, restarts)
@@ -941,9 +951,13 @@ def _start_run(agent, n, model, prompt, restarts):
     if prompt is None and store.applied_count_today() >= store.profile()['apply'].get('daily_limit', 40):
         raise RuntimeError(f"You've reached today's limit of {store.profile()['apply'].get('daily_limit', 40)} applications. "
                            "Raise it in Settings, or your twin continues tomorrow.")
-    exe = shutil.which(agent)
-    if not exe:
-        raise RuntimeError(f"{'Claude Code' if agent == 'claude' else 'Codex'} is not installed or not on PATH")
+    picked = pick_agent(agent)
+    if picked != agent:
+        agent, model = picked, None
+    exe = shutil.which(agent) or agents.exe(agent)
+    if not exe or not os.path.exists(str(exe)):
+        raise RuntimeError(f"{'Claude Code' if agent == 'claude' else 'Codex'} is not installed. Install Claude Code or Codex "
+                           f"(Settings shows how), sign in once, then try again.")
     st = agents.status(agent, fresh=True)
     if not st['signed_in']:
         raise RuntimeError(f"{st['label']} is signed out. Run `{agents.LOGIN[agent]}` in a terminal, then press Launch again.")

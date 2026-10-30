@@ -235,6 +235,15 @@ res.append(ok(_first['running'] and not _after['running'] and _after['stats'].ge
 from applytwin.sources import strip_html as _sh
 _t = _sh('<html><head><style>@font-face{font-family:Meta}</style></head><body><script>var x=1</script><h1>Robotics Intern</h1><p>Build robots in C++.</p><svg><text>icon</text></svg></body></html>')
 res.append(ok('font-face' not in _t and 'var x' not in _t and 'icon' not in _t and 'Build robots' in _t, f'page code is never kept as a job description ({_t!r})'))
+# someone with only Codex set up gets Codex, whatever the button asked for
+import shutil as _sh
+from applytwin import agents as _ag
+_ow, _os = _sh.which, _ag.status
+_sh.which = lambda n, *a, **k: '/usr/bin/codex' if n == 'codex' else None
+_ag.status = lambda n, fresh=False: {"name": n, "signed_in": n == 'codex', "label": n}
+_pick = api.pick_agent('claude')
+_sh.which, _ag.status = _ow, _os
+res.append(ok(_pick == 'codex', f'a run asked to use Claude uses Codex when only Codex is set up ({_pick})'))
 # real form questions that used to get the wrong answer
 _pb = _an.default_bank({'name': 'Maya Chen', 'location': 'Austin, TX', 'grad_month': 'May', 'grad_year': '2028', 'major': 'Computer Science',
                         'work_authorized_us': True, 'needs_sponsorship': True, 'government_employee': False, 'willing_to_relocate': True})
