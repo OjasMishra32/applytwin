@@ -72,3 +72,8 @@ html { scroll-behavior: smooth; }
 @keyframes site-rise { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: none; } }
 .site .rise { animation: site-rise .9s cubic-bezier(.25,.1,.25,1) both; }
 @media (prefers-reduced-motion: reduce) { .site .rise { animation: none; } }
+/* The star button: a secondary pill beside the blue one. */
+.site .star { background: var(--bg-2); color: var(--fg); box-shadow: inset 0 0 0 1px var(--line); transition: background .2s, box-shadow .2s; }
+.site .star:hover { background: color-mix(in srgb, var(--bg-2) 80%, var(--fg) 6%); }
+.site .star-count { background: var(--bg-3); color: var(--fg); box-shadow: 0 0 0 1px var(--line), 0 1px 2px rgb(0 0 0 / .05); }
+.site .nav .star { background: transparent; }

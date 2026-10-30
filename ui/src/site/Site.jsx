@@ -1,9 +1,10 @@
 import { Suspense, lazy, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion, useInView, useMotionValueEvent, useScroll, useTransform, useReducedMotion } from 'motion/react'
-import { Check, ChevronRight, Copy } from 'lucide-react'
+import { Check, Copy, Star } from 'lucide-react'
 import { Toaster } from 'sonner'
 import { Avatar } from '../components/ui'
 import { REPO_URL, useStars } from '../lib/star'
+import { HowItWorks, Logo } from './Steps'
 import './site.css'
 
 /* apply.twinly.tech: the public home of ApplyTwin, built the way Apple builds a product page. One idea per scroll,
@@ -28,9 +29,9 @@ const FAQ = [
 
 // Apple's motion: long, eased, small. Nothing bounces; things settle.
 const EASE = [0.25, 0.1, 0.25, 1]
-function Reveal({ children, className, delay = 0 }) {
+function Reveal({ children, className, style, delay = 0 }) {
   return (
-    <motion.div className={className} initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }}
+    <motion.div className={className} style={style} initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: '-40px' }} transition={{ duration: 0.9, ease: EASE, delay }}>{children}</motion.div>
   )
 }
@@ -40,32 +41,30 @@ const Fan3D = lazy(() => import('./Fan3D'))   // three.js loads only when the fa
 const webgl = () => { try { const c = document.createElement('canvas'); return !!(c.getContext('webgl2') || c.getContext('webgl')) } catch { return false } }
 
 export default function Site() {
+  const stars = useStars()   // fetched once, shown on every star button
   return (
     <div className="site min-h-screen overflow-x-clip">
       <Toaster position="bottom-center" />
-      <Nav />
+      <Nav stars={stars} />
 
       {/* 1. What it is, with the app itself as the picture */}
-      <section className="px-4 pt-28 sm:pt-40">
-        <div className="mx-auto max-w-[1120px]">
-          <div style={{ animationDelay: '0s' }} className="rise flex items-center gap-2 text-[17px] font-semibold sm:text-[19px]"><Logo size={22} />ApplyTwin</div>
-          <h1 className="display-xl mt-5 text-[clamp(40px,8.6vw,108px)] [text-wrap:balance]">
-            <span style={{ animationDelay: '0.06s' }} className="rise block">You apply once.</span>
-            <span style={{ animationDelay: '0.14s' }} className="rise block muted">Your twin does the rest.</span>
+      <section className="px-4 pt-28 sm:pt-36">
+        <div className="mx-auto max-w-[1120px] text-center">
+          <h1 className="display-xl text-[clamp(44px,7.4vw,104px)] [text-wrap:balance]">
+            <span style={{ animationDelay: '0.04s' }} className="rise block">You apply once.</span>
+            <span style={{ animationDelay: '0.12s' }} className="rise block muted">Your twin does the rest.</span>
           </h1>
-          <div className="mt-8 grid gap-8 sm:mt-10 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
-            <p style={{ animationDelay: '0.24s' }} className="rise max-w-[600px] text-[19px] leading-[1.42] sm:text-[21px]">
-              It finds internships that fit you, writes a one-page resume for each posting and fills out the application.
-              <span className="muted"> All on the Claude Code or Codex plan you already pay for.</span>
-            </p>
-            <div style={{ animationDelay: '0.3s' }} className="rise flex flex-wrap items-center gap-x-7 gap-y-3">
-              <a href="#start" className="btn">Install free</a>
-              <a href="#how" className="link inline-flex items-center text-[17px]">How it works<ChevronRight className="size-4" /></a>
-            </div>
+          <p style={{ animationDelay: '0.22s' }} className="rise mx-auto mt-7 max-w-[640px] text-[19px] leading-[1.42] [text-wrap:balance] sm:text-[21px]">
+            It finds internships that fit you, writes a one-page resume for each posting and fills out the application.
+            <span className="muted"> All on the Claude Code or Codex plan you already pay for.</span>
+          </p>
+          <div style={{ animationDelay: '0.3s' }} className="rise mt-8 flex flex-wrap items-center justify-center gap-x-7 gap-y-3">
+            <a href="#start" className="btn">Install free</a>
+            <StarButton n={stars} />
           </div>
         </div>
-        <div className="mx-auto mt-12 max-w-[1120px] sm:mt-24"><Lid><AppWindow /></Lid></div>
-        <p className="mx-auto mt-5 max-w-[1120px] text-[13px] faint">Autopilot, mid-run. Twenty-five applications queued, three already in.</p>
+        <div className="mx-auto mt-14 max-w-[1120px] sm:mt-20"><Lid><AppWindow /></Lid></div>
+        <p className="mx-auto mt-5 max-w-[1120px] text-center text-[13px] faint">Autopilot, mid-run. Twenty-five applications queued, three already in.</p>
       </section>
 
       {/* 2. One resume becomes many */}
@@ -75,30 +74,17 @@ export default function Site() {
       <Becomes />
 
       {/* 4. The four things it does, one at a time */}
-      <section id="how" className="px-4 pt-28 sm:pt-40">
+      <section id="how" className="px-4 pt-24 sm:pt-32">
         <div className="mx-auto max-w-[1120px]">
-          <Reveal><h2 className="display-l max-w-[820px] text-[clamp(38px,6vw,72px)]">Everything between you and Submit.</h2></Reveal>
-          <div className="mt-14 sm:mt-20">
-            <Step n="01" title="Finds the roles." text="It checks more than 600 company career sites and the student-run internship lists, and keeps only what fits your field, your cycle and your cities.">
-              <Roles />
-            </Step>
-            <Step n="02" title="A new resume for every job." text="Your strongest experience, reordered and rewritten in each posting's language, fitted to one clean page. Your numbers, titles and employers never change.">
-              <Stack />
-            </Step>
-            <Step n="03" title="Fills the whole form." text="Work authorization, graduation date, address, even the short essays. You answer once during setup. It answers everywhere after that.">
-              <Form />
-            </Step>
-            <Step n="04" title="Asks only when it has to." text="A sign-in, an emailed code, a question only you can answer. It pings you, moves on to the next job, and comes back when you're done.">
-              <Ask />
-            </Step>
-          </div>
+          <Reveal><h2 className="display-l max-w-[820px] text-[clamp(38px,6vw,72px)] [text-wrap:balance]">Everything between you and Submit.</h2></Reveal>
+          <HowItWorks />
         </div>
       </section>
 
       {/* 5. Where it applies */}
-      <section className="px-4 pt-28 sm:pt-44">
+      <section className="px-4 pt-20 sm:pt-28">
         <div className="mx-auto max-w-[1120px]">
-          <Scrub className="display-l max-w-[1040px] text-[clamp(32px,5.2vw,64px)]" parts={[
+          <Scrub className="display-l max-w-[1040px] text-[clamp(32px,5.2vw,64px)] [text-wrap:balance]" parts={[
             ['It applies at', 0], ['Google, Meta, Apple, NVIDIA, Jane Street, Citadel, Palantir, Anduril, Stripe, OpenAI, Two Sigma', 1],
             ['and more than 600 other companies, straight through their own career sites.', 0]]} />
         </div>
@@ -108,11 +94,11 @@ export default function Site() {
       <Never />
 
       {/* 7. Price */}
-      <section className="px-4 pt-28 sm:pt-40">
+      <section className="px-4 pt-24 sm:pt-36">
         <div className="mx-auto grid max-w-[1120px] gap-8 md:grid-cols-[auto_minmax(0,1fr)] md:items-end md:gap-16">
           <Reveal><div className="display-xl text-[clamp(120px,20vw,240px)] leading-[0.82]">$0</div></Reveal>
           <Reveal delay={0.1} className="pb-2">
-            <h2 className="display-l text-[clamp(28px,3.4vw,40px)]">No API key. No new subscription.</h2>
+            <h2 className="display-l text-[clamp(28px,3.4vw,40px)] [text-wrap:balance]">No API key. No new subscription.</h2>
             <p className="mt-4 max-w-[520px] text-[19px] leading-[1.45] muted">
               ApplyTwin is free and open source. The thinking happens in Claude Code or Codex, on your own computer, under the plan you already have.
             </p>
@@ -121,20 +107,24 @@ export default function Site() {
       </section>
 
       {/* 8. Install */}
-      <section id="start" className="px-4 pt-28 sm:pt-40">
-        <div className="mx-auto max-w-[1120px]">
+      <section id="start" className="px-4 pt-24 sm:pt-36">
+        <div className="mx-auto max-w-[1120px] text-center">
           <Reveal><h2 className="display-l text-[clamp(38px,6vw,72px)]">Set up in one line.</h2></Reveal>
-          <Reveal delay={0.05} className="mt-4 max-w-[560px] text-[19px] leading-[1.45] muted">Paste this into your terminal. It installs ApplyTwin, connects your agent and opens the app.</Reveal>
-          <Reveal delay={0.1} className="mt-10 max-w-[820px]"><InstallBox /></Reveal>
-          <p className="mt-3 text-[14px] faint">Mac, Windows and Linux. Needs Python 3.9+, Node.js, and Claude Code or Codex.</p>
-          <ol className="mt-14 grid max-w-[820px] gap-8 border-t border-[var(--line)] pt-8 sm:grid-cols-3 sm:gap-6">
+          <Reveal delay={0.05} className="mx-auto mt-4 max-w-[560px] text-[19px] leading-[1.45] muted [text-wrap:balance]">Paste this into your terminal. It installs ApplyTwin, connects your agent and opens the app.</Reveal>
+          <Reveal delay={0.1} className="mx-auto mt-10 max-w-[760px] text-left"><InstallBox /></Reveal>
+          <p className="mt-4 text-[14px] faint">Mac, Windows and Linux. Needs Python 3.9+, Node.js, and Claude Code or Codex.</p>
+          <Reveal delay={0.12} className="mx-auto mt-8 flex max-w-[760px] flex-wrap items-center justify-center gap-x-5 gap-y-3 rounded-[18px] px-6 py-5" style={{ background: 'var(--bg-2)' }}>
+            <span className="text-[15px] [text-wrap:balance]">ApplyTwin is free and open source. <span className="muted">A star helps other students find it.</span></span>
+            <StarButton n={stars} size="sm" />
+          </Reveal>
+          <ol className="mx-auto mt-14 grid max-w-[880px] gap-8 sm:grid-cols-3 sm:gap-6">
             {[['Paste the command', 'in Terminal, or PowerShell on Windows.'], ['Drop in your resume', 'and answer the setup questions once.'],
               ['Press Start', 'and watch it apply in its own window.']].map(([t, d], i) => (
               <Reveal key={t} delay={i * 0.06}>
                 <li className="list-none">
-                  <div className="mono text-[13px] faint">0{i + 1}</div>
-                  <div className="mt-2 text-[17px] font-semibold">{t}</div>
-                  <div className="text-[15px] muted">{d}</div>
+                  <div className="mx-auto grid size-9 place-items-center rounded-full text-[15px] font-semibold" style={{ background: 'var(--bg-2)' }}>{i + 1}</div>
+                  <div className="mt-3 text-[17px] font-semibold">{t}</div>
+                  <div className="mx-auto max-w-[240px] text-[15px] muted">{d}</div>
                 </li>
               </Reveal>))}
           </ol>
@@ -142,7 +132,7 @@ export default function Site() {
       </section>
 
       {/* 9. Questions */}
-      <section id="faq" className="px-4 pt-28 sm:pt-40">
+      <section id="faq" className="px-4 pt-24 sm:pt-36">
         <div className="mx-auto grid max-w-[1120px] gap-8 md:grid-cols-[minmax(0,4fr)_minmax(0,7fr)] md:gap-16">
           <Reveal><h2 className="display-l text-[clamp(34px,4.4vw,48px)] md:sticky md:top-24">Questions.</h2></Reveal>
           <Reveal delay={0.05}><div className="border-t border-[var(--line)]">{FAQ.map(([q, a]) => <Faq key={q} q={q} a={a} />)}</div></Reveal>
@@ -150,13 +140,13 @@ export default function Site() {
       </section>
 
       {/* 10. Close */}
-      <section className="px-4 py-28 sm:py-44">
-        <Reveal className="mx-auto max-w-[1120px]">
+      <section className="px-4 pb-28 pt-28 sm:pb-40 sm:pt-40">
+        <Reveal className="mx-auto max-w-[1120px] text-center">
           <h2 className="display-xl text-[clamp(56px,10vw,128px)]">Get hired.</h2>
-          <p className="mt-5 max-w-[520px] text-[19px] leading-[1.45] muted">ApplyTwin is free and has no ads. A star on GitHub is how other students find it.</p>
-          <div className="mt-9 flex flex-wrap items-center gap-x-7 gap-y-3">
+          <p className="mx-auto mt-5 max-w-[520px] text-[19px] leading-[1.45] muted [text-wrap:balance]">ApplyTwin is free and has no ads. A star on GitHub is how other students find it.</p>
+          <div className="mt-9 flex flex-wrap items-center justify-center gap-x-7 gap-y-3">
             <a href="#start" className="btn">Install free</a>
-            <Stars />
+            <StarButton n={stars} />
           </div>
         </Reveal>
       </section>
@@ -171,15 +161,16 @@ export default function Site() {
   )
 }
 
-function Nav() {
+function Nav({ stars }) {
   return (
     <header className="nav fixed inset-x-0 top-0 z-50">
       <div className="mx-auto flex h-12 max-w-[1120px] items-center justify-between px-4">
         <a href="#" className="flex items-center gap-2 text-[15px] font-semibold"><Logo size={18} />ApplyTwin</a>
-        <nav className="flex items-center gap-6 text-[13px]">
+        <nav className="flex items-center gap-5 text-[13px]">
           <a href="#how" className="hidden opacity-80 hover:opacity-100 sm:block">How it works</a>
           <a href="#faq" className="hidden opacity-80 hover:opacity-100 sm:block">Questions</a>
           <a href="/app" className="hidden opacity-80 hover:opacity-100 sm:block">Account</a>
+          <span className="hidden sm:inline-flex"><StarButton n={stars} size="nav" /></span>
           <a href="#start" className="rounded-full bg-[var(--blue)] px-3.5 py-1 text-[13px] font-medium text-white">Install</a>
         </nav>
       </div>
@@ -199,21 +190,21 @@ function OneToMany() {
   const [p, setP] = useState(0)
   useMotionValueEvent(scrollYProgress, 'change', v => { progress.current = v; setP(v) })
   if (!ok) return null
-  const t = clamp((p - 0.05) / 0.45)
+  const t = clamp((p - 0.05) / 0.55)
   const n = Math.max(1, Math.round(t * 8))
   return (
-    <section ref={ref} className="relative mt-28 h-[260vh] sm:mt-40">
+    <section ref={ref} className="relative mt-16 h-[210vh] sm:mt-24">
       <div className="sticky top-0 h-[100svh] overflow-hidden">
-        <div className="pointer-events-none absolute inset-x-0 top-[13vh] z-10 px-4">
+        <div className="pointer-events-none absolute inset-x-0 top-[11vh] z-10 px-4">
           <h2 className="display-l mx-auto max-w-[1120px] text-[clamp(38px,6vw,72px)]">
             <span className="block">One resume.</span>
             <span className="block" style={{ color: 'var(--fg-2)', opacity: 0.18 + 0.82 * t }}>A version for every job.</span>
           </h2>
         </div>
-        <div className="absolute inset-x-0 bottom-[8vh] top-[26vh]">
+        <div className="absolute inset-x-0 bottom-[11vh] top-[24vh]">
           {show && <Suspense fallback={null}><Fan3D progress={progress} /></Suspense>}
         </div>
-        <div className="pointer-events-none absolute inset-x-0 bottom-6 z-10 px-4">
+        <div className="pointer-events-none absolute inset-x-0 bottom-[6vh] z-10 px-4">
           <div className="mx-auto flex max-w-[1120px] items-baseline justify-between gap-4 text-[14px]">
             <span className="muted"><span className="font-semibold tabular-nums text-[var(--fg)]">{n} {n === 1 ? 'resume' : 'resumes'}</span>{n > 1 ? ', each written for one company' : ', yours'}</span>
             <span className="hidden items-center gap-2 faint sm:flex"><span className="inline-block h-[3px] w-5 rounded-full bg-[var(--blue)]" />rewritten for that job</span>
@@ -221,21 +212,6 @@ function OneToMany() {
         </div>
       </div>
     </section>
-  )
-}
-
-/* Each step: the words on the left stay put while its live piece of the app scrolls by on the right. */
-function Step({ n, title, text, children }) {
-  return (
-    <div className="grid items-center gap-8 border-t border-[var(--line)] py-12 sm:py-20 md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] md:gap-16">
-      <Reveal>
-        <div className="mono text-[13px] faint">{n}</div>
-        <h3 className="display-l mt-3 text-[clamp(30px,3.6vw,48px)]">{title}</h3>
-        <p className="mt-3 max-w-[440px] text-[17px] leading-[1.5] muted">{text}</p>
-      </Reveal>
-      <Reveal delay={0.08} className="tile flex min-h-[300px] items-center justify-center overflow-hidden p-5 sm:min-h-[420px] sm:p-12">
-        <div className="w-full max-w-[480px]">{children}</div></Reveal>
-    </div>
   )
 }
 
@@ -262,7 +238,7 @@ function Never() {
   const ref = useRef(null)
   const { scrollYProgress } = useScroll({ target: ref, offset: ['start 0.75', 'end 0.6'] })
   return (
-    <section className="band mt-28 px-4 py-28 sm:mt-44 sm:py-40">
+    <section className="band mt-24 px-4 py-24 sm:mt-32 sm:py-32">
       <div ref={ref} className="mx-auto max-w-[1120px]">
         <div className="text-[17px] font-semibold sm:text-[19px]" style={{ color: 'var(--band-fg-2)' }}>What it will never do</div>
         <ul className="mt-6">
@@ -281,7 +257,7 @@ function NeverLine({ p, i, n, children }) {
   const opacity = useTransform(p, [a, a + 1 / (n + 1)], [0.2, 1])
   const strike = useTransform(p, [a + 0.5 / (n + 1), a + 1.4 / (n + 1)], [0, 1])
   return (
-    <motion.li style={{ opacity: still ? 1 : opacity }} className="display-l relative w-fit py-1 text-[clamp(30px,5vw,60px)]">
+    <motion.li style={{ opacity: still ? 1 : opacity }} className="display-l relative w-fit py-1 text-[clamp(30px,4.6vw,60px)] [text-wrap:balance]">
       {children}
       <motion.span aria-hidden className="absolute left-0 right-0 top-[54%] h-[0.07em] origin-left rounded-full bg-[var(--orange)]" style={{ scaleX: still ? 1 : strike }} />
     </motion.li>
@@ -310,31 +286,31 @@ function Becomes() {
   const [p, setP] = useState(0)
   useMotionValueEvent(scrollYProgress, 'change', setP)
   const still = useReducedMotion()
-  const at = i => (still ? 1 : clamp((p - (0.12 + i * 0.24)) / 0.14))
+  const at = i => (still ? 1 : clamp((p - (0.1 + i * 0.22)) / 0.16))
   const done = STEPS.filter((_, i) => at(i) >= 1).length
   const match = Math.round(38 + (94 - 38) * Math.min(1, (at(0) + at(1) + at(2)) / 3))
   const role = at(0) > 0.5
   return (
-    <section ref={ref} className="relative h-auto px-4 pt-20 md:h-[320vh] md:pt-0">
+    <section ref={ref} className="relative h-auto px-4 pt-20 md:h-[250vh] md:pt-0">
       <div className="mx-auto max-w-[1120px] md:sticky md:top-0 md:flex md:h-screen md:flex-col md:justify-center md:pb-6 md:pt-16">
-        <h2 className="display-l max-w-[900px] text-[clamp(38px,5.4vw,64px)]">Same person.<br /><span className="muted">Proven for this job.</span></h2>
-        <p className="mt-4 max-w-[600px] text-[19px] leading-[1.45] muted">It reads what the team screens for, then rewrites your real experience to prove each point. Here is Elon Musk's public record, aimed at one NASA posting.</p>
+        <h2 className="display-l max-w-[900px] text-[clamp(38px,5.4vw,64px)] [text-wrap:balance]">Same person.<br /><span className="muted">Proven for this job.</span></h2>
+        <p className="mt-4 max-w-[640px] text-[19px] leading-[1.45] muted [text-wrap:pretty]">It reads what the team screens for, then rewrites your real experience to prove each point. Here is Elon Musk's public record, aimed at one NASA posting.</p>
         <div className="mt-8 grid gap-5 md:grid-cols-[0.9fr_1.1fr]">
-          <div className="tile p-6 sm:p-8">
+          <div className="sheet flex flex-col p-6 sm:p-8">
             <div className="flex items-center gap-3"><Avatar name={ROLE.company} domain={ROLE.domain} size={36} />
               <div><div className="text-[15px] font-semibold">{ROLE.title}</div><div className="text-[13px] muted">{ROLE.company}</div></div></div>
             <div className="mt-6 text-[12px] font-semibold uppercase tracking-[0.05em] faint">What they screen for</div>
             <div className="mt-3 space-y-2.5">
               {STEPS.map((s, i) => (
                 <div key={s.req} className="flex items-center gap-3 rounded-[12px] px-3 py-2.5 transition-colors duration-500"
-                  style={{ background: at(i) > 0 ? 'var(--bg-3)' : 'transparent' }}>
+                  style={{ background: at(i) > 0 ? 'var(--bg-2)' : 'transparent' }}>
                   <span className="grid size-6 shrink-0 place-items-center rounded-full text-[12px] font-semibold transition-colors duration-500"
                     style={{ background: at(i) >= 1 ? 'var(--green)' : at(i) > 0 ? 'var(--blue)' : 'var(--line)', color: at(i) > 0 ? '#fff' : 'var(--fg-3)' }}>
                     {at(i) >= 1 ? <Check className="size-3.5" strokeWidth={3} /> : i + 1}</span>
                   <span className={'text-[16px] transition-colors duration-500 ' + (at(i) > 0 ? '' : 'faint')}>{s.req}</span>
                 </div>))}
             </div>
-            <div className="mt-8 flex items-end justify-between">
+            <div className="mt-auto flex items-end justify-between pt-8">
               <div className="text-[13px] muted">Match for this role</div>
               <div className="display-l text-[52px] tabular-nums leading-none" style={{ color: done === 3 ? 'var(--green)' : 'var(--fg)' }}>{match}%</div>
             </div>
@@ -355,9 +331,9 @@ function Becomes() {
                 const k = at(i)
                 return (
                   <div key={s.req} className="relative grid text-[15px] leading-[1.45]">
-                    <div className="col-start-1 row-start-1 flex gap-2 muted" style={{ opacity: 1 - k, filter: `blur(${k * 3}px)` }}>
+                    <div className="col-start-1 row-start-1 flex gap-2 muted" style={{ opacity: 1 - clamp(k * 2), filter: `blur(${clamp(k * 2) * 4}px)` }}>
                       <span>•</span><span>{s.before}</span></div>
-                    <div className="col-start-1 row-start-1 flex gap-2" style={{ opacity: k, transform: `translateY(${(1 - k) * 8}px)` }}>
+                    <div className="col-start-1 row-start-1 flex gap-2" style={{ opacity: clamp(k * 2 - 1), transform: `translateY(${(1 - clamp(k * 2 - 1)) * 8}px)` }}>
                       <span style={{ color: 'var(--blue)' }}>•</span><span>{s.after}</span></div>
                   </div>)
               })}
@@ -381,9 +357,9 @@ function Lid({ children }) {
   const still = useReducedMotion()
   const { scrollYProgress } = useScroll({ target: ref, offset: ['start end', 'center center'] })
   const [narrow] = useState(() => typeof window !== 'undefined' && window.innerWidth < 640)   // a tall phone-width window tilts less, or it leaves a gap above
-  const rotateX = useTransform(scrollYProgress, [0, 1], [narrow ? 8 : 24, 0])
-  const scale = useTransform(scrollYProgress, [0, 1], [narrow ? 0.96 : 0.86, 1])
-  const opacity = useTransform(scrollYProgress, [0, 0.35], [0.3, 1])
+  const rotateX = useTransform(scrollYProgress, [0, 1], [narrow ? 6 : 16, 0])
+  const scale = useTransform(scrollYProgress, [0, 1], [narrow ? 0.97 : 0.92, 1])
+  const opacity = useTransform(scrollYProgress, [0, 0.3], [0.75, 1])
   return (
     <div ref={ref} style={{ perspective: 1800 }}>
       <motion.div style={still ? {} : { rotateX, scale, opacity, transformOrigin: 'center bottom' }}>{children}</motion.div>
@@ -492,131 +468,6 @@ function AppWindow() {
   )
 }
 
-function useSeen() {
-  const ref = useRef(null)
-  return [ref, useInView(ref, { once: true, margin: '-15% 0px' })]
-}
-
-function Roles() {
-  const [ref, seen] = useSeen()
-  const r = [['Stripe', 'stripe.com', 'Software Engineer Intern', 'San Francisco'], ['Two Sigma', 'twosigma.com', 'Quantitative Research Intern', 'New York'],
-    ['Anduril', 'anduril.com', 'Autonomy Engineer Intern', 'Costa Mesa']]
-  return (
-    <div ref={ref} className="sheet w-full overflow-hidden [&>*+*]:border-t [&>*+*]:border-[var(--line)]">
-      {r.map(([c, d, t, l], i) => (
-        <motion.div key={c} initial={{ opacity: 0, x: -24 }} animate={seen ? { opacity: 1, x: 0 } : {}} transition={{ duration: 0.8, ease: EASE, delay: 0.15 + i * 0.18 }}
-          className="flex items-center gap-3 px-4 py-3">
-          <Avatar name={c} domain={d} size={28} />
-          <div className="min-w-0 flex-1"><div className="truncate text-[14px] font-medium">{t}</div><div className="text-[12.5px] muted">{c} · {l}</div></div>
-          <motion.span initial={{ opacity: 0 }} animate={seen ? { opacity: 1 } : {}} transition={{ delay: 0.7 + i * 0.18, duration: 0.5 }}
-            className="text-[12.5px] font-medium" style={{ color: 'var(--green)' }}>Fits you</motion.span>
-        </motion.div>))}
-    </div>
-  )
-}
-
-function Stack() {
-  const [ref, seen] = useSeen()
-  const cards = [['Jane Street', 'janestreet.com', 96], ['NVIDIA', 'nvidia.com', 95], ['Meta', 'meta.com', 96], ['Google', 'google.com', 98]]
-  return (
-    <div ref={ref} className="relative w-full pt-[96px]">
-      {cards.map(([c, d, f], i) => {
-        const front = i === cards.length - 1
-        return (
-          <motion.div key={c} className={'sheet px-5 ' + (front ? 'relative pb-6 pt-4' : 'absolute inset-x-0 pb-6 pt-[7px]')}
-            initial={front ? { y: 30, opacity: 0 } : { top: 96, scale: 0.94, opacity: 0 }}
-            animate={seen ? (front ? { y: 0, opacity: 1 } : { top: i * 32, scale: 0.91 + i * 0.03, opacity: 1 }) : {}}
-            transition={{ duration: 0.9, ease: EASE, delay: front ? 0 : 0.35 + (cards.length - 2 - i) * 0.16 }}
-            style={{ transformOrigin: 'top center' }}>
-            <div className="flex items-center gap-2.5">
-              <Avatar name={c} domain={d} size={front ? 28 : 22} />
-              <span className={front ? 'text-[16px] font-semibold' : 'text-[14px] font-medium'}>{c}</span>
-              <span className="ml-auto text-[13px] tabular-nums muted">{f}% match</span>
-            </div>
-            {front && <div className="mt-4 space-y-2">{[92, 78, 86].map((w, j) => (
-              <motion.div key={j} className="h-[6px] rounded-full bg-[var(--bg-2)]" initial={{ width: 0 }} animate={seen ? { width: `${w}%` } : {}}
-                transition={{ duration: 0.9, ease: EASE, delay: 0.3 + j * 0.15 }} />))}</div>}
-          </motion.div>)
-      })}
-    </div>
-  )
-}
-
-function Form() {
-  const [ref, seen] = useSeen()
-  const f = [['Are you authorized to work in the US?', 'Yes'], ['Expected graduation', 'May 2028'], ['Street address', '1 University Ave, Gainesville, FL'],
-    ['What interests you about NVIDIA?', 'Your GPU kernels team ships the code I profile every day…']]
-  const [shown, setShown] = useState(0)   // characters typed so far, across the four answers
-  const total = f.reduce((n, [, a]) => n + a.length, 0)
-  useEffect(() => {
-    if (!seen) return
-    let n = 0
-    const t = setInterval(() => { n += 2; setShown(Math.min(n, total)); if (n >= total) clearInterval(t) }, 28)
-    return () => clearInterval(t)
-  }, [seen, total])
-  let before = 0
-  return (
-    <div ref={ref} className="sheet w-full overflow-hidden">
-      <div className="flex items-center gap-3 border-b border-[var(--line)] px-5 py-3.5">
-        <Avatar name="NVIDIA" domain="nvidia.com" size={26} />
-        <div className="min-w-0 flex-1"><div className="truncate text-[14px] font-semibold">Deep Learning Software Intern</div>
-          <div className="text-[12px] muted">NVIDIA · Workday</div></div>
-        <span className="text-[12px] font-medium" style={{ color: 'var(--green)' }}>{shown >= total ? 'Filled' : 'Filling…'}</span>
-      </div>
-      <div className="space-y-3.5 px-5 py-5">
-        {f.map(([q, a]) => {
-          const start = before; before += a.length
-          const n = Math.max(0, Math.min(a.length, shown - start)), typing = n > 0 && n < a.length
-          return (
-            <div key={q}>
-              <div className="text-[12.5px] muted">{q}</div>
-              <div className={'mt-1.5 flex h-[38px] items-center rounded-[10px] border px-3 text-[14px] transition-colors ' +
-                (typing ? 'border-[var(--blue)]' : 'border-[var(--line)]')}>
-                <span className="truncate">{a.slice(0, n)}</span>{typing && <span className="ml-px h-[17px] w-[1.5px] animate-pulse bg-[var(--blue)]" />}
-              </div>
-            </div>)
-        })}
-      </div>
-      <div className="flex justify-end border-t border-[var(--line)] px-5 py-3.5">
-        <span className={'rounded-full px-4 py-1.5 text-[13px] font-medium transition-colors duration-500 ' +
-          (shown >= total ? 'bg-[var(--blue)] text-white' : 'bg-[var(--bg-2)] faint')}>Review and submit</span>
-      </div>
-    </div>
-  )
-}
-
-function Ask() {
-  const [ref, seen] = useSeen()
-  return (
-    <div ref={ref} className="w-full pb-8">
-      <motion.div initial={{ y: -36, opacity: 0, scale: 0.96 }} animate={seen ? { y: 0, opacity: 1, scale: 1 } : {}}
-        transition={{ type: 'spring', stiffness: 260, damping: 30, delay: 0.25 }} className="sheet mx-auto max-w-[400px] rounded-[18px] px-4 py-3.5">
-        <div className="flex items-center gap-3">
-          <Logo size={34} />
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center justify-between text-[13px]"><span className="font-semibold">ApplyTwin</span><span className="faint">now</span></div>
-            <div className="text-[14px] leading-snug">Code needed for Stripe. Check your email and type it in the open tab.</div>
-          </div>
-        </div>
-      </motion.div>
-      {/* while it waits on you, it keeps going */}
-      <motion.div initial={{ y: 16, opacity: 0 }} animate={seen ? { y: 0, opacity: 1 } : {}} transition={{ duration: 0.8, ease: EASE, delay: 1.1 }}
-        className="sheet mx-auto mt-4 max-w-[400px] overflow-hidden rounded-[18px]">
-        <div className="flex items-center justify-between px-4 pt-3.5 text-[12px]">
-          <span className="font-medium" style={{ color: 'var(--green)' }}>Meanwhile, next job</span><span className="faint">2 of 25</span>
-        </div>
-        <div className="flex items-center gap-3 px-4 pb-3.5 pt-2.5">
-          <Avatar name="Figma" domain="figma.com" size={26} />
-          <div className="min-w-0 flex-1"><div className="truncate text-[14px] font-medium">Software Engineer Intern</div>
-            <div className="text-[12.5px] muted">Figma · Filling the application</div></div>
-        </div>
-        <div className="h-[3px] bg-[var(--bg-2)]"><motion.div className="h-full bg-[var(--blue)]" initial={{ width: '8%' }}
-          animate={seen ? { width: '64%' } : {}} transition={{ duration: 2.4, ease: EASE, delay: 1.4 }} /></div>
-      </motion.div>
-    </div>
-  )
-}
-
 function InstallBox() {
   const [win, setWin] = useState(IS_WIN)
   const [ok, setOk] = useState(false)
@@ -638,11 +489,26 @@ function InstallBox() {
   )
 }
 
-function Stars() {
-  const n = useStars()
+/* The GitHub star ask, in the page's own style: a quiet pill with GitHub's mark, the words, and the live count. */
+function StarButton({ n, size = 'lg' }) {
+  const lg = size === 'lg', sm = size === 'sm'
   return (
-    <a href={REPO_URL} target="_blank" rel="noreferrer" className="link inline-flex items-center text-[17px]">
-      Star on GitHub{n ? ` (${n.toLocaleString()})` : ''}<ChevronRight className="size-4" /></a>
+    <a href={REPO_URL} target="_blank" rel="noreferrer" aria-label={`Star ApplyTwin on GitHub${n ? `, ${n} stars` : ''}`}
+      className={'star group inline-flex items-center rounded-full font-medium ' + (lg ? 'h-11 pl-5 pr-1.5 text-[17px]' : sm ? 'h-9 pl-4 pr-1 text-[14px]' : 'h-8 pl-3 pr-1 text-[13px]')}>
+      <GitHubMark size={lg ? 18 : 15} />
+      <span className={lg ? 'ml-2.5' : 'ml-2'}>{size === 'nav' ? 'Star' : 'Star on GitHub'}</span>
+      <span className={'star-count ml-3 inline-flex items-center gap-1 rounded-full tabular-nums ' + (lg ? 'h-8 px-3 text-[15px]' : 'h-7 px-2.5 text-[12.5px]')}>
+        <Star className={(lg ? 'size-4' : 'size-3.5') + ' fill-[#ffcc00] text-[#ffcc00] transition-transform duration-300 group-hover:rotate-[72deg] group-hover:scale-110'} />
+        {n == null ? '–' : n.toLocaleString()}
+      </span>
+    </a>
+  )
+}
+function GitHubMark({ size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" aria-hidden fill="currentColor">
+      <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
+    </svg>
   )
 }
 
@@ -660,13 +526,5 @@ function Faq({ q, a }) {
         <p className="max-w-[600px] pb-6 text-[17px] leading-[1.5] muted">{a}</p>
       </motion.div>
     </div>
-  )
-}
-
-function Logo({ size = 20 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden>
-      <rect x="4" y="4" width="38" height="38" rx="12" fill="#0071e3" /><rect x="22" y="22" width="38" height="38" rx="12" fill="#5ac8fa" fillOpacity=".9" />
-    </svg>
   )
 }
