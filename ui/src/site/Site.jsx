@@ -211,18 +211,19 @@ function OneToMany() {
 }
 
 /* The heart of it, pinned while you scroll: a job's requirements light up one by one, and the resume rewrites itself
-   to prove each one. The visitor's own resume, in spirit; every rewrite keeps the original facts, as the real fact checker requires. */
-const ROLE = { company: 'Hudson River Trading', domain: 'hudsonrivertrading.com', title: 'Algorithm Development Intern' }
+   to prove each one. A well-known public resume; every rewrite keeps the original facts, as the real fact checker requires. */
+const ROLE = { company: 'NASA', domain: 'nasa.gov', title: 'Human Spaceflight Program Lead' }
+// Elon Musk's public record, tailored for one role: every "after" line is a real, public fact about him
 const STEPS = [
-  { req: 'Statistical research on market data',
-    before: 'Worked on a trading project at a hackathon.',
-    after: <>Ran a latency-arbitrage study on <b>13,084 markets</b>, confirmed out of sample with a deflated Sharpe and block bootstrap.</> },
-  { req: 'Real trading judgment',
-    before: 'Member of the student investment fund.',
-    after: <>Executed a <b>crack spread strategy</b> with a <b>64% win rate</b> across live trades at a ~$500K AUM student fund.</> },
-  { req: 'Strong Python and C++',
-    before: 'Languages: Java, HTML, Python, C++',
-    after: <><b>Quantitative research:</b> backtesting, NumPy, pandas · <b>Languages:</b> Python, C++</> },
+  { req: 'Has built and scaled organizations',
+    before: 'Started a few companies.',
+    after: <>Co-founded <b>Zip2</b>, sold to Compaq for <b>$307M</b>, and <b>X.com</b>, which became <b>PayPal</b>.</> },
+  { req: 'Launch vehicle experience',
+    before: 'Worked on rockets.',
+    after: <>Founded <b>SpaceX</b> in 2002; Falcon 9 became the first orbital-class rocket to <b>land and reuse</b> its first stage.</> },
+  { req: 'Engineering at scale',
+    before: 'Runs a car company.',
+    after: <>CEO of <b>Tesla</b> since 2008, scaling it to <b>millions of electric vehicles</b> a year.</> },
 ]
 
 function Becomes() {
@@ -263,12 +264,12 @@ function Becomes() {
             </div>
           </div>
           <div className="sheet p-6 text-left sm:p-8" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
-            <div className="text-center text-[22px] font-bold tracking-[0.04em]">YOUR NAME</div>
+            <div className="text-center text-[22px] font-bold tracking-[0.04em]">ELON MUSK</div>
             <div className="relative mt-1 h-[20px] overflow-hidden text-center text-[13px] font-semibold">
               <AnimatePresence mode="popLayout" initial={false}>
                 <motion.div key={role ? 'r' : 'g'} initial={{ y: 14, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -14, opacity: 0 }}
                   transition={{ duration: 0.5, ease: EASE }}>
-                  {role ? 'Quantitative Research · Systematic Trading · Computer Engineering' : 'Computer Engineering Student'}
+                  {role ? 'Human Spaceflight · Reusable Rockets · Engineering Leadership' : 'Entrepreneur'}
                 </motion.div>
               </AnimatePresence>
             </div>
@@ -286,7 +287,7 @@ function Becomes() {
               })}
             </div>
             <div className="mt-6 flex flex-wrap gap-2" style={{ fontFamily: 'inherit' }}>
-              {['out-of-sample testing', 'market data', 'Python', 'C++', 'systematic trading'].map((w, i) => (
+              {['reusable rockets', 'human spaceflight', 'scaling teams', 'physics', 'manufacturing'].map((w, i) => (
                 <span key={w} className="rounded-full px-3 py-1 text-[12.5px] font-semibold text-[var(--bg)] transition-all duration-500"
                   style={{ background: 'var(--fg)', opacity: done > i * 0.6 ? 1 : 0, transform: `scale(${done > i * 0.6 ? 1 : 0.85})`,
                     fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}>{w}</span>))}

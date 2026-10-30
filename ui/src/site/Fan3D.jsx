@@ -16,11 +16,11 @@ function paper(company, fit, seed) {
   const rnd = (() => { let s = seed * 9301 + 49297; return () => ((s = (s * 9301 + 49297) % 233280) / 233280) })()
   g.textAlign = 'center'
   g.fillStyle = '#111'; g.font = 'bold 54px Georgia, "Times New Roman", serif'
-  g.fillText('YOUR NAME', c.width / 2, 132)
+  g.fillText('ELON MUSK', c.width / 2, 132)
   g.fillStyle = '#555'; g.font = '600 25px -apple-system, Helvetica, Arial, sans-serif'
-  g.fillText(company ? `Tailored for ${company}` : 'Computer Engineering · Research · Software', c.width / 2, 178)
+  g.fillText(company ? `Tailored for ${company}` : 'Aerospace · Electric Vehicles · Engineering', c.width / 2, 178)
   g.fillStyle = '#999'; g.font = '22px -apple-system, Helvetica, Arial, sans-serif'
-  g.fillText('you@university.edu  ·  github.com/you  ·  yoursite.com', c.width / 2, 216)
+  g.fillText('Tesla  ·  SpaceX  ·  Austin, TX', c.width / 2, 216)
   let y = 268
   for (const sec of ['EDUCATION', 'EXPERIENCE', 'PROJECTS', 'RESEARCH', 'SKILLS']) {
     g.textAlign = 'left'; g.fillStyle = '#222'; g.font = '600 24px Georgia, serif'
