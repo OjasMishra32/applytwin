@@ -47,6 +47,8 @@ export default function App() {
   const [auth, setAuth] = useState({ signed_in: false })
   const [authReady, setAuthReady] = useState(false)
   const [loadErr, setLoadErr] = useState(null)
+  const [wide, setWide] = useState(() => matchMedia('(min-width: 768px)').matches)
+  useEffect(() => { const m = matchMedia('(min-width: 768px)'); const f = () => setWide(m.matches); m.addEventListener('change', f); return () => m.removeEventListener('change', f) }, [])
   const refresh = useCallback(async () => {
     try { const s = await api('/api/state'); setState(s); setLoadErr(null); return s }
     catch (e) { setLoadErr(e.message || "Couldn't reach ApplyTwin"); return null }
@@ -106,8 +108,9 @@ export default function App() {
   const Page = PAGES[route.page]
   return (
     <Ctx.Provider value={{ ...state, refresh, go, jobs, loadJobs, startScan, scan, setState, auth, signIn, signOut }}>
-      {route.page !== 'welcome' && <TopBar page={route.page} go={go} onPalette={() => setPalette(true)} matched={state.stats?.matched} auth={auth} signIn={signIn} signOut={signOut} />}
-      {route.page !== 'welcome' && <Sidebar page={route.page} go={go} onPalette={() => setPalette(true)} auth={auth} signIn={signIn} signOut={signOut} />}
+      {route.page !== 'welcome' && (wide   // only the layout on screen is mounted, so nothing polls twice
+        ? <Sidebar page={route.page} go={go} onPalette={() => setPalette(true)} auth={auth} signIn={signIn} signOut={signOut} />
+        : <TopBar page={route.page} go={go} onPalette={() => setPalette(true)} matched={state.stats?.matched} auth={auth} signIn={signIn} signOut={signOut} />)}
       <Palette open={palette} setOpen={setPalette} go={go} jobs={jobs} actions={actions} />
       <motion.main key={route.page} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2, ease: 'easeOut' }}
         className={'relative min-h-full ' + (route.page !== 'welcome' ? 'md:pl-[220px]' : '')}>
