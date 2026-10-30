@@ -87,7 +87,7 @@ export default function Settings() {
         <div className="mb-3 px-4 text-[13px] text-muted">Your application answers, used on every form</div>
         <div className="mb-8"><ProfileQuestions qs={qs} p={p} setP={setP} showMissing /></div>
         <Group title="ApplyTwin">
-          <Row label="Update automatically" hint="Installs each tested version on start and every 6 hours, never mid-run."><div className="flex justify-end"><Switch checked={a.auto_update !== false} onChange={v => sa('auto_update', v)} /></div></Row>
+          <Row label="Update automatically" hint="Installs each tested version on start and every hour, never mid-run."><div className="flex justify-end"><Switch checked={a.auto_update !== false} onChange={v => sa('auto_update', v)} /></div></Row>
           <UpdateRow />
         </Group>
       </div>

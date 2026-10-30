@@ -167,7 +167,7 @@ def _self_update(restart=True):
         return {"updated": False, "reason": str(e)}
 
 
-def _update_loop(hours=6):
+def _update_loop(hours=1):
     """The app now runs from login for days at a time, so it also checks while running. It never restarts in the
     middle of an Autopilot run; it waits for the run to finish."""
     import time
