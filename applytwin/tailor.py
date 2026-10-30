@@ -129,7 +129,7 @@ def weak(b):
     """Filler a recruiter skips: a chore or vague verb, or a short line with no number ('Graded homework.', 'Made the slides.')."""
     t = ats.plain(b)
     return bool(WEAK.search(t) or (len(t) < 55 and not re.search(r'\d', t)) or
-                re.match(r'^\W*(grad(ed|es|ing)|read papers|sold|ran (philanthropy|events?)|made the)\b', t, re.I))
+                re.match(r'^\W*(grad(ed|es|ing)|read papers|sold|ran (philanthropy|events?)|made (the|a|an|some))\b', t, re.I))
 
 
 def strength(b, kws=()):
@@ -698,6 +698,8 @@ reframe work to fit a job, and that is fine: a stronger verb that still fits the
 "analyzed"), the obvious purpose or audience of the work, the posting's vocabulary for the same work, and cutting minor
 qualifiers. Flag ONLY claims a recruiter, interviewer or reference check would catch as false:
 - a new or changed number, metric, percentage, team size, user count or dollar amount, or a number moved to a different thing
+- a number, size or scale from the original dropped and replaced by a bigger claim ("1/5-scale car" -> "on-road vehicle",
+  "regional finalist" -> "finalist", "estimated $310K" -> "$310K")
 - a job title, employer, degree, award, rank/placement or date that differs from the original or the item's "entry"
 - leading or managing people or teams they only joined or supported
 New tools, methods, technologies, outcomes and purposes are ALLOWED (the candidate chose this); never flag them.
