@@ -90,6 +90,9 @@ def check_rewrite(orig, new, vault_txt, jd, entry_txt=None):
         key = re.escape(num.strip()) + r'\s*\+?\s*'
         if unit.lower() in ('to', 'and', 'the', 'of', 'in', 'on', 'at', 'per', 'for', 'by', 'from', 'with'):
             continue
+        before = re.search(r'([A-Za-z][\w.+#-]*)\s+' + re.escape(num.strip()), n)
+        if before and re.search(re.escape(before.group(1)) + r'\s+' + re.escape(num.strip()), scope):
+            continue   # a version or a name with a number ("Ubuntu 24.04", "Python 3.12"), same as in the original
         if not re.search(key + r'(?:[A-Za-z-]+\s+){0,2}' + re.escape(unit[:5]), scope, re.I) and \
                 not re.search(re.escape(unit[:5]) + r'[a-z]*\s+(?:of\s+)?' + re.escape(num.strip()), scope, re.I):
             return f'uses {num.strip()} for {unit}, but in this entry it counts something else'
@@ -106,6 +109,8 @@ def check_rewrite(orig, new, vault_txt, jd, entry_txt=None):
     caps = {w for w in caps if not (len(w) >= 6 and w[:6].lower() in stems)}
     # a capitalized verb that starts a bullet ("Ship", "Lead") is the same word as "shipped"/"leading" in the vault,
     # and an acronym already inside a vault word ("OS" in macOS/iOS) is not a new name
+    first = (re.findall(r'[A-Za-z][\w-]*', n) or [''])[0]
+    caps = {w for w in caps if not (w == first and re.search(r'(ed|ied)$', w.lower()))}   # "Converted ...": a verb, not a name
     caps = {w for w in caps if not any(f in vlow for f in _forms(w.lower())) and w.lower() not in IRREGULAR_PAST
             and not (w.isupper() and any(x.endswith(w) and x != w for x in vw))
             and not ('-' in w and w.split('-')[0].lower() in vlow)}

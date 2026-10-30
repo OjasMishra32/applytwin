@@ -152,6 +152,11 @@ function JobSheet({ id, onClose, onChange }) {
                         {res.rejected?.length > 0 && <Badge tone="warn">{res.rejected.length} blocked by fact guard</Badge>}
                         <a href={fileUrl(res.pdf)} target="_blank" rel="noreferrer" className="ml-auto"><Button size="sm" variant="sky"><FileDown className="size-4" />Download PDF</Button></a>
                       </div>
+                      {res.positioning && <div className="mt-4 rounded-[12px] bg-white/[.04] px-4 py-3">
+                        <div className="text-[12px] font-semibold uppercase tracking-[0.05em] text-faint">How your twin positioned you</div>
+                        <div className="mt-1 text-[14.5px] leading-snug text-white">{res.positioning}</div>
+                        {res.requirements?.length > 0 && <div className="mt-2 flex flex-wrap gap-1.5">{res.requirements.map(r => <Badge key={r}>{r}</Badge>)}</div>}
+                      </div>}
                       <Paper src={`/preview?job=${id}&template=${res.style}&t=${Date.now()}`} className="mt-4" />
                       {res.dropped?.length > 0 && <div className="mt-3 text-[12.5px] text-faint">Left out to fit one page: {res.dropped.slice(0, 6).join(' · ')}{res.dropped.length > 6 ? '…' : ''}</div>}
                     </motion.div>)}
