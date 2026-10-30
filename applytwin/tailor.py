@@ -158,6 +158,9 @@ def _upgrade(bl, src, avoid, kws, least=1):
     return keep if len(keep) >= least else out
 
 
+SERVICE = re.compile(r'\b(lifeguard|cashier|barista|waiter|waitress|hostess|busser|dishwasher|line cook|'
+                     r'sales associate|retail associate|crew member|camp counselor|caddie|delivery driver|valet|'
+                     r'stocker|front desk|circulation desk|babysitter|nanny|dog walker)\b', re.I)
 OLD = re.compile(r'\b(high school|middle school|secondary school)\b', re.I)  # or set "high_school": true on a vault entry
 
 
@@ -629,6 +632,12 @@ def apply(v, plan, jd=''):
             e2['_used'] = sorted(used | {i for i, b in enumerate(e.get('bullets', [])) if b in e2['bullets']})
             lst.append(e2)
         out[sec] = lst
+    # a lifeguard or cashier job doesn't belong on an avionics resume when there's real material to show instead
+    exp = out.get('experience', [])
+    real = [e for e in exp if not SERVICE.search(f"{e.get('title', '')} {e.get('org', '')}")]
+    if len(real) >= 2 and len(real) + len(out.get('projects', [])) >= 4:
+        out['experience'] = [e for e in exp if e in real or SERVICE.search(jd or '') and
+                             SERVICE.search(jd).group(0).lower() in f"{e.get('title', '')} {e.get('org', '')}".lower()]
     moved = {e.get('id') for e in out.get('experience', [])}
     if out.get('leadership'):
         out['leadership'] = [e for e in out['leadership'] if e.get('id') not in moved]   # never listed twice
@@ -836,6 +845,22 @@ def _recency(e):
     return 9999.0 if when >= now.tm_year + now.tm_mon / 12 - 1 else when
 
 
+def _house_rules(res, ctx):
+    """Field conventions a screener checks at a glance. Banking and finance read strict reverse-chronological order (a
+    recent role listed below an older one looks like a formatting error), so relevance never reorders their roles."""
+    if ctx.get('field') in ('finance', 'consulting'):
+        for sec in ('experience', 'leadership'):
+            if res.get(sec):
+                res[sec] = sorted(res[sec], key=lambda e: _when_end(e), reverse=True)
+
+
+def _when_end(e):
+    dates = e.get('dates') or ' '.join(str(e.get(k, '')) for k in ('start', 'end'))
+    parts = re.split(r'\s*[–—-]\s*|\s+to\s+', str(dates)) if dates else []
+    return (_when(e.get('end')) or (_when(parts[-1]) if parts else None) or 0,
+            _when(e.get('start')) or (_when(parts[0]) if parts else None) or 0)
+
+
 def _not_repeated(awards, res):
     """An award already stated under education or in a bullet only takes a line twice."""
     seen = json.dumps([res.get('education', [])] + [[e.get(k) for k in ('org', 'name', 'title', 'tagline')] + e.get('bullets', [])
@@ -843,8 +868,10 @@ def _not_repeated(awards, res):
     sw = _words(seen)
     keep = []
     for a in awards:
-        w = _words(a if isinstance(a, str) else ' '.join(str(x) for x in a.values() if isinstance(x, str)))
-        if len(w) >= 3 and len(w & sw) / len(w) >= 0.75:
+        txt = a if isinstance(a, str) else ' '.join(str(x) for x in a.values() if isinstance(x, str))
+        w = _words(txt)
+        name = re.split(r'\s*[,(;:]', txt.strip())[0].strip().lower()   # "Kelley Investment Banking Workshop, admitted 2026"
+        if (len(w) >= 3 and len(w & sw) / len(w) >= 0.75) or (len(name) >= 12 and name in seen.lower()):
             continue
         keep.append(a)
     return keep
@@ -1154,6 +1181,7 @@ def _tailor(v, job, jd, mode, plan, style, out_dir, track):
     else:
         mode = 'agent'
     res, rep = apply(v, plan, jd)
+    _house_rules(res, ctx)
     if mode == 'api' and rep['rejected']:   # one revision: show the model exactly what the fact checker refused, and why
         track.stage('fix')
         fix = (prompt(v, job, jd, ctx) + '\n\nYOUR PREVIOUS PLAN:\n' + json.dumps(plan, ensure_ascii=False)[:12000] +
@@ -1165,6 +1193,7 @@ def _tailor(v, job, jd, mode, plan, style, out_dir, track):
             plan2 = call_llm(fix, timeout=200, think=False)
             if plan2:
                 res2, rep2 = apply(v, plan2, jd)
+                _house_rules(res2, ctx)
                 if len(rep2['rejected']) < len(rep['rejected']):
                     plan, res, rep = plan2, res2, rep2
         except Exception:

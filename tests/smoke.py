@@ -187,6 +187,18 @@ _tk.done()
 res.append(ok(_v14a['stage'] == 'plan' and _v14a['eta'] > _v14b['eta'] and [s['state'] for s in _v14b['steps']] == ['done', 'skipped', 'now', 'next']
               and _tl.progress('progress-test') is None and _tl._timings()['plan']['n'] >= 1,
               f"build progress: real step, honest time left, learned timings {_v14a['eta']} -> {_v14b['eta']}"))
+# service jobs leave a page with real material; finance reads strictly newest first; an award named elsewhere isn't repeated
+_v16 = {"basics": {"name": "T"}, "education": [{"school": "U", "honors": ["Kelley Investment Banking Workshop (selective, ~20% admit)"]}],
+        "experience": [{"id": "lg", "org": "City Pool", "title": "Lifeguard", "dates": "Jun 2026 – Aug 2026", "bullets": ["Guarded 300 swimmers a day."]},
+                       {"id": "hw", "org": "Harris Williams", "title": "IB Intern", "dates": "Jun 2025 – Aug 2025", "bullets": ["Built a 3-statement model for a $400M deal."]},
+                       {"id": "ta", "org": "Kelley", "title": "Teaching Assistant", "dates": "Jan 2026 – May 2026", "bullets": ["Taught Excel labs to 40 students."]}],
+        "projects": [{"id": "p1", "name": "LBO", "bullets": ["Built a 5-year LBO model."]}, {"id": "p2", "name": "DCF", "bullets": ["Valued YETI at $48/share."]}],
+        "awards": ["Kelley Investment Banking Workshop, admitted 2026", "Case Competition 2025, 1st place"]}
+_res16, _ = _tl.apply(_v16, {"experience": [{"id": "hw"}, {"id": "ta"}, {"id": "lg"}], "projects": [{"id": "p1"}, {"id": "p2"}], "awards": [0, 1]}, 'Investment banking analyst intern')
+_tl._house_rules(_res16, {"field": "finance"})
+res.append(ok([e['id'] for e in _res16['experience']] == ['ta', 'hw'] and _res16['awards'] == [] and
+              _res16['education'][0]['honors'][-1] == "Case Competition 2025, 1st place",
+              f"service jobs dropped when there's real material, finance strictly newest first, no award twice {[e['id'] for e in _res16['experience']]}"))
 # real form questions that used to get the wrong answer
 _pb = _an.default_bank({'name': 'Maya Chen', 'location': 'Austin, TX', 'grad_month': 'May', 'grad_year': '2028', 'major': 'Computer Science',
                         'work_authorized_us': True, 'needs_sponsorship': True, 'government_employee': False, 'willing_to_relocate': True})
