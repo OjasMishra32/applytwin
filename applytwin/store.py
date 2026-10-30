@@ -246,9 +246,18 @@ create index if not exists thread_job on thread(job_id);
 """
 
 
+_wal = [False]
+
+
 def db():
     con = sqlite3.connect(path('applytwin.db'), timeout=30)
     con.row_factory = sqlite3.Row
+    if not _wal[0]:   # readers never wait for a writer (a scan or rescore used to freeze every page for seconds)
+        try:
+            con.execute('pragma journal_mode=wal')
+        except sqlite3.Error:
+            pass
+        _wal[0] = True
     con.executescript(SCHEMA)
     return con
 

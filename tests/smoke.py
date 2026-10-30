@@ -164,7 +164,7 @@ res.append(ok(all(sh == _want for sh in _shapes), f'resumes import right with an
 from applytwin import match as _m
 _places = {'Bengaluru, IN': 'foreign', 'Indianapolis, IN': 'us', 'Tel Aviv, IL': 'foreign', 'Berlin, DE': 'foreign',
            'Cambridge, United Kingdom': 'foreign', 'Cambridge, MA': 'us', 'New York, NY or Toronto, ON': 'us', '2 Locations': 'unknown',
-           'Vancouver, WA': 'us', 'Toronto, ON': 'foreign', 'Amsterdam, NH, NL': 'foreign'}
+           'Vancouver, WA': 'us', 'Toronto, ON': 'foreign', 'Amsterdam, NH, NL': 'foreign', 'Toronto, ON, CA': 'foreign', 'San Jose, CA': 'us'}
 _pl = {k: _m.place(k) for k, want in _places.items() if _m.place(k) != want}
 _same = api.role_key('Acme', 'Software Engineer Intern - New York') == api.role_key('Acme', 'Software Engineering Internship - Seattle')
 _diff = api.role_key('Acme', 'Intern - Software Engineering') != api.role_key('Acme', 'Intern - Investment Banking')

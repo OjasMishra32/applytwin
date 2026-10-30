@@ -1035,12 +1035,20 @@ def email_history_prompt():
             "Finish with how many you found.")
 
 
-def rescore():
-    """Re-run fit scoring on every stored job (after profile or matcher changes), no network needed."""
+def rescore(force=False):
+    """Re-run fit scoring on every stored job (after profile or matcher changes), no network needed. Skipped when nothing
+    that scoring depends on has changed since the last time (it ran on every start, slowing the app for seconds)."""
+    import hashlib
     from . import ats
     prof = store.profile()
     vt = ats.resume_text(store.resume())
     terms = {t for t, pat in ats.PATTERNS.items() if pat.search(vt)}
+    here = os.path.dirname(os.path.abspath(__file__))
+    code = b''.join(open(os.path.join(here, f), 'rb').read() for f in ('match.py', 'sources.py'))
+    keys = ('search', 'grad_year', 'grad_month', 'needs_sponsorship', 'citizenship', 'school', 'earliest_start', 'class_standing')
+    mark = hashlib.sha1(json.dumps([{k: prof.get(k) for k in keys}, sorted(terms)], sort_keys=True, default=str).encode() + code).hexdigest()
+    if not force and (store.load('rescore.json', {}) or {}).get('mark') == mark:
+        return {"rescored": 0, "unchanged": True}
     n = 0
     with store.db() as con:
         for j in [dict(r) for r in con.execute('select * from jobs')]:
@@ -1051,4 +1059,5 @@ def rescore():
             f, why = match.fit(j, prof, terms)
             con.execute('update jobs set fit=?, fit_why=? where id=?', (f, why, j['id']))
             n += 1
+    store.save('rescore.json', {"mark": mark, "at": time.time()})
     return {"rescored": n}

@@ -2,7 +2,7 @@ import { Suspense, lazy, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion, useInView, useMotionValueEvent, useScroll, useTransform, useReducedMotion } from 'motion/react'
 import { Check, ChevronRight, Copy, Laptop, Lock, KeyRound, ShieldCheck } from 'lucide-react'
 import { Toaster } from 'sonner'
-import { Avatar, Reveal } from '../components/ui'
+import { Avatar } from '../components/ui'
 import { REPO_URL, useStars } from '../lib/star'
 import './site.css'
 
@@ -26,6 +26,12 @@ const FAQ = [
   ['What does it cost?', 'Nothing. ApplyTwin is free.'],
 ]
 // Apple's motion: long, eased, small. Nothing bounces; things settle.
+function Reveal({ children, className, delay = 0 }) {
+  return (
+    <motion.div className={className} initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: '-40px' }} transition={{ duration: 0.9, ease: [0.25, 0.1, 0.25, 1], delay }}>{children}</motion.div>
+  )
+}
 const EASE = [0.25, 0.1, 0.25, 1]
 const rise = (delay = 0) => ({ initial: { opacity: 0, y: 28 }, animate: { opacity: 1, y: 0 }, transition: { duration: 1.1, ease: EASE, delay } })
 

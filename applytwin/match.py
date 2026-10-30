@@ -46,6 +46,9 @@ def place(loc):
         p = p.strip(' ,-')
         if not p:
             continue
+        if re.search(r',\s*(ON|BC|QC|AB|MB|NS|NB|NL|PE|SK)\b(\s*,\s*(CA|CAN|Canada))?\s*$', p) and not US_WORDS.search(p):
+            kinds.add('foreign')   # a Canadian province ("Toronto, ON, CA": that CA is Canada, not California)
+            continue
         if US_WORDS.search(p) or (US_STATE.search(p) and not FOREIGN.search(p)) or (US.search(p) and not FOREIGN.search(p)
                                                                                    and not CANADA.search(p) and not re.fullmatch(r'remote', p, re.I)):
             kinds.add('us')

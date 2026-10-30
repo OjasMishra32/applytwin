@@ -154,14 +154,14 @@ export function CopyLine({ text }) {
     </button>
   )
 }
-export function Stagger({ children, className, delay = 0.035 }) {
+export function Stagger({ children, className, delay = 0.012 }) {
   return (
     <motion.div className={className} initial="h" animate="s" variants={{ s: { transition: { staggerChildren: delay } } }}>
       {children}
     </motion.div>
   )
 }
-export const item = { h: { opacity: 0, y: 10 }, s: { opacity: 1, y: 0, transition: soft } }
+export const item = { h: { opacity: 0 }, s: { opacity: 1, transition: { duration: 0.16, ease: 'easeOut' } } }
 
 export function Hand({ children, className }) {
   return <span className={cn('text-[14px] font-semibold text-signal', className)}>{children}</span>
@@ -204,10 +204,12 @@ export function Drop({ onFile, onText, compact }) {
 }
 
 /* Fades/lifts content in the first time it scrolls into view. */
-export function Reveal({ children, className, delay = 0, y = 18 }) {
+/* In the app, content is there the moment a page opens (a quick fade, nothing waits on scrolling), like a native app.
+   The public site keeps its own scroll reveals. */
+export function Reveal({ children, className, delay = 0 }) {
   return (
-    <motion.div className={className} initial={{ opacity: 0, y }} whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: '-60px' }} transition={{ type: 'spring', stiffness: 140, damping: 22, delay }}>{children}</motion.div>
+    <motion.div className={className} initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+      transition={{ duration: 0.18, ease: 'easeOut', delay: Math.min(delay, 0.08) }}>{children}</motion.div>
   )
 }
 
