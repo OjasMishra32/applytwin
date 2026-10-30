@@ -15,6 +15,11 @@ import subprocess
 import sys
 import tempfile
 import time
+for _s in (sys.stdout, sys.stderr):   # Windows consoles default to cp1252, which can't print emoji
+    try:
+        _s.reconfigure(encoding='utf-8', errors='replace')
+    except (AttributeError, ValueError):
+        pass
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WIN = os.name == 'nt'
@@ -29,6 +34,7 @@ os.environ.pop('OPENAI_API_KEY', None)
 # A stand-in agent: answers --version / auth status / login status, and for a run echoes back what it got on stdin.
 FAKE = r'''
 import json, os, sys
+
 a = sys.argv[1:]
 name = os.environ.get('FAKE_NAME', 'agent')
 if a[:1] == ['--version']: print(f'9.9.9 ({name})'); sys.exit(0)

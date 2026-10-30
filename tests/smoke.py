@@ -1,5 +1,10 @@
 """End-to-end smoke test on a throwaway APPLYTWIN_HOME: vault -> render every template -> tailor + fact guard -> answers -> MCP."""
 import json, os, subprocess, sys, tempfile
+for _s in (sys.stdout, sys.stderr):   # Windows consoles default to cp1252, which can't print emoji
+    try:
+        _s.reconfigure(encoding='utf-8', errors='replace')
+    except (AttributeError, ValueError):
+        pass
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.environ['APPLYTWIN_HOME'] = tempfile.mkdtemp(prefix='applytwin-test-')
 sys.path.insert(0, ROOT)
@@ -35,6 +40,7 @@ lines = [json.loads(x) for x in p.stdout.splitlines() if x.strip()]
 res.append(ok(len(lines) == 3 and len(lines[1]['result']['tools']) >= 20 and 'applied_today' in lines[2]['result']['content'][0]['text'],
               f'MCP server: {len(lines[1]["result"]["tools"]) if len(lines) > 1 else 0} tools'))
 from applytwin import match
+
 same = [('Tesla', '🔥 Tesla'), ('JPMorgan', 'JPMorganChase'), ('JP Morgan Chase', 'JPMorgan Chase & Co.'), ('Micron', 'Micron Technology'),
         ('Meta', 'Facebook'), ('Google', 'Alphabet Inc.'), ('Stripe', '⭐️ Stripe, Inc.')]
 different = [('Meta', 'Metabase'), ('Apple', 'Applied Materials'), ('Ramp', 'Rampart')]

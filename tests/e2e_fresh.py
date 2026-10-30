@@ -15,6 +15,12 @@ import tempfile
 import time
 import urllib.request
 
+for _s in (sys.stdout, sys.stderr):   # Windows consoles default to cp1252, which can't print emoji
+    try:
+        _s.reconfigure(encoding='utf-8', errors='replace')
+    except (AttributeError, ValueError):
+        pass
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BIN = os.path.join(ROOT, 'bin', 'applytwin')
 TMP = tempfile.mkdtemp(prefix='applytwin-fresh-')

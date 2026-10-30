@@ -13,6 +13,12 @@ import subprocess
 import sys
 import tempfile
 
+for _s in (sys.stdout, sys.stderr):   # Windows consoles default to cp1252, which can't print emoji
+    try:
+        _s.reconfigure(encoding='utf-8', errors='replace')
+    except (AttributeError, ValueError):
+        pass
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 PEOPLE = {
