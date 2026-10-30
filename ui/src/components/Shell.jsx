@@ -116,7 +116,7 @@ export function TopBar({ page, go, onPalette, matched, auth, signIn, signOut }) 
             <Search className="size-3.5" /><span className="hidden sm:inline">Search</span><kbd className="text-[11px] text-faint">⌘K</kbd>
           </button>
           <button onClick={() => go('settings')} className={cn('grid size-8 place-items-center rounded-full transition', page === 'settings' ? 'bg-white text-[#0b1020]' : 'bg-white/[.05] text-muted hover:text-ink')} title="Settings"><Settings2 className="size-4" /></button>
-          <StarButton compact className="hidden md:inline-flex" />
+          <span className="hidden md:block"><StarButton compact /></span>
           <Inbox />
           <Account auth={auth} signIn={signIn} signOut={signOut} />
         </div>

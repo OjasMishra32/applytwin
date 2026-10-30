@@ -7,16 +7,16 @@ import { Avatar } from './ui'
    B  the twin rewrites it for one job, letter by letter, as the job's keywords lock in
    C  the page multiplies into tailored copies, each sent to a real company */
 
-const SCRAPS = ['Built a DCF for a $40M acquisition', '320 clinical hours, BLS certified', '1st of 120 at a case competition', 'Shipped an iOS app to 1,000+ users',
+export const SCRAPS = ['Built a DCF for a $40M acquisition', '320 clinical hours, BLS certified', '1st of 120 at a case competition', 'Shipped an iOS app to 1,000+ users',
   'Led workshops for 80+ students', 'Redesigned a checkout flow in Figma', 'Dean\'s List, every semester', 'Cut API latency 38%',
   'Founded a tutoring nonprofit', 'Research assistant, psych lab']
-const REWRITES = [
+export const REWRITES = [
   ['Worked on the backend for the data team.', 'Built a Go ingestion service on Kafka processing 40K events/sec.'],
   ['Helped make the API faster.', 'Cut p99 API latency 38% (410 to 255 ms) with a Redis read-through cache.'],
   ['Did a hackathon project.', 'Won 1st of 120 teams at HackTX; the app now has 2,300 users.'],
 ]
-const KEYWORDS = ['Go', 'Kafka', 'distributed systems', 'Redis', 'low latency']
-const SENT = [['Pinterest', 'pinterest.com'], ['Figma', 'figma.com'], ['Stripe', 'stripe.com'], ['Jane Street', 'janestreet.com'], ['MongoDB', 'mongodb.com'],
+export const KEYWORDS = ['Go', 'Kafka', 'distributed systems', 'Redis', 'low latency']
+export const SENT = [['Pinterest', 'pinterest.com'], ['Figma', 'figma.com'], ['Stripe', 'stripe.com'], ['Jane Street', 'janestreet.com'], ['MongoDB', 'mongodb.com'],
   ['Notion', 'notion.so'], ['Roblox', 'roblox.com'], ['Databricks', 'databricks.com'], ['Anthropic', 'anthropic.com']]
 const clamp = v => Math.min(1, Math.max(0, v))
 
@@ -129,6 +129,45 @@ export function LogoWall({ companies }) {
                 <Avatar name={c} size={34} /><span className="whitespace-nowrap text-[15px] font-medium text-white/90">{c}</span></div>))}
           </div>))}
       </div>
+    </div>
+  )
+}
+
+/* Phones: the same three beats, stacked and revealed as you scroll, with no pinned scrolling and no empty stretches. */
+export function StoryMobile() {
+  const fade = { initial: { opacity: 0, y: 24 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true, margin: '-60px' }, transition: { type: 'spring', stiffness: 160, damping: 24 } }
+  return (
+    <div className="space-y-20 px-5 py-16">
+      <motion.section {...fade}>
+        <h2 className="text-[40px] font-bold leading-[0.98] tracking-[-0.045em] text-white">Everything <span className="serif-i text-[#9cc8ff]">you've ever done.</span></h2>
+        <p className="mt-3 text-[16px] text-white/65">Give it your resume, old ones, anything. Your twin keeps all of it.</p>
+        <div className="mt-6 flex flex-wrap gap-2">
+          {SCRAPS.slice(0, 8).map((x, i) => <motion.span key={x} initial={{ opacity: 0, scale: .9 }} whileInView={{ opacity: 1, scale: 1 }} viewport={{ once: true }}
+            transition={{ delay: i * .05 }} className="rounded-full border border-white/15 bg-[#111a3d] px-3.5 py-2 text-[13.5px] text-white">{x}</motion.span>)}
+        </div>
+      </motion.section>
+      <motion.section {...fade}>
+        <h2 className="text-[40px] font-bold leading-[0.98] tracking-[-0.045em] text-white">Rewritten <span className="serif-i text-[#9cc8ff]">for each job.</span></h2>
+        <div className="mt-6 rounded-[16px] bg-white p-5 shadow-[0_30px_80px_rgb(0_0_0/.5)]">
+          <div className="text-[19px] font-semibold tracking-[-0.03em] text-[#0b1020]">Northwind Labs</div>
+          <div className="text-[13px] text-[#6b7280]">Software Engineering Intern</div>
+          <ul className="mt-3 space-y-2.5 border-t border-black/10 pt-3">
+            {REWRITES.map(([, b]) => <li key={b} className="flex gap-2.5 text-[14.5px] leading-snug text-[#0b1020]"><span className="mt-[7px] size-1.5 shrink-0 rounded-full bg-[#0a84ff]" />{b}</li>)}
+          </ul>
+          <div className="mt-4 flex flex-wrap gap-1.5">{KEYWORDS.map(w => <span key={w} className="rounded-full bg-[#0b1020] px-2.5 py-1 text-[12px] font-semibold text-white">{w}</span>)}</div>
+          <div className="mt-4 flex items-center justify-between text-[13px] text-[#6b7280]"><span>Keyword match for this job</span><span className="text-[26px] font-semibold tracking-[-0.04em] text-[#0b1020]">98%</span></div>
+        </div>
+      </motion.section>
+      <motion.section {...fade}>
+        <h2 className="text-[40px] font-bold leading-[0.98] tracking-[-0.045em] text-white">Sent. <span className="serif-i text-[#9cc8ff]">Everywhere.</span></h2>
+        <div className="mt-6 grid grid-cols-3 gap-2.5">
+          {SENT.map(([c, d], i) => <motion.div key={c} initial={{ opacity: 0, y: 10 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * .05 }}
+            className="rounded-[12px] bg-white p-2.5"><Avatar name={c} domain={d} size={22} /><div className="mt-1.5 truncate text-[12px] font-semibold text-[#0b1020]">{c}</div>
+            <div className="text-[10.5px] font-semibold text-[#16a34a]">✓ Applied</div></motion.div>)}
+        </div>
+        <div className="mt-8 text-center"><div className="text-[52px] font-bold tracking-[-0.05em] text-white">1,284</div>
+          <div className="text-[15px] text-white/60">applications sent, each with its own resume</div></div>
+      </motion.section>
     </div>
   )
 }

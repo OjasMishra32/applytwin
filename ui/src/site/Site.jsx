@@ -4,7 +4,7 @@ import { Check, Copy } from 'lucide-react'
 import { Toaster } from 'sonner'
 import { Sky } from '../components/Sky'
 import { Hero3D } from '../components/Hero3D'
-import { LogoWall, Story } from '../components/Story'
+import { LogoWall, Story, StoryMobile } from '../components/Story'
 import { Reveal, Words, soft, spring } from '../components/ui'
 import { REPO_URL, StarButton } from '../lib/star'
 
@@ -44,9 +44,10 @@ export default function Site() {
           <nav className="flex items-center gap-4 text-[13.5px] text-white/70 sm:gap-5">
             <a href="#how" className="hidden hover:text-white sm:block">How it works</a>
             <a href="#faq" className="hidden hover:text-white sm:block">Questions</a>
-            <StarButton className="hidden sm:inline-flex" />
-            <a href="/app" className="hover:text-white">Your account</a>
-            <a href="#start" className="rounded-full px-4 py-1.5 font-medium text-white" style={{ background: BLUE }}>Get started</a>
+            <span className="hidden sm:block"><StarButton /></span>
+            <span className="sm:hidden"><StarButton compact /></span>
+            <a href="/app" className="hidden whitespace-nowrap hover:text-white sm:block">Your account</a>
+            <a href="#start" className="whitespace-nowrap rounded-full px-4 py-1.5 font-medium text-white" style={{ background: BLUE }}>Get started</a>
           </nav>
         </div>
       </header>
@@ -77,7 +78,7 @@ export default function Site() {
         <LogoWall companies={COMPANIES} />
       </Reveal>
 
-      <div id="how"><Story /></div>
+      <div id="how"><div className="hidden md:block"><Story /></div><div className="md:hidden"><StoryMobile /></div></div>
 
       <section className="mx-auto max-w-[1080px] px-5 py-24">
         <Reveal><h2 className="text-center text-[clamp(40px,5.5vw,64px)] font-bold leading-[1] tracking-[-0.045em] text-white">Set up in one line.</h2>
@@ -106,7 +107,6 @@ export default function Site() {
 
       <section className="px-5 pb-16">
         <Reveal className="mx-auto flex max-w-[760px] flex-col items-center gap-4 rounded-[24px] bg-[#111526] px-6 py-10 text-center ring-1 ring-white/[.06]">
-          <div className="text-[13px] font-medium text-[#ffd60a]">★ ★ ★ ★ ★</div>
           <h2 className="text-[28px] font-bold tracking-[-0.03em] text-white sm:text-[34px]">Free for every student. Help it reach more of them.</h2>
           <p className="max-w-[520px] text-[15px] text-muted">ApplyTwin costs nothing and has no ads. A star on GitHub is how other students find it, and it's the best way to say thanks.</p>
           <a href={REPO_URL} target="_blank" rel="noreferrer" className="mt-1 inline-flex h-11 items-center gap-2 rounded-full bg-white px-6 text-[15px] font-semibold text-[#0b1020] transition hover:bg-white/90">
@@ -116,7 +116,7 @@ export default function Site() {
 
       <footer className="mx-auto flex max-w-[1180px] flex-wrap items-center justify-between gap-3 border-t border-white/[.06] px-5 py-8 text-[13px] text-faint">
         <span className="flex items-center gap-2"><Logo size={16} />© 2026 Ojasva Mishra · ApplyTwin, from Twinly</span>
-        <a href={REPO_URL} target="_blank" rel="noreferrer" className="hover:text-white">★ Star on GitHub</a>
+        <span className="flex gap-4"><a href="/app" className="hover:text-white">Your account</a><a href={REPO_URL} target="_blank" rel="noreferrer" className="hover:text-white">★ Star on GitHub</a></span>
       </footer>
     </div>
   )
