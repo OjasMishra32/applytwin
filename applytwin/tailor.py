@@ -22,7 +22,7 @@ GUIDE = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file
     if os.path.exists(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'docs', 'RESUME_GUIDE.md')) else ''
 ENTRY_SECS = ('experience', 'projects', 'leadership', 'volunteering')
 # raise when how a plan becomes a page gets meaningfully better: saved resumes from older versions are rebuilt from their plan
-PIPELINE = 2
+PIPELINE = 3
 
 
 def slug(s):
@@ -294,6 +294,8 @@ THEN BUILD THE PAGE AROUND IT so a recruiter skimming for 6 seconds sees those t
 - Skills: the line and the items this role cares about come first.
 
 RULES (hard):
+- Every research/publication entry in the vault appears on the page (you choose where the section goes; put it high when
+  the role values research). Never spend a bullet restating a paper the research section already lists.
 - Never invent: no new numbers, employers, tools, skills, titles, dates, awards or links. A fact guard rejects violations.
 - REWRITE every bullet you keep into its strongest truthful form for THIS posting: lead with the result, mirror the
   posting's exact terms where the bullet already proves them, cut filler, keep every fact. Keep **bold** on the 1-3
@@ -604,8 +606,10 @@ def apply(v, plan, jd=''):
     if out.get('leadership'):
         out['leadership'] = [e for e in out['leadership'] if e.get('id') not in moved]   # never listed twice
     rid = {p.get('id'): p for p in v.get('research', [])}
-    out['research'] = ([rid[_near_id(i, rid)] for i in plan.get('research', []) if _near_id(i, rid) in rid]
-                       if 'research' in plan else v.get('research', []))
+    # publications and research always appear (the plan only orders them): for any student they're among the strongest lines
+    # on the page, and a hiring manager never expects them cut. Trimming to one page removes them only as a last resort.
+    picked = [rid[_near_id(i, rid)] for i in plan.get('research') or [] if _near_id(i, rid) in rid]
+    out['research'] = picked + [p for p in v.get('research', []) if p not in picked]
     aw = v.get('awards', [])
     out['awards'] = _pick_awards(aw, plan['awards']) if 'awards' in plan else aw
     out['awards'] = _not_repeated(out['awards'], out)
@@ -620,7 +624,8 @@ def apply(v, plan, jd=''):
     # every section the plan selected is shown, education leads, and experience is newest first
     order = [s for s in (plan.get('order') or v.get('order') or []) if out.get(s)]
     order += [s for s in (v.get('order') or []) if s not in order and out.get(s) and s not in ('research', 'awards')]
-    order += [s for s in ('research', 'awards') if s not in order and out.get(s) and s in plan]
+    order += [s for s in ('research',) if s not in order and out.get(s)]
+    order += [s for s in ('awards',) if s not in order and out.get(s) and s in plan]
     if 'education' in order and order[0] != 'education':
         order.remove('education')
         order.insert(0, 'education')

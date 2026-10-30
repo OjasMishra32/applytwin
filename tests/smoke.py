@@ -171,6 +171,13 @@ _id10 = _tl.ensure_ids(json.loads(json.dumps(_v10)))['experience'][0]['id']
 _typo = _id10[:-3] + ('x' if _id10[-3] != 'x' else 'y') + _id10[-2:]
 _res10, _ = _tl.apply(_v10, {"experience": [{"id": _typo, "bullets": [f"{_typo}.0", f"{_typo}.1"]}]})
 res.append(ok(len(_res10['experience']) == 1 and len(_res10['experience'][0]['bullets']) == 2, f'misspelled plan ids still match ({_typo} -> {_id10})'))
+# publications always appear, whatever the plan picked
+_v11 = {"basics": {"name": "T"}, "research": [{"id": "p1", "title": "Paper One", "venue": "ICRA"}, {"id": "p2", "title": "Paper Two", "venue": "T-RO"}],
+        "experience": [{"id": "x", "org": "X", "title": "SWE", "dates": "2025", "bullets": ["Built a service handling 12M requests/day."]}]}
+_res11, _ = _tl.apply(_v11, {"experience": [{"id": "x"}], "order": ["education", "experience"]})
+_res12, _ = _tl.apply(_v11, {"experience": [{"id": "x"}], "research": ["p2"]})
+res.append(ok(len(_res11['research']) == 2 and 'research' in _res11['order'] and [p['id'] for p in _res12['research']] == ['p2', 'p1'],
+              'publications always appear on the page (the plan only orders them)'))
 # real form questions that used to get the wrong answer
 _pb = _an.default_bank({'name': 'Maya Chen', 'location': 'Austin, TX', 'grad_month': 'May', 'grad_year': '2028', 'major': 'Computer Science',
                         'work_authorized_us': True, 'needs_sponsorship': True, 'government_employee': False, 'willing_to_relocate': True})
