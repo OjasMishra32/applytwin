@@ -18,6 +18,24 @@ const Ctx = createContext(null)
 export const useApp = () => useContext(Ctx)
 const PAGES = { home: Home, jobs: Jobs, studio: Studio, answers: Answers, board: Board, settings: Settings, agents: Agents, welcome: Welcome }
 
+/* After an update the open page reloads itself onto the new version, so the page and the app never disagree.
+   It waits until the tab is in the background or you've been idle a minute, so nothing you're in the middle of is lost. */
+function keepCurrent() {
+  const mine = (document.querySelector('script[src*="assets/index-"]')?.getAttribute('src') || '').split('/').pop()
+  if (!mine) return
+  let stale = false, last = Date.now()
+  const touch = () => { last = Date.now() }
+  addEventListener('pointerdown', touch); addEventListener('keydown', touch)
+  const check = async () => {
+    try { const v = await api('/api/version'); if (v.ui && v.ui !== mine) stale = true } catch { /* restarting; try next time */ }
+    if (stale && (document.hidden || Date.now() - last > 60000)) location.reload()
+  }
+  const t = setInterval(check, 20000)
+  const vis = () => { if (!document.hidden) check() }
+  document.addEventListener('visibilitychange', vis)
+  return () => { clearInterval(t); document.removeEventListener('visibilitychange', vis); removeEventListener('pointerdown', touch); removeEventListener('keydown', touch) }
+}
+
 export default function App() {
   const parse = () => { const raw = location.hash.slice(1); if (raw.includes('access_token=')) return { page: 'home' }; const [p, arg] = (raw || 'home').split('/'); return { page: PAGES[p] ? p : 'home', arg } }
   const [route, setRoute] = useState(parse)
@@ -43,6 +61,7 @@ export default function App() {
   useEffect(() => { if (state && (!location.hash || location.hash === '#home') && !(state.vault?.experience?.length || state.vault?.projects?.length)) location.hash = 'welcome' }, [state])
   const loadJobs = useCallback(() => api('/api/jobs?limit=200').then(setJobs), [])
   useEffect(() => { refresh(); loadJobs() }, [refresh, loadJobs])
+  useEffect(() => keepCurrent(), [])
   useEffect(() => { const f = () => { setRoute(parse()); window.scrollTo({ top: 0 }) }; window.addEventListener('hashchange', f); return () => window.removeEventListener('hashchange', f) }, [])
   const go = (page, arg) => { location.hash = arg ? `${page}/${arg}` : page }
 

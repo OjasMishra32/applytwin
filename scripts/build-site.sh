@@ -8,7 +8,6 @@ keep="$(mktemp -d)"; [ -d site/.vercel ] && cp -R site/.vercel "$keep/"   # the 
 mv site/site.html site/index.html
 cp scripts/install-remote.sh site/install.sh
 cp scripts/install-remote.ps1 site/install.ps1
-date +%Y.%m.%d > VERSION
 tar -czf site/applytwin.tar.gz -s ',^\.,applytwin,' --exclude './ui/node_modules' --exclude './site' --exclude '*/__pycache__' \
   --exclude '*.pyc' --exclude '.DS_Store' --exclude './.vercel' --exclude './.claude' --exclude './.git' .
 cat > site/vercel.json <<'JSON'

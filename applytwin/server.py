@@ -39,6 +39,7 @@ GET = {
     r'/api/queue': lambda m, qs, b: api.queue(int(_q(qs, 'n', 50))),
     r'/api/run': lambda m, qs, b: api.run_status(),
     r'/api/doctor': lambda m, qs, b: api.doctor(),
+    r'/api/version': lambda m, qs, b: version(),
     r'/api/questions': lambda m, qs, b: api.profile_questions(),
     r'/api/update': lambda m, qs, b: api.update_status(),
     r'/api/agents': lambda m, qs, b: api.agent_status(),
@@ -109,7 +110,7 @@ class H(BaseHTTPRequestHandler):
         qs = urllib.parse.parse_qs(u.query)
         if u.path.startswith('/api/'):
             if self._route(GET) is None:
-                self._send(404, {"error": "not found"})
+                self._send(404, {"error": "ApplyTwin is switching to a new version. Try again in a few seconds."})
             return
         if u.path == '/preview':
             try:
@@ -134,7 +135,7 @@ class H(BaseHTTPRequestHandler):
         except ValueError:
             return self._send(400, {"error": "bad json"})
         if self._route(POST, body) is None:
-            self._send(404, {"error": "not found"})
+            self._send(404, {"error": "ApplyTwin is switching to a new version. Try again in a few seconds."})
 
 
 def _restart():
@@ -176,6 +177,45 @@ def _update_loop(hours=1):
         while api.run_status().get('running'):
             time.sleep(300)
         _self_update()
+
+
+def _code_stamp():
+    d = os.path.dirname(os.path.abspath(__file__))
+    return max(os.path.getmtime(os.path.join(d, f)) for f in os.listdir(d) if f.endswith('.py'))
+
+
+_STARTED_CODE = _code_stamp()
+
+
+def _ui_build():
+    """The name of the page's current script bundle; it changes with every UI build."""
+    import re
+    try:
+        html = open(os.path.join(WEB, 'index.html'), encoding='utf-8').read()
+        return (re.search(r'assets/(index-[\w-]+\.js)', html) or [None, ''])[1]
+    except OSError:
+        return ''
+
+
+def version():
+    """The open page compares `ui` with the bundle it loaded and reloads itself when they differ."""
+    from . import __version__
+    return {"version": __version__, "ui": _ui_build()}
+
+
+def _code_watch():
+    """If the app's code on disk is newer than what's running (an update or a git pull), restart onto it between runs,
+    so the page and the server never disagree (that's what made buttons say "not found")."""
+    import time
+    while True:
+        time.sleep(5)
+        try:
+            if _code_stamp() > _STARTED_CODE + 1 and not api.run_status().get('running'):
+                time.sleep(2)   # let a pull or update finish writing files
+                print('ApplyTwin code changed on disk; restarting on it.', flush=True)
+                _restart()
+        except Exception:
+            pass
 
 
 def update_now():
@@ -232,8 +272,9 @@ def serve(port=4747, open_browser=True):
     # then refresh jobs if the last scan is old
     from . import install
     threading.Thread(target=lambda: (install.refresh_skills(), api.rescore(), api.scan_if_stale()), daemon=True).start()
-    threading.Thread(target=_update_loop, daemon=True).start()   # keep updating while it runs for days
-    print(f'ApplyTwin is running at {url}  (data in {store.HOME})')
+    threading.Thread(target=_update_loop, daemon=True).start()
+    threading.Thread(target=_code_watch, daemon=True).start()   # keep updating while it runs for days
+    print(f'ApplyTwin is running at {url}  (data in {store.HOME})', flush=True)
     if open_browser:
         import webbrowser
         webbrowser.open(url)
