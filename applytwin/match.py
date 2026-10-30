@@ -141,6 +141,27 @@ def company_words(name):
     return words
 
 
+# firms that take only so many applications a cycle; applying past it gets every application ignored. Postings that say so
+# are read too (application_limit), so this list is only the firms whose rule isn't in the posting text.
+KNOWN_LIMITS = {'janestreet': 1, 'akunacapital': 1, 'virtu': 1, 'virtufinancial': 1, 'ramp': 2, 'morganstanley': 3}
+_NUM = {'one': 1, 'a single': 1, 'two': 2, 'three': 3, '1': 1, '2': 2, '3': 3}
+LIMIT_TEXT = re.compile(r"(?:apply|submit)(?: an application)? (?:to|for) (?:only |just |no more than |up to |a maximum of )?(one|a single|two|three|1|2|3) "
+                        r"(?:\w+ )?(?:roles?|positions?|internships?|opportunit(?:y|ies)|programs?|jobs?)|"
+                        r"(?:only|no more than|up to|a maximum of|limit(?:ed)? to) (one|two|three|1|2|3) (?:applications?|roles?|positions?)"
+                        r"(?: per (?:candidate|applicant|person|cycle|season|year))?|"
+                        r"(one|two|three|1|2|3) applications? per (?:candidate|applicant|person|cycle|season|year)", re.I)
+
+
+def application_limit(company, description=''):
+    """How many applications this company takes from one candidate per cycle, or None if it doesn't say."""
+    lim = KNOWN_LIMITS.get(company_key(company or ''))
+    m = LIMIT_TEXT.search(description or '')
+    if m:
+        n = _NUM.get(next(g for g in m.groups() if g).lower())
+        lim = min(lim, n) if lim else n
+    return lim
+
+
 def company_key(name):
     collapsed = ''.join(company_words(name))
     return ALIASES.get(collapsed, collapsed)

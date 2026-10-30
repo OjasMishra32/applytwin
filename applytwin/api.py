@@ -250,6 +250,25 @@ def job_questions(job_id):
     return qs
 
 
+_limits = {}   # company key -> (when read, limit or None)
+
+
+def company_cap(company, cap):
+    """Your per-company cap, or the company's own limit when it takes fewer applications per candidate (Jane Street, Akuna;
+    or a posting that says 'apply to only one role'). The queue is fit-ordered, so the best-fitting role gets the slot."""
+    k = match.company_key(company or '')
+    hit = _limits.get(k)
+    if not hit or time.time() - hit[0] > 600:
+        lim = match.application_limit(company)
+        for r in store.rows("select description from jobs where company=? and (description like '%only one%' or description like "
+                            "'%no more than%' or description like '%per candidate%' or description like '%maximum of%' or description "
+                            "like '%single role%' or description like '%one role%' or description like '%per applicant%') limit 20", (company,)):
+            n = match.application_limit('', r['description'])
+            lim = min(lim, n) if lim and n else (lim or n)
+        hit = _limits[k] = (time.time(), lim)
+    return min(cap, hit[1]) if hit[1] else cap
+
+
 def next_jobs(n=10):
     """The apply queue: best-fit unapplied jobs, respecting the daily limit and per-company caps."""
     p = store.profile()
@@ -263,7 +282,7 @@ def next_jobs(n=10):
         if already_done(j, done, ids) or any(match.same_company(s, j['company']) for s in skip):
             continue
         c = match.company_key(j['company'])
-        if store.company_count(j['company']) + per.get(c, 0) >= cap:
+        if store.company_count(j['company']) + per.get(c, 0) >= company_cap(j['company'], cap):
             continue
         if store.rows('select 1 from claims where job_id=?', (j['id'],)):
             continue
@@ -336,8 +355,11 @@ def claim(job_id, who='agent'):
         return {"claimed": False, "reason": "The user asked never to apply to this company. Skip it."}
     if store.applied_count_today() >= p['apply'].get('daily_limit', 40):
         return {"claimed": False, "reason": "Today's application limit is reached. Stop the run here."}
-    if j and store.company_count(j['company']) >= p['apply'].get('per_company_cap', 3):
-        return {"claimed": False, "reason": "The per-company cap for this company is reached. Skip it."}
+    if j and store.company_count(j['company']) >= company_cap(j['company'], p['apply'].get('per_company_cap', 3)):
+        lim = _limits.get(match.company_key(j['company']), (0, None))[1]
+        return {"claimed": False, "reason": (f"{j['company']} takes only {lim} application(s) per candidate and that's used. Skip it."
+                                             if lim and lim < p['apply'].get('per_company_cap', 3) else
+                                             "The per-company cap for this company is reached. Skip it.")}
     ok = store.claim(job_id, who)
     if ok:
         pretailor(job_id)   # the resume is written while the agent opens and fills the application
@@ -709,7 +731,7 @@ def queue(n=50, for_agent=False):
     skip = p['search'].get('companies_skip', [])
     for j in rows:
         c = match.company_key(j['company'])
-        if (already_done(j, done, ids) or j['id'] in claimed or applied.get(c, 0) + per.get(c, 0) >= cap
+        if (already_done(j, done, ids) or j['id'] in claimed or applied.get(c, 0) + per.get(c, 0) >= company_cap(j['company'], cap)
                 or any(match.same_company(s, j['company']) for s in skip)):
             continue
         per[c] = per.get(c, 0) + 1

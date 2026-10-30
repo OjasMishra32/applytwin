@@ -286,6 +286,14 @@ _r = api.restore_vault()
 res.append(ok(_refused and _bk and _bk[0]['experience'] >= 1 and len(api.get_vault().get('experience', [])) >= 1,
               f'an empty save is refused, saves keep backups, restore brings the resume back ({_n} roles, {len(_bk)} backups)'))
 api.save_vault(_full)
+# firms that take one application per candidate get one (the best-fitting role), not the user's cap of three
+for _i, (_t, _f) in enumerate([('Quantitative Trader Intern', 90), ('Software Engineer Intern', 85), ('Quantitative Researcher Intern', 80)]):
+    store.execute("insert or replace into jobs(id,source,company,title,location,url,apply_url,ats,posted,description,found_at,fit,fit_why,status) "
+                  "values(?, 'greenhouse','Jane Street',?,'New York','u','u','greenhouse','','',?,?,'','new')", (f'js-{_i}', _t, time.time(), _f))
+_q = [j for j in api.queue(500)['jobs'] if j['company'] == 'Jane Street']
+for _i in range(3):
+    store.execute("delete from jobs where id=?", (f'js-{_i}',))
+res.append(ok(len(_q) == 1 and _q[0]['title'] == 'Quantitative Trader Intern', f"one-application firms get one, the best fit ({[j['title'] for j in _q]})"))
 # real form questions that used to get the wrong answer
 _pb = _an.default_bank({'name': 'Maya Chen', 'location': 'Austin, TX', 'grad_month': 'May', 'grad_year': '2028', 'major': 'Computer Science',
                         'work_authorized_us': True, 'needs_sponsorship': True, 'government_employee': False, 'willing_to_relocate': True})
