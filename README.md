@@ -93,6 +93,10 @@ Everything lives in `~/.applytwin` (set `APPLYTWIN_HOME` to move it): `profile.j
 `answers.json`, `applytwin.db` (jobs and applications) and `resumes/` (every tailored PDF). Add companies to scan in
 `~/.applytwin/companies.json` (start from `data/companies.json`).
 
+**Install count.** Once a day the app sends a random ID made on your computer, your OS, the ApplyTwin version and which
+agent you use, so we know how many people use it. Never your name, email, resume, jobs or applications. Turn it off in
+Settings (Count my install) or set `APPLYTWIN_NO_TELEMETRY=1`.
+
 ## The app
 
 `./bin/applytwin app` opens it at http://localhost:4747. First run walks you through it: drop your resume (PDF, Word,
