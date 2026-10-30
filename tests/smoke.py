@@ -173,6 +173,17 @@ _kept = all(_m.fit({'title': t, 'company': 'X'}, _P)[0] > 0 for t in ('Product M
                                                                      'Software Engineer Intern - Undergraduate Students Only'))
 _roles = _m.role_hit('software engineering', 'software developer intern') and not _m.role_hit('machine learning', 'aircraft maintenance intern')
 res.append(ok(not _pl and _same and _diff and _kept and _roles, f'job matching: places, same/different roles, excludes, role words {_pl or ""}'))
+# a posting that disappeared from its company's board leaves the queue; one bad posting never stops a scan
+from applytwin import sources as _src
+for _i in ('g1', 'g2'):
+    store.execute("insert or replace into jobs(id,source,company,title,url,apply_url,ats,found_at,fit,status) values(?,?,?,?,?,?,?,?,?,'new')",
+                  (_i, 'greenhouse', 'Gco', 'Intern ' + _i, f'https://boards.greenhouse.io/gco/jobs/{_i}', '', 'greenhouse', 0, 90))
+with store.db() as _con:
+    _src._retire(_con, 'greenhouse:gco', [{'id': 'g1'}])
+    _st = {'fetched': 0, 'new': 0, 'matched': 0}
+    _src._ingest(_con, [{'id': 'bad'}], store.profile(), set(), _st, 0)   # missing fields: skipped, not fatal
+_closed = {r['id']: r['status'] for r in store.rows("select id, status from jobs where id in ('g1','g2')")}
+res.append(ok(_closed == {'g1': 'new', 'g2': 'closed'}, f'closed postings leave the queue {_closed}'))
 from applytwin import telemetry as _tm
 res.append(ok(not _tm.enabled() and _tm.ping() is False and len(_tm.install_id()) == 36, 'install count is off in tests and uses only a random ID'))
 

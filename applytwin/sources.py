@@ -418,33 +418,27 @@ def discover(jobs):
                         found.setdefault(ats, {}).setdefault(token, co)
     if not found:
         return {}
-    p = store.path('discovered.json')
-    _disc_lock.acquire()
-    cur = json.load(open(p, encoding='utf-8')) if os.path.exists(p) else {}
     known = store.companies()
     new = {}
-    for ats, toks in found.items():
-        have = {t.split('|')[0].lower() for t in known.get(ats, [])}
-        fresh = {f'{t}|{co}' if co else t for t, co in toks.items() if t.lower() not in have}
-        if fresh:
-            new[ats] = fresh
-            cur[ats] = sorted(set(cur.get(ats, [])) | fresh)
-    json.dump(cur, open(p, 'w', encoding='utf-8'), indent=1)
-    _disc_lock.release()
+
+    def add(cur):
+        for ats, toks in found.items():
+            have = {t.split('|')[0].lower() for t in known.get(ats, [])}
+            fresh = {f'{t}|{co}' if co else t for t, co in toks.items() if t.lower() not in have}
+            if fresh:
+                new[ats] = fresh
+                cur[ats] = sorted(set(cur.get(ats, [])) | fresh)
+    with _disc_lock:
+        store.update('discovered.json', add, {})
     return new
 
 def forget_board(name):
     """A discovered board that no longer answers (the company moved or closed it) is dropped, so scans stay fast."""
     ats, _, token = name.partition(':')
-    p = store.path('discovered.json')
-    if not token or not os.path.exists(p):
+    if not token:
         return
     with _disc_lock:
-        cur = json.load(open(p, encoding='utf-8'))
-        keep = [t for t in cur.get(ats, []) if t != token]
-        if len(keep) != len(cur.get(ats, [])):
-            cur[ats] = keep
-            json.dump(cur, open(p, 'w', encoding='utf-8'), indent=1)
+        store.update('discovered.json', lambda cur: cur.__setitem__(ats, [t for t in cur.get(ats, []) if t != token]) if ats in cur else None, {})
 
 
 def detect_ats(url):
@@ -505,9 +499,10 @@ def scan(sources=None, on_progress=None, workers=32):
                 stats['done'] += 1
                 try:
                     jobs = f.result()
-                except Exception:
+                except Exception as e:
                     stats['errors'] += 1
-                    forget_board(name)
+                    if getattr(e, 'code', None) in (404, 410):   # gone for good; a timeout or rate limit is not a reason to forget it
+                        forget_board(name)
                     if on_progress:
                         on_progress(dict(stats))
                     continue
@@ -520,32 +515,53 @@ def scan(sources=None, on_progress=None, workers=32):
                             stats['discovered'] = stats.get('discovered', 0) + 1
                 with store.db() as con:   # short transaction per board, so the app can keep writing while a scan runs
                     _ingest(con, jobs, prof, vault_terms, stats, now)
+                    _retire(con, name, jobs)
                 if on_progress:
                     on_progress(dict(stats))
     return stats
+
+
+def _retire(con, name, jobs):
+    """Postings that disappeared from a company's own board are closed: they leave the queue instead of staying 'new'
+    forever. Only after a successful fetch that returned jobs (an empty answer may be a hiccup)."""
+    ats, _, token = name.partition(':')
+    if not token or not jobs or ats not in ('greenhouse', 'lever', 'ashby', 'workday', 'smartrecruiters', 'workable', 'recruitee'):
+        return
+    token = token.split('|')[0]
+    seen = [j['id'] for j in jobs]
+    ph = ','.join('?' * len(seen))
+    con.execute(f"update jobs set status='closed' where status='new' and source=? and url like ? and id not in ({ph})",
+                [ats, f'%{token}%'] + seen)
 
 
 def _ingest(con, jobs, prof, vault_terms, stats, now):
     from . import match
     for j in jobs:
         stats['fetched'] += 1
-        fit, why = match.fit(j, prof, vault_terms)
-        cur = con.execute('select status from jobs where id=?', (j['id'],)).fetchone()
-        if fit < 1:
-            if cur:
-                con.execute('update jobs set fit=0, fit_why=? where id=?', (why, j['id']))
-            continue
+        try:
+            _ingest_one(con, j, prof, vault_terms, stats, now, match)
+        except Exception:   # one malformed posting (a bad date, a missing field) never aborts the scan
+            stats['errors'] = stats.get('errors', 0) + 1
+
+
+def _ingest_one(con, j, prof, vault_terms, stats, now, match):
+    fit, why = match.fit(j, prof, vault_terms)
+    cur = con.execute('select status from jobs where id=?', (j['id'],)).fetchone()
+    if fit < 1:
         if cur:
-            con.execute('update jobs set fit=?, fit_why=?, company=?, description=coalesce(nullif(?,""),description) where id=?',
-                        (fit, why, j['company'], j['description'], j['id']))
-            continue
-        stats['new'] += 1
-        stats['matched'] += fit >= prof['search'].get('min_fit', 65)
-        con.execute('insert into jobs(id,source,company,title,location,url,apply_url,ats,posted,description,found_at,fit,fit_why)'
-                    ' values(?,?,?,?,?,?,?,?,?,?,?,?,?)',
-                    (j['id'], j['source'], j['company'], j['title'], j['location'], j['url'], j['apply_url'],
-                     j['ats'] if j['ats'] != 'community' else detect_ats(j['apply_url']), j['posted'],
-                     j['description'], now, fit, why))
+            con.execute('update jobs set fit=0, fit_why=? where id=?', (why, j['id']))
+        return
+    if cur:
+        con.execute('update jobs set fit=?, fit_why=?, company=?, description=coalesce(nullif(?,''),description) where id=?',
+                    (fit, why, j['company'], j['description'], j['id']))
+        return
+    stats['new'] += 1
+    stats['matched'] += fit >= prof['search'].get('min_fit', 65)
+    con.execute('insert into jobs(id,source,company,title,location,url,apply_url,ats,posted,description,found_at,fit,fit_why)'
+                ' values(?,?,?,?,?,?,?,?,?,?,?,?,?)',
+                (j['id'], j['source'], j['company'], j['title'], j['location'], j['url'], j['apply_url'],
+                 j['ats'] if j['ats'] != 'community' else detect_ats(j['apply_url']), j['posted'],
+                 j['description'], now, fit, why))
 
 
 

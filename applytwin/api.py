@@ -347,7 +347,7 @@ def stats():
     week = store.rows("select count(*) n from applications where status='Applied' and at>?", (time.time() - 7 * 86400,))[0]['n']
     return {"jobs": {x['status']: x['n'] for x in r}, "applications": {x['status']: x['n'] for x in a},
             "applied_7d": week, "applied_today": store.applied_count_today(),
-            "matched": store.rows('select count(*) n from jobs where status="new" and fit>=?',
+            "matched": store.rows("select count(*) n from jobs where status='new' and fit>=?",
                                   (store.profile()['search'].get('min_fit', 65),))[0]['n']}
 
 
@@ -971,7 +971,7 @@ def import_history(csv_path=None, text=None):
         found.append({"company": company, "title": title, "url": url, "status": status or 'Applied', "source": 'tracker'})
     remember_applied(found)
     n = 0
-    for j in store.rows('select id, company, title, url, apply_url from jobs where status="new"'):
+    for j in store.rows("select id, company, title, url, apply_url from jobs where status='new'"):
         st = None
         for m in re.findall(r'(?:token=|/jobs/|/)([0-9a-f]{8}-[0-9a-f-]{27}|\d{5,})', (j['apply_url'] or '') + ' ' + (j['url'] or '')):
             st = st or ids.get(m)
@@ -1006,7 +1006,7 @@ def import_applied(items, source='email'):
     added = remember_applied([{**i, "source": source} for i in items or []])
     done, ids = done_roles(), done_url_ids()
     n = 0
-    for j in store.rows('select id, company, title, url, apply_url from jobs where status="new"'):
+    for j in store.rows("select id, company, title, url, apply_url from jobs where status='new'"):
         if already_done(j, done, ids):
             store.execute("update jobs set status='applied' where id=?", (j['id'],))
             n += 1

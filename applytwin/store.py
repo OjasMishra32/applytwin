@@ -82,6 +82,12 @@ def load(name, default=None):
         with open(p, encoding='cp1252', errors='replace') as f:
             data = json.load(f)
         save(name, data)
+    except ValueError:   # damaged (a crash mid-write on an old version): keep a copy aside and carry on with the default
+        try:
+            os.replace(p, p + '.damaged')
+        except OSError:
+            pass
+        return copy.deepcopy(default)
     return _merge(default, data) if isinstance(default, dict) else data
 
 
