@@ -1,6 +1,7 @@
 """End-to-end smoke test on a throwaway APPLYTWIN_HOME: vault -> render every template -> tailor + fact guard -> answers -> MCP."""
 import json, os, subprocess, sys, tempfile
 os.environ["APPLYTWIN_NO_TELEMETRY"] = "1"   # tests never count as installs
+os.environ["APPLYTWIN_SKIP_SIGNIN"] = "1"   # no Google account in tests
 for _s in (sys.stdout, sys.stderr):   # Windows consoles default to cp1252, which can't print emoji
     try:
         _s.reconfigure(encoding='utf-8', errors='replace')

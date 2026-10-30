@@ -545,6 +545,9 @@ def start_run(agent='claude', n=25, model=None, prompt=None, restarts=0):
     st = agents.status(agent, fresh=True)
     if not st['signed_in']:
         raise RuntimeError(f"{st['label']} is signed out. Run `{agents.LOGIN[agent]}` in a terminal, then press Launch again.")
+    from . import cloud
+    if not (cloud.status()['signed_in'] or os.environ.get('APPLYTWIN_SKIP_SIGNIN') or os.environ.get('CI')):
+        raise RuntimeError('Sign in first: open ApplyTwin (type applytwin in a terminal) and continue with Google.')
     prompt = prompt or run_prompt(n)
     if agent == 'claude':
         # runs on the user's own Claude subscription; only ApplyTwin's tools and a browser are pre-approved, so it never stalls on a prompt

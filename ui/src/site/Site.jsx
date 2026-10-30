@@ -27,7 +27,8 @@ const FAQ = [
   ['What will it never do?', 'Type your passwords, solve CAPTCHAs, create accounts, accept legal agreements, or invent a single fact about you. Those come back to you as a notification.'],
   ['Does it work on Windows?', 'Yes. Mac, Windows and Linux. On Windows, paste the PowerShell command; it installs ApplyTwin in your user folder and adds an applytwin command.'],
   ['Is it only for software jobs?', 'No. It learns what a strong resume looks like in your field, whether that is nursing, finance, design, research or engineering, and tailors to each posting.'],
-  ['Does it track me?', "No. To count installs, the app sends a random ID, your OS and its version once a day. Never your name, email, resume, jobs or applications. You can turn it off in Settings."],
+  ['Why do I sign in with Google?', "So your setup, answers and applications are saved to your account: switch laptops or reinstall and everything is still there. ApplyTwin never posts, emails or signs up for anything as you."],
+  ['Does it track me?', "No. To count installs, the app sends a random ID, your OS and its version once a day. Never your resume, jobs or applications. You can turn it off in Settings."],
   ['What does it cost?', 'Nothing. ApplyTwin is free to use for students and job seekers.'],
 ]
 

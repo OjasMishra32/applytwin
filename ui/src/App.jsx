@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { Toaster, toast } from 'sonner'
 import { Radar, Sparkles, FileText, Upload } from 'lucide-react'
 import { api } from './lib/api'
-import { TopBar, Palette } from './components/Shell'
+import { Logo, TopBar, Palette } from './components/Shell'
 import { Sky } from './components/Sky'
 import Home from './pages/Home'
 import Jobs from './pages/Jobs'
@@ -45,6 +45,7 @@ export default function App() {
   const [scan, setScan] = useState(null)
 
   const [auth, setAuth] = useState({ signed_in: false })
+  const [authReady, setAuthReady] = useState(false)
   const refresh = useCallback(async () => { const s = await api('/api/state'); setState(s); return s }, [])
   useEffect(() => {
     const h = location.hash
@@ -52,9 +53,9 @@ export default function App() {
       const q = new URLSearchParams(h.slice(1))
       history.replaceState(null, '', location.pathname + '#home')
       api('/api/auth', { access_token: q.get('access_token'), refresh_token: q.get('refresh_token'), expires_in: q.get('expires_in') })
-        .then(r => { setAuth(r); toast.success(`Signed in${r.user?.email ? ' as ' + r.user.email : ''}`, { description: r.restored ? 'Restored your vault from the cloud.' : 'Your vault now syncs to your account.' }); refresh() })
-        .catch(e => toast.error('Sign-in failed: ' + e.message))
-    } else api('/api/auth').then(setAuth)
+        .then(r => { setAuth(r); setAuthReady(true); toast.success(`Signed in${r.user?.email ? ' as ' + r.user.email : ''}`, { description: r.restored ? 'Restored your vault from the cloud.' : 'Your vault now syncs to your account.' }); refresh() })
+        .catch(e => { setAuthReady(true); toast.error('Sign-in failed: ' + e.message) })
+    } else api('/api/auth').then(r => { setAuth(r); setAuthReady(true) }).catch(() => setAuthReady(true))
   }, [refresh])
   const signIn = async () => { const r = await api('/api/auth/login?redirect=' + encodeURIComponent(location.origin + '/')); location.href = r.url }
   const signOut = async () => { setAuth(await api('/api/auth/logout', {})); toast('Signed out') }
@@ -83,7 +84,8 @@ export default function App() {
   const actions = [['Scan for new jobs', Radar, startScan], ['Open Resume Studio', FileText, () => go('studio')],
     ['Import a resume', Upload, () => go('studio', 'import')], ['Connect Claude or Codex', Sparkles, () => go('agents')]]
 
-  if (!state) return <Loading />
+  if (!state || !authReady) return <Loading />
+  if (!auth.signed_in) return <SignInGate signIn={signIn} />
   const Page = PAGES[route.page]
   return (
     <Ctx.Provider value={{ ...state, refresh, go, jobs, loadJobs, startScan, scan, setState, auth, signIn, signOut }}>
@@ -94,6 +96,30 @@ export default function App() {
       </motion.main>
       <Toaster theme="dark" position="bottom-center" toastOptions={{ style: { borderRadius: 16, background: '#1c2033', border: '1px solid rgb(255 255 255 / .08)', color: '#fff' } }} />
     </Ctx.Provider>
+  )
+}
+
+/* Everyone signs in with Google before using ApplyTwin: their setup is saved to their account (so a new laptop or a
+   reinstall picks up where they left off), and it's how we know who uses it. */
+function SignInGate({ signIn }) {
+  const [busy, setBusy] = useState(false)
+  const go = async () => { setBusy(true); try { await signIn() } catch (e) { setBusy(false); toast.error("Couldn't reach Google. Check your internet and try again.") } }
+  return (
+    <div className="relative grid min-h-full place-items-center overflow-hidden px-6">
+      <Sky height={420} />
+      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ type: 'spring', stiffness: 160, damping: 22 }}
+        className="relative w-full max-w-[420px] text-center">
+        <div className="flex justify-center"><Logo size={56} /></div>
+        <h1 className="mt-7 text-[34px] font-bold leading-tight tracking-[-0.035em] text-white">Sign in to ApplyTwin</h1>
+        <p className="mx-auto mt-3 max-w-[340px] text-[15.5px] leading-relaxed text-white/65">Your setup, answers and applications are saved to your account, so nothing is lost if you switch laptops or reinstall.</p>
+        <button onClick={go} disabled={busy}
+          className="mx-auto mt-9 flex h-12 w-full max-w-[320px] items-center justify-center gap-3 rounded-full bg-white text-[15.5px] font-semibold text-[#0b1020] transition hover:bg-white/90 disabled:opacity-60">
+          <svg viewBox="0 0 48 48" className="size-5" aria-hidden><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>
+          {busy ? 'Opening Google…' : 'Continue with Google'}
+        </button>
+        <p className="mt-5 text-[12.5px] text-white/40">Free. ApplyTwin never posts anything or emails anyone as you.</p>
+      </motion.div>
+    </div>
   )
 }
 

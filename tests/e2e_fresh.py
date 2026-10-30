@@ -9,6 +9,7 @@ install-agents (Claude Code + Codex configs), the web server's endpoints, and th
 import json
 import os
 os.environ["APPLYTWIN_NO_TELEMETRY"] = "1"   # tests never count as installs
+os.environ["APPLYTWIN_SKIP_SIGNIN"] = "1"   # no Google account in tests
 import shutil
 import subprocess
 import sys
