@@ -73,7 +73,7 @@ def save_answer(question, answer, key=None):
     return {"ok": True, "count": len(bank)}
 
 
-def answer_questions(questions, job_id=None):
+def answer_questions(questions, job_id=None, notify_user=True):
     """questions: list of strings or {question, options}. Returns an answer (or 'ask') for each. When a form asks
     something you haven't told ApplyTwin, you get a 'Needs you' item saying exactly what to add (once per question)."""
     bank = store.answers()
@@ -85,7 +85,7 @@ def answer_questions(questions, job_id=None):
             out.append(ans.match(q, bank))
     profile_keys = {r['key'] for r in ans.default_bank(store.profile())}
     for r in out:
-        if r.get('answer') is None and r.get('action') != 'write':   # open-ended ones the agent writes; never ask the user
+        if notify_user and r.get('answer') is None and r.get('action') != 'write':   # open-ended ones the agent writes; never ask
             known = r.get('key') in profile_keys
             title = f"Add your answer: {r['question'][:300]}"
             if not store.rows('select 1 from inbox where title=? and resolved is null', (title,)):

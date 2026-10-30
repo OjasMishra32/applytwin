@@ -55,7 +55,7 @@ POST = {
     r'/api/vault': lambda m, qs, b: api.save_vault(b),
     r'/api/answers': lambda m, qs, b: (store.save('answers.json', b), {"ok": True})[1],
     r'/api/answer': lambda m, qs, b: api.save_answer(b['question'], b['answer'], b.get('key')),
-    r'/api/answer/test': lambda m, qs, b: api.answer_questions(b.get('questions', [])),
+    r'/api/answer/test': lambda m, qs, b: api.answer_questions(b.get('questions', []), notify_user=False),   # just trying
     r'/api/dump': lambda m, qs, b: api.save_dump(b.get('text', '')),
     r'/api/scan': lambda m, qs, b: api.scan(b.get('sources'), background=True),
     r'/api/jobs': lambda m, qs, b: api.add_job(b['url'], b.get('title', ''), b.get('company', ''), b.get('description', '')),

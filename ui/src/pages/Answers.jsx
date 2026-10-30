@@ -29,6 +29,7 @@ export default function Answers() {
           placeholder="Will you now or in the future require H-1B sponsorship?" className="box" /><Button onClick={ask}><Wand2 className="size-4" />Answer</Button></div>
         {test && <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="mt-4 flex flex-wrap items-center gap-2 text-[14px]">
           {test.answer ? <><Typed text={test.answer} /><Badge tone="good">matched</Badge><span className="text-muted">matched “{test.key}” · {Math.round(test.confidence * 100)}% sure</span></>
+            : test.action === 'write' ? <><Badge tone="good">Written for each job</Badge><span className="text-muted">Your twin writes this one fresh for every posting, from your resume.</span></>
             : <><Badge tone="warn">New question</Badge><span className="text-muted">Your twin will ask you once, then remember.</span></>}</motion.div>}
       </div>
       <h2 className="mb-2.5 px-1 text-[20px] font-semibold tracking-[-0.02em] text-white">Your answers</h2>
