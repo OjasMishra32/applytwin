@@ -212,6 +212,15 @@ for _ in range(300):
     store.rows('select 1')
 _open = _sp.run(['lsof', '-p', str(os.getpid())], capture_output=True, text=True).stdout.count('applytwin.db') if sys.platform != 'win32' else 0
 res.append(ok(_open <= 3, f'database connections close after each request ({_open} open files after 300 reads)'))
+# a rescan never replaces a full posting with a feed's one-line summary
+from applytwin import sources as _src
+_full = 'Machine learning intern building recommendation and ranking systems in Python. ' * 12
+store.execute("insert or replace into jobs(id,source,company,title,location,url,apply_url,ats,posted,description,found_at,fit,fit_why,status) values('desc-test','community','Pinterest','Machine Learning Intern','Remote','u','u','greenhouse','',?,0,90,'','new')", (_full,))
+with store.db() as _con:
+    _src._ingest(_con, [{"id": 'desc-test', "source": 'community', "company": 'Pinterest', "title": 'Machine Learning Intern', "location": 'Remote',
+                         "url": 'u', "apply_url": 'u', "ats": 'greenhouse', "posted": '', "description": 'Summer 2027 Other'}],
+                 store.profile(), set(), {'fetched': 0, 'new': 0, 'matched': 0}, 0)
+res.append(ok(store.rows("select description from jobs where id='desc-test'")[0]['description'] == _full, 'a rescan keeps the full job description'))
 # real form questions that used to get the wrong answer
 _pb = _an.default_bank({'name': 'Maya Chen', 'location': 'Austin, TX', 'grad_month': 'May', 'grad_year': '2028', 'major': 'Computer Science',
                         'work_authorized_us': True, 'needs_sponsorship': True, 'government_employee': False, 'willing_to_relocate': True})

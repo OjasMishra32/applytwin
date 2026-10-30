@@ -570,8 +570,10 @@ def _ingest_one(con, j, prof, vault_terms, stats, now, match):
             con.execute('update jobs set fit=0, fit_why=? where id=?', (why, j['id']))
         return
     if cur:
-        con.execute("update jobs set fit=?, fit_why=?, company=?, description=coalesce(nullif(?,''),description), status=case when status='closed' then 'new' else status end where id=?",
-                    (fit, why, j['company'], j['description'], j['id']))
+        # a feed's one-line summary ("Summer 2027 Other") never replaces the full posting fetched earlier: the longer one stays
+        con.execute("update jobs set fit=?, fit_why=?, company=?, description=case when length(coalesce(?,'')) > length(coalesce(description,'')) "
+                    "then ? else description end, status=case when status='closed' then 'new' else status end where id=?",
+                    (fit, why, j['company'], j['description'], j['description'], j['id']))
         return
     stats['new'] += 1
     stats['matched'] += fit >= prof['search'].get('min_fit', 65)
