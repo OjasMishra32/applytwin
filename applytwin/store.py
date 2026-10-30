@@ -170,12 +170,25 @@ def execute(sql, args=()):
         return cur.rowcount
 
 
+STATUSES = {'applied': 'Applied', 'submitted': 'Applied', 'complete': 'Applied', 'completed': 'Applied', 'done': 'Applied',
+            'needs user': 'Needs User', 'needs_user': 'Needs User', 'needs you': 'Needs User', 'blocked': 'Needs User',
+            'skipped': 'Skipped', 'skip': 'Skipped', 'failed': 'Failed', 'error': 'Failed', 'interview': 'Interview',
+            'oa': 'OA', 'offer': 'Offer', 'rejected': 'Rejected'}
+
+# what counts toward the daily limit and per-company cap: submitted, plus filled and waiting only for your Submit click
+COUNTED = "(status='Applied' or (status='Needs User' and lower(coalesce(notes,'')) like '%ready to submit%'))"
+
+
 def log_application(job_id, status, notes='', resume_path=''):
+    status = STATUSES.get((status or '').strip().lower(), (status or 'Applied').strip())
     j = (rows('select * from jobs where id=?', (job_id,)) or [{}])[0]
     execute('insert into applications(job_id,company,title,url,status,resume_path,notes,at) values(?,?,?,?,?,?,?,?)',
             (job_id, j.get('company', ''), j.get('title', ''), j.get('apply_url') or j.get('url', ''),
              status, resume_path, notes, time.time()))
     execute('update jobs set status=? where id=?', (status.lower(), job_id))
+    execute('delete from claims where job_id=?', (job_id,))   # logged: the claim did its job
+    if status in ('Applied', 'Skipped'):   # nothing left for the user to do on this one
+        execute('update inbox set resolved=? where job_id=? and resolved is null', (time.time(), job_id))
     return {"ok": True, "job": j.get('title'), "company": j.get('company'), "status": status}
 
 
@@ -191,11 +204,11 @@ def claim(job_id, who='agent'):
 
 def applied_count_today():
     start = time.time() - 86400
-    return rows("select count(*) n from applications where status='Applied' and at>?", (start,))[0]['n']
+    return rows(f"select count(distinct job_id) n from applications where {COUNTED} and at>?", (start,))[0]['n']
 
 
 def company_count(company):
     from .match import company_key
     k = company_key(company)
-    return sum(r['n'] for r in rows("select company, count(*) n from applications where status='Applied' group by company")
+    return sum(r['n'] for r in rows(f"select company, count(distinct job_id) n from applications where {COUNTED} group by company")
                if company_key(r['company']) == k)

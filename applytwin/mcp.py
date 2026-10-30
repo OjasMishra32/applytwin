@@ -20,7 +20,7 @@ TOOLS = [
     ("applytwin_get_dump", "The raw brain dump text the user pasted (old resumes, LinkedIn export, notes) that still needs structuring into the vault.", S(), lambda a: {"text": api.get_dump()}),
     ("applytwin_scan_jobs", "Scrape every enabled source (SimplifyJobs lists, SmartRecruiters live feed, ~500 Greenhouse/Lever/Ashby/Workday boards) and score fit. Takes 1-3 minutes.", S(sources={"type": "array", "items": STR}), lambda a: api.scan(a.get('sources'))),
     ("applytwin_list_jobs", "Search found jobs. status: new|applied|skipped|all. order: fit|new.", S(query=STR, status=STR, min_fit=NUM, limit=NUM, order=STR), lambda a: api.list_jobs(a.get('query', ''), a.get('status', 'new'), a.get('min_fit'), a.get('limit', 50), None, a.get('order', 'fit'))),
-    ("applytwin_queue", "The full apply queue: every open role that fits the user, dream companies first, then by fit (respects caps and skip list). Returns total, dream count and the first n jobs.", S(n=NUM), lambda a: api.queue(int(a.get('n', 50)))),
+    ("applytwin_queue", "The full apply queue: every open role that fits the user, dream companies first, then by fit (respects caps and skip list). Returns total, dream count and the first n jobs.", S(n=NUM), lambda a: api.queue(int(a.get('n', 50)), for_agent=True)),
     ("applytwin_import_resume", "Import a resume or any career text into the vault (parses sections, entries and bullets; merges with what's there). Pass text, or name + base64 data for a PDF/DOCX/TEX file.", S(text=STR, name=STR, data=STR), lambda a: api.import_resume(a.get('name', ''), a.get('data'), a.get('text'))),
     ("applytwin_next_jobs", "The apply queue: best unapplied matches, respecting the daily limit and per-company caps. Start every apply session here.", S(n=NUM), lambda a: api.next_jobs(int(a.get('n', 10)))),
     ("applytwin_get_job", "Full job record including the description (fetched on demand).", S(job_id=STR), lambda a: api.get_job(a['job_id'])),
@@ -70,9 +70,10 @@ def _activity(name, args):
     try:
         import time
         step = STEPS.get((name or '').replace('applytwin_', ''))
-        if not step:
-            return
         cur = store.load('activity.json', {}) or {}
+        if not step:   # any other tool call still shows the twin is working (so the stuck timer never fires on it)
+            store.save('activity.json', {**cur, "at": time.time()})
+            return
         job = args.get('job_id') or (cur.get('job_id') if step not in ('Picking the next job',) else '')
         store.save('activity.json', {"step": step, "job_id": job or '', "at": time.time()})
     except Exception:

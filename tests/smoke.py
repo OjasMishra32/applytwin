@@ -1,5 +1,5 @@
 """End-to-end smoke test on a throwaway APPLYTWIN_HOME: vault -> render every template -> tailor + fact guard -> answers -> MCP."""
-import json, os, subprocess, sys, tempfile
+import json, os, subprocess, sys, tempfile, time
 os.environ["APPLYTWIN_NO_TELEMETRY"] = "1"   # tests never count as installs
 os.environ["APPLYTWIN_SKIP_SIGNIN"] = "1"   # no Google account in tests
 for _s in (sys.stdout, sys.stderr):   # Windows consoles default to cp1252, which can't print emoji
@@ -106,6 +106,28 @@ _bad = {q: _an.match(q, _pb).get('answer') for q, want in _cases.items() if _an.
 _arb = _an.match('I agree to the Mutual Arbitration Agreement', _pb).get('answer')
 _essay = _an.match('Please describe any major challenges you faced', _pb).get('action')
 res.append(ok(not _bad and _arb is None and _essay == 'write', f'real form questions get the right answer {_bad or ""}'))
+# messages to the twin: only clear, short phrasings act instantly; everything else goes to the agent
+_it = {'did you submit this?': 'status', 'I submitted it': 'applied', 'skip it': 'skip', 'submit it': 'submit',
+       'Done, I signed in. Finish it': None, 'I applied the change, now resubmit': None, "don't skip it, finish it": None,
+       'remove this bullet from the resume and refill': None}
+_wrong = {m: api.intent(m) for m, want in _it.items() if api.intent(m) != want}
+res.append(ok(not _wrong, f'messages to the twin are never misread {_wrong or ""}'))
+# limits, skip list and statuses hold everywhere the agent can go
+p0 = store.profile()
+api.update_profile({**p0, 'search': {**p0['search'], 'companies_skip': ['Skipco']}, 'apply': {**p0['apply'], 'daily_limit': 1}})
+for _jid, _co in (('lim1', 'Skipco Inc'), ('lim2', 'Okco'), ('lim3', 'Okco2')):
+    store.execute("insert or replace into jobs(id,source,company,title,url,apply_url,ats,found_at,fit,status) values(?,?,?,?,?,?,?,?,?,'new')",
+                  (_jid, 't', _co, 'Software Intern', 'https://x/' + _jid, 'https://x/' + _jid, 'lever', 0, 95))
+store.execute("delete from applications where at > ?", (time.time() - 86400,))
+_q = [j['company'] for j in api.queue(50)['jobs']]
+_skipped = 'Skipco Inc' not in _q and api.claim('lim1')['claimed'] is False
+api.log_application('lim2', 'submitted')
+_canon = store.rows("select status from applications where job_id='lim2'")[0]['status'] == 'Applied'
+_limited = api.next_jobs(5)['jobs'] == [] and api.claim('lim3')['claimed'] is False and api.queue(5, for_agent=True)['jobs'] == []
+store.claim('lim3'); api.release_claims()
+_released = api._latest('lim3')['status'] == 'Needs User'
+api.update_profile(p0)
+res.append(ok(_skipped and _canon and _limited and _released, f'skip list, daily limit, statuses and unfinished claims hold ({_skipped}, {_canon}, {_limited}, {_released})'))
 from applytwin import telemetry as _tm
 res.append(ok(not _tm.enabled() and _tm.ping() is False and len(_tm.install_id()) == 36, 'install count is off in tests and uses only a random ID'))
 

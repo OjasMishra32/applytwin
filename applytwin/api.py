@@ -217,8 +217,11 @@ def next_jobs(n=10):
     left = max(0, p['apply'].get('daily_limit', 40) - store.applied_count_today())
     cap = p['apply'].get('per_company_cap', 3)
     out, per, done, ids = [], {}, done_roles(), done_url_ids()
+    if left <= 0:
+        return {"remaining_today": 0, "jobs": [], "note": "Today's limit is reached. Stop here."}
+    skip = p['search'].get('companies_skip', [])
     for j in list_jobs(status='new', limit=400):
-        if already_done(j, done, ids):
+        if already_done(j, done, ids) or any(match.same_company(s, j['company']) for s in skip):
             continue
         c = match.company_key(j['company'])
         if store.company_count(j['company']) + per.get(c, 0) >= cap:
@@ -275,10 +278,41 @@ def already_done(job, done=None, ids=None):
 
 
 def claim(job_id, who='agent'):
+    """The one gate every application passes: never twice, never a skipped company, never past today's limit or a
+    company's cap."""
     j = (store.rows('select id, company, title, status, url, apply_url from jobs where id=?', (job_id,)) or [None])[0]
+    if j and j['status'] in ('needs user', 'failed'):
+        return {"claimed": True, "reason": "Already in progress: continue this application."}
     if j and (j['status'] != 'new' or already_done(j)):
         return {"claimed": False, "reason": "You already applied to this role (or a listing of the same role). Skip it."}
+    p = store.profile()
+    if j and any(match.same_company(s, j['company']) for s in p['search'].get('companies_skip', [])):
+        return {"claimed": False, "reason": "The user asked never to apply to this company. Skip it."}
+    if store.applied_count_today() >= p['apply'].get('daily_limit', 40):
+        return {"claimed": False, "reason": "Today's application limit is reached. Stop the run here."}
+    if j and store.company_count(j['company']) >= p['apply'].get('per_company_cap', 3):
+        return {"claimed": False, "reason": "The per-company cap for this company is reached. Skip it."}
     return {"claimed": store.claim(job_id, who)}
+
+
+def on_start():
+    """After the app (re)starts: unfinished claims from a run that died go to Needs you, and work you queued during a run
+    still happens."""
+    release_claims(older_than=3 * 3600)
+    time.sleep(20)
+    if not (_run['proc'] and _run['proc'].poll() is None):
+        _next_followup()
+
+
+def release_claims(since=0.0, older_than=None):
+    """Jobs a run claimed but never logged (it was stopped, crashed, or the app restarted). They go to Needs you with an
+    honest note instead of vanishing from the queue forever."""
+    q = 'select c.job_id, c.at from claims c where not exists (select 1 from applications a where a.job_id=c.job_id and a.at>=c.at)'
+    for r in store.rows(q):
+        if r['at'] < since or (older_than and time.time() - r['at'] < older_than):
+            continue
+        store.log_application(r['job_id'], 'Needs User', 'The run ended before this one was finished. Check whether it was '
+                                                         'submitted; if not, press Refill or tell your twin to finish it.')
 
 
 def log_application(job_id, status='Applied', notes='', resume_path=''):
@@ -432,28 +466,31 @@ def import_resume(name='', data=None, text=None):
     return importer.import_resume(name, data, text)
 
 
-def queue(n=50):
+def queue(n=50, for_agent=False):
     """Everything worth applying to, in order: dream companies first, then by fit. Respects caps and the skip list."""
     p = store.profile()
     dream = p['search'].get('companies_priority', [])
     cap = p['apply'].get('per_company_cap', 3)
     rows = list_jobs(status='new', limit=20000)
     applied = {}
-    for r in store.rows("select company, count(*) n from applications where status='Applied' group by company"):
+    for r in store.rows(f"select company, count(distinct job_id) n from applications where {store.COUNTED} group by company"):
         k = match.company_key(r['company'])
         applied[k] = applied.get(k, 0) + r['n']
     claimed = {r['job_id'] for r in store.rows('select job_id from claims')}
     out, per, done, ids = [], {}, done_roles(), done_url_ids()
+    skip = p['search'].get('companies_skip', [])
     for j in rows:
         c = match.company_key(j['company'])
-        if already_done(j, done, ids) or j['id'] in claimed or applied.get(c, 0) + per.get(c, 0) >= cap:
+        if (already_done(j, done, ids) or j['id'] in claimed or applied.get(c, 0) + per.get(c, 0) >= cap
+                or any(match.same_company(s, j['company']) for s in skip)):
             continue
         per[c] = per.get(c, 0) + 1
         j['dream'] = any(match.same_company(d, j['company']) for d in dream)
         out.append(j)
     out.sort(key=lambda j: (not j['dream'], j.get('source') != 'manual', -j['fit']))   # dream companies, then jobs you added, then fit
     left = max(0, p['apply'].get('daily_limit', 40) - store.applied_count_today())
-    return {"total": len(out), "dream": sum(j['dream'] for j in out), "remaining_today": left, "jobs": out[:int(n)]}
+    return {"total": len(out), "dream": sum(j['dream'] for j in out), "remaining_today": left,
+            "jobs": out[:min(int(n), left)] if for_agent else out[:int(n)]}
 
 
 _run = {"proc": None, "agent": None, "log": None, "stopped": False}
@@ -495,13 +532,24 @@ def finish_prompt(job_ids, submit=False):
 def finish_jobs(job_ids, submit=False, agent=None):
     """Re-open and finish specific applications in the twin's browser (refill a form that was closed, continue after a
     sign-in, or submit one you approved)."""
-    agent = agent or store.profile()['apply'].get('agent') or 'claude'
+    agent = agent or _agent()
+    job_ids = [j for j in job_ids if ((_latest(j) or {}).get('status') != 'Applied')]   # never redo a submitted one
+    if not job_ids:
+        return {"done": True, "note": "Already submitted."}
     if _run['proc'] and _run['proc'].poll() is None:   # mid-run: do it right after, instead of silently doing nothing
         later = store.load('followups.json', [])
-        later.append({"job_ids": list(job_ids), "submit": bool(submit), "agent": agent})
-        store.save('followups.json', later)
+        f = {"job_ids": list(job_ids), "submit": bool(submit), "agent": agent}
+        if not any(x.get('job_ids') == f['job_ids'] and x.get('submit') == f['submit'] and not x.get('prompt') for x in later):
+            later.append(f)
+            store.save('followups.json', later)
         return {"queued": True, "running": True}
     return start_run(agent, len(job_ids), prompt=finish_prompt(job_ids, submit))
+
+
+def _agent():
+    """The agent to use: the one chosen in Settings if it's signed in, otherwise whichever one is."""
+    ready = agents.preferred(store.profile())
+    return ready[0] if ready else (store.profile()['apply'].get('agent') or 'claude')
 
 
 def _next_followup():
@@ -565,11 +613,30 @@ def message_prompt(job_id, text):
             f"{j.get('company')} {j.get('title')} (job {job_id}, {j.get('apply_url') or j.get('url')}). "
             f"Its latest status: {a.get('status', 'not started')}: {a.get('notes') or ''}\n"
             f"Your conversation with the user about it so far:\n{convo}\n\n"
-            "Do what the user's last message asks, for this application only. That can mean reopening it in your browser, "
+            "The job is already claimed for you; do not claim it again. Do what the user's last message asks, for this application only. That can mean reopening it in your browser, "
             "changing or adding an answer, finishing it, or submitting it. Submit only if they clearly asked you to or "
             "profile.apply.auto_submit is true. Log the outcome with applytwin_log_application. Then answer them with "
             "applytwin_reply(job_id, text): one or two plain sentences on what you did and what, if anything, they still need "
             "to do. If you could not do it, say why in that reply. Never invent facts.")
+
+
+def intent(text):
+    """What a short message to the twin means, when it's one of the things the app can do instantly. Only whole, short
+    phrasings count ("I submitted it"), so "Done, I signed in. Finish it" goes to the agent instead of being misread."""
+    t = (text or '').strip().lower()
+    asking = '?' in t
+    t = re.sub(r'[.!\s]+$', '', t)
+    if re.fullmatch(r"(so |wait |hey )?(did (you|it|this) (submit|apply|send|go through|finish)( it| this| yet)?|is (it|this) (submitted|done|in|sent)( yet)?|what'?s the status|status|where (are|is) (we|it|this)( at)?)\??", t):
+        return 'status'
+    if asking:
+        return None
+    if re.fullmatch(r"(ok |okay |yeah |yes )?(i('ve| have)? (already |just )?(submitted|applied|sent)( it| this| myself| it myself)?( already)?|(it'?s|its) (submitted|in|sent)|submitted( it)?|i applied myself)", t):
+        return 'applied'
+    if re.fullmatch(r"(please )?(skip( it| this( one)?)?|don'?t apply( to (it|this))?|not interested|forget (it|this( one)?))", t):
+        return 'skip'
+    if re.fullmatch(r"(please )?(submit|send|go ahead and submit|go ahead)( it| this)?( now)?", t):
+        return 'submit'
+    return None
 
 
 def message(job_id, text):
@@ -579,28 +646,26 @@ def message(job_id, text):
     if not text:
         return {"thread": thread(job_id)}
     _say(job_id, 'you', text)
-    t = text.lower()
-    asking = '?' in t
-    if re.search(r"did (you|it|i) (submit|apply|send|go through|finish)|is (it|this) (submitted|done|in|sent)|status|where (are|is) (we|it|this)", t):
+    kind = intent(text)
+    if kind == 'status':
         _say(job_id, 'twin', _status_answer(job_id))
-    elif not asking and re.search(r"\bi('ve| have)? (already |just )?(submitted|applied|sent|finished|did it)|\b(it'?s|its) (submitted|done|in|sent)\b|^(done|submitted)\b", t):
+    elif kind == 'applied':
         log_application(job_id, 'Applied', 'You submitted it yourself')
-        store.execute('update jobs set status=? where id=?', ('applied', job_id))
-        store.execute('update inbox set resolved=? where job_id=? and resolved is null', (time.time(), job_id))
         _say(job_id, 'twin', 'Marked as applied.')
-    elif not asking and re.search(r"\b(skip( it| this)?|don'?t apply|not interested|forget (it|this)|remove (it|this))\b", t):
+    elif kind == 'skip':
         skip_job(job_id)
         _say(job_id, 'twin', "Skipped. I won't apply to this one.")
     else:
-        submit = not asking and bool(re.fullmatch(r"(please )?(submit|send|go ahead and submit|go ahead)( it| this)?( now)?[.!]*", t))
+        submit = kind == 'submit'
         r = finish_jobs([job_id], submit=True) if submit else _run_or_queue(job_id, message_prompt(job_id, text))
-        _say(job_id, 'twin', ("Queued. I'm in the middle of a run and will do this right after, then reply here." if r.get('queued')
+        _say(job_id, 'twin', ("Already submitted, nothing to do." if r.get('done') else
+                              "Queued. I'm in the middle of a run and will do this right after, then reply here." if r.get('queued')
                               else ("Submitting it now. I'll reply here when it's done." if submit else "On it. I'll reply here when it's done.")))
     return {"thread": thread(job_id)}
 
 
 def _run_or_queue(job_id, prompt):
-    agent = store.profile()['apply'].get('agent') or 'claude'
+    agent = _agent()
     if _run['proc'] and _run['proc'].poll() is None:
         later = store.load('followups.json', [])
         later.append({"job_ids": [job_id], "submit": False, "agent": agent, "prompt": prompt})
@@ -634,11 +699,39 @@ def open_in_twin_browser(url):
     return {"opened": True}
 
 
+_RUN_LOCK = threading.Lock()
+
+
 def start_run(agent='claude', n=25, model=None, prompt=None, restarts=0):
+    with _RUN_LOCK:   # two clicks at once must never start two agents on one browser
+        return _start_run(agent, n, model, prompt, restarts)
+
+
+def _close_twin_windows():
+    """A twin's-browser window you left open (from 'Open in twin's browser') holds its profile, and the agent's browser
+    then can't start. Close it; your sign-ins are already saved in the profile."""
+    import subprocess
+    from . import install
+    prof = install.BROWSER_PROFILE
+    try:
+        if os.name == 'nt':
+            ps = ("Get-CimInstance Win32_Process -Filter \"Name='chrome.exe' or Name='msedge.exe'\" | "
+                  f"Where-Object {{ $_.CommandLine -like '*{prof}*' }} | ForEach-Object {{ Stop-Process -Id $_.ProcessId -Force }}")
+            subprocess.run(['powershell', '-NoProfile', '-Command', ps], capture_output=True, timeout=20)
+        else:
+            subprocess.run(['pkill', '-f', f'--user-data-dir={prof}( |$)'], capture_output=True, timeout=10)
+    except Exception:
+        pass
+
+
+def _start_run(agent, n, model, prompt, restarts):
     import shutil
     import subprocess
     if _run['proc'] and _run['proc'].poll() is None:
-        return run_status()
+        return {**run_status(), "busy": True}
+    if prompt is None and store.applied_count_today() >= store.profile()['apply'].get('daily_limit', 40):
+        raise RuntimeError(f"You've reached today's limit of {store.profile()['apply'].get('daily_limit', 40)} applications. "
+                           "Raise it in Settings, or your twin continues tomorrow.")
     exe = shutil.which(agent)
     if not exe:
         raise RuntimeError(f"{'Claude Code' if agent == 'claude' else 'Codex'} is not installed or not on PATH")
@@ -657,15 +750,18 @@ def start_run(agent='claude', n=25, model=None, prompt=None, restarts=0):
     else:
         cmd = [exe, 'exec', '--skip-git-repo-check', '-s', 'workspace-write', '-c', 'approval_policy=never', *(['-m', model] if model else agents.codex_model_args()), '-']
     logf = store.path('autopilot.log')
-    f = open(logf, 'w', encoding='utf-8')
+    keep = os.path.exists(logf) and os.path.getsize(logf) < 2_000_000 and restarts   # a continuation adds to its run's log
+    f = open(logf, 'a' if keep else 'w', encoding='utf-8')
     f.write(f"$ {' '.join(os.path.basename(c) if i == 0 else c for i, c in enumerate(cmd))} … apply to {n} jobs\n")
     f.flush()
+    _close_twin_windows()
     # run from the data folder, not the repo, so the agent loads the installed plugin rather than the repo's dev .mcp.json
     # the instructions go in on stdin: on Windows, claude/codex are .cmd wrappers and cmd.exe would mangle quotes in a long argument
-    proc = subprocess.Popen(cmd, stdout=f, stderr=subprocess.STDOUT, stdin=subprocess.PIPE, cwd=store.HOME, text=True, encoding='utf-8', errors='replace')
+    proc = subprocess.Popen(cmd, stdout=f, stderr=subprocess.STDOUT, stdin=subprocess.PIPE, cwd=store.HOME, text=True, encoding='utf-8',
+                            errors='replace', **({} if os.name == 'nt' else {'start_new_session': True}))   # its own group: Stop ends its browser too
     proc.stdin.write(prompt)
     proc.stdin.close()
-    _run.update(proc=proc, agent=agent, log=logf, started=time.time())
+    _run.update(proc=proc, agent=agent, log=logf, started=time.time(), stopped=False)
     import threading
     threading.Thread(target=_watch_run, args=(proc, agent, logf, n, model, prompt, restarts), daemon=True).start()
     return run_status()
@@ -682,7 +778,11 @@ def _kill(proc):
         import subprocess
         subprocess.run(['taskkill', '/T', '/F', '/PID', str(proc.pid)], capture_output=True)
     else:
-        proc.terminate()
+        import signal
+        try:
+            os.killpg(os.getpgid(proc.pid), signal.SIGTERM)   # the agent, its browser tools and their Chrome
+        except (ProcessLookupError, PermissionError, OSError):
+            proc.terminate()
 
 
 def _last_activity(since):
@@ -697,6 +797,9 @@ def _skip_stuck(since, minutes):
     """Log the application the agent was stuck on as Needs User, so the next run moves past it."""
     logged = {r['job_id'] for r in store.rows('select job_id from applications where at >= ?', (since,))}
     stuck = [r['job_id'] for r in store.rows('select job_id from claims where at >= ? order by at desc', (since,)) if r['job_id'] not in logged]
+    a = store.load('activity.json', {}) or {}
+    if a.get('job_id') and a.get('at', 0) >= since and a['job_id'] not in logged:   # the job it was actually on
+        stuck = [a['job_id']] + [j for j in stuck if j != a['job_id']]
     for j in stuck[:1]:
         log_application(j, 'Needs User', f'Skipped after {minutes:g} minutes with no progress. Open it to finish by hand, or press Refill.')
     return stuck[:1]
@@ -718,11 +821,16 @@ def _watch_run(proc, agent, logf, n, model, prompt=None, restarts=0):
                 proc.kill()
     if stuck:
         skipped = _skip_stuck(started, minutes)
+        release_claims(since=started)
         done = len(store.rows('select 1 from applications where at >= ?', (started,)))
         left = n - done
-        notify('Skipped a stuck application', f'No progress for {minutes:g} minutes, so your twin moved on'
-               + (f' and kept going with {left} more.' if left > 0 and prompt is None and restarts < 5 else '.'),
-               job_id=skipped[0] if skipped else '', kind='info')
+        if skipped:
+            j = (store.rows('select company, title from jobs where id=?', (skipped[0],)) or [{'company': '', 'title': ''}])[0]
+            notify(f"{j['company']}: stuck, skipped for now", f"No progress for {minutes:g} minutes on {j['title']}, so your twin "
+                   "moved on" + (f' and kept going with {left} more.' if left > 0 and prompt is None and restarts < 5 else '.')
+                   + ' Press Refill to try it again.', job_id=skipped[0], kind='needs_you')
+        else:
+            notify('Your twin stopped', f'It made no progress for {minutes:g} minutes, so it was stopped. Nothing was lost.', kind='info')
         if left > 0 and prompt is None and restarts < 5:
             try:
                 start_run(agent, left, model=model, restarts=restarts + 1)
@@ -744,6 +852,7 @@ def _watch_run(proc, agent, logf, n, model, prompt=None, restarts=0):
         notify(f'Sign in to {name}', f'Your {name} login expired: {fix}, then press Launch again.', kind='signin')
     elif proc.returncode and not _run.get('stopped'):
         notify(f'{name} stopped early', f'Exit code {proc.returncode}. The last lines are in the Autopilot log.', kind='error')
+    release_claims(since=started)
     if not _run.get('stopped'):
         _next_followup()
     _run['stopped'] = False
@@ -751,7 +860,8 @@ def _watch_run(proc, agent, logf, n, model, prompt=None, restarts=0):
 
 def stop_run():
     if _run['proc'] and _run['proc'].poll() is None:
-        _run['stopped'] = True   # you pressed Stop: don't start queued work either
+        _run['stopped'] = True   # you pressed Stop: don't start queued work either, and forget it
+        store.save('followups.json', [])
         _kill(_run['proc'])
     return run_status()
 
