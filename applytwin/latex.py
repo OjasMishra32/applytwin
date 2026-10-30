@@ -101,7 +101,8 @@ def build_tex(r, k=1.0):
         if sec == 'education':
             body.append(r'\resumeSubHeadingListStart')
             for e in data:
-                deg = ' in '.join(x for x in (e.get('degree'), e.get('major')) if x)
+                from .render import degree_line
+                deg = degree_line(e)
                 if e.get('gpa'):
                     deg += f"; GPA: {e['gpa']}"
                 body.append(r'\resumeSubheading{%s}{%s}{%s}{%s}' % (esc(e.get('school')), esc(e.get('location')), esc(deg), dates(e)))

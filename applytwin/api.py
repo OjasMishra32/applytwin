@@ -858,11 +858,11 @@ def _watch_run(proc, agent, logf, n, model, prompt=None, restarts=0, run_id=None
     # when the agent exits early because its own sign-in lapsed, tell the user how to fix it instead of failing silently
     tail = open(logf, encoding='utf-8', errors='replace').read()[-3000:].lower() if os.path.exists(logf) else ''
     name = 'Claude Code' if agent == 'claude' else 'Codex'
-    if agent == 'codex' and 'model_not_found' in tail and not model:
-        # the configured model isn't on this plan or CLI: retry once on one the CLI lists
-        agents.FALLBACK_MODEL[0] = True
-        fb = (agents.codex_model_args() or [None, 'gpt-5.6-sol'])[1]
-        return start_run(agent, n, model=fb, prompt=prompt)
+    if agent == 'codex' and 'model_not_found' in tail and restarts < 8 and agents.reject_model(tail):
+        # that model isn't on this plan: continue on the next one the CLI lists (remembered for every later run)
+        fb = (agents.codex_model_args() or [None, None])[1]
+        if fb:
+            return start_run(agent, n, model=fb, prompt=prompt, restarts=restarts + 1)
     if any(e in tail for e in AUTH_ERRORS):
         fix = 'run `claude` in a terminal and type /login' if agent == 'claude' else 'run `codex login` in a terminal'
         notify(f'Sign in to {name}', f'Your {name} login expired: {fix}, then press Launch again.', kind='signin')

@@ -79,10 +79,32 @@ def codex_model_args():
         slugs = [m.get('slug') for m in models if isinstance(m, dict)]
     except Exception:
         return []
-    usable = [x for x in slugs if x and 'reserve' not in x and 'review' not in x]
-    if usable and (FALLBACK_MODEL[0] or (want and want.group(1) not in slugs)):
+    bad = rejected_models()
+    usable = [x for x in slugs if x and 'reserve' not in x and 'review' not in x and x not in bad]
+    want = want and want.group(1)
+    if usable and (FALLBACK_MODEL[0] or not want or want not in slugs or want in bad):
         return ['-m', usable[0]]
     return []
+
+
+def rejected_models():
+    try:
+        return set(json.load(open(store.path('codex_rejected.json'), encoding='utf-8')))
+    except Exception:
+        return set()
+
+
+def reject_model(output):
+    """Codex said 'The X model is not supported' (its model list includes models a plan can't use, and nothing in it says
+    which): remember X so every later call, here and in Autopilot, goes to the next listed model. True if one was noted."""
+    m = re.search(r"the '([^']+)' model is not supported", output or '', re.I)
+    if not m:
+        return False
+    bad = rejected_models() | {m.group(1)}
+    with open(store.path('codex_rejected.json'), 'w', encoding='utf-8') as f:
+        json.dump(sorted(bad), f)
+    FALLBACK_MODEL[0] = True
+    return True
 
 
 # ------------------------------------------------------------------ doctor

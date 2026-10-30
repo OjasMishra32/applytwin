@@ -1,5 +1,6 @@
 """End-to-end smoke test on a throwaway APPLYTWIN_HOME: vault -> render every template -> tailor + fact guard -> answers -> MCP."""
-import json, os, subprocess, sys, tempfile, time
+import json
+import time, os, subprocess, sys, tempfile, time
 os.environ["APPLYTWIN_NO_TELEMETRY"] = "1"   # tests never count as installs
 os.environ["APPLYTWIN_SKIP_SIGNIN"] = "1"   # no Google account in tests
 for _s in (sys.stdout, sys.stderr):   # Windows consoles default to cp1252, which can't print emoji
@@ -87,7 +88,7 @@ res.append(ok(_w[0].get('action') == 'write' and _w[1].get('action') == 'write' 
 # a plan that numbers bullets from 1 (what models naturally do) must not shift or drop bullets on everyone's resumes
 from applytwin import tailor as _tl
 _v = _tl.ensure_ids(json.load(open(os.path.join(ROOT, 'examples', 'resume.example.json'))))
-_roles = [e for e in _v['experience'] if len(e.get('bullets', [])) >= 2][:2]
+_roles = [e for e in _v['experience'] if len(e.get('bullets', [])) >= 2 and not _tl.WEAK.search(e['bullets'][-1])][:2]
 _plan = {"experience": [{"id": e['id'], "bullets": [f"{e['id']}.{i + 1}" for i in range(len(e['bullets']))]} for e in _roles]}
 _res, _ = _tl.apply(_v, _plan)
 _by = {r['id']: r for r in _res['experience']}
@@ -97,6 +98,34 @@ _res2, _ = _tl.apply(_v, _plan2)
 _by2 = {r['id']: r for r in _res2['experience']}
 _ok2 = all(len(_by2[e['id']]['bullets']) >= 2 and e['bullets'][-1] in _by2[e['id']]['bullets'] for e in _roles)
 res.append(ok(_ok1 and _ok2, 'bullets numbered from 1 still land right, and no role is left with fewer than 2'))
+# filler never takes a line from a stronger true bullet in the same role; the plan's order among recent roles stands;
+# an award already stated elsewhere isn't repeated
+_r3 = {"id": "acme", "org": "Acme", "title": "Analyst", "dates": "Jan 2020 – Present",
+       "bullets": ["Helped with literature review for the team.", "Built a **pandas** pipeline that cut report time **70%** across 12 desks.",
+                   "Attended weekly meetings."]}
+_r4 = {"id": "bigco", "org": "BigCo", "title": "Intern", "start": "Jun " + time.strftime('%Y'), "end": "Aug " + time.strftime('%Y'),
+       "bullets": ["Modeled a $40M acquisition in Excel.", "Wrote 3 CIM sections."]}
+_v3 = {"basics": {"name": "T"}, "education": [{"school": "State U", "honors": ["Dean's List (6 semesters)"]}],
+       "experience": [_r3, _r4], "awards": ["Dean's List (6 semesters)", "CFA Research Challenge finalist"]}
+_res3, _ = _tl.apply(_v3, {"experience": [{"id": "bigco"}, {"id": "acme", "bullets": ["acme.0", "acme.2"]}], "awards": [0, 1]})
+_b3 = _res3['experience'][1]['bullets'] if _res3['experience'][0]['id'] == 'bigco' else []
+res.append(ok(_res3['experience'][0]['id'] == 'bigco' and _r3['bullets'][1] in _b3 and _r3['bullets'][0] not in _b3
+              and not _res3['awards'] and _res3['education'][0]['honors'][-1] == "CFA Research Challenge finalist",
+              f'filler bullets swapped for stronger true ones, recent roles keep relevance order, no repeated awards {_b3}'))
+# a rewrite and the bullet it came from never both appear; skills/awards close the page; degree lines read right
+from applytwin.render import degree_line as _dl
+_v5 = {"basics": {"name": "T"}, "education": [{"school": "U", "degree": "Bachelor of Science in Management", "major": "Finance"}],
+       "experience": [{"id": "lab", "org": "Lab", "title": "RA", "dates": "2025", "bullets": [
+           "Wrote regression tests comparing outputs to the legacy code to 1e-12 relative tolerance.",
+           "Ported a 40K-line Fortran solver to C++ and CUDA, cutting runtime 9x on A100s.", "Ran nightly builds on 3 clusters."]}],
+       "skills": [{"label": "Languages", "items": ["C++"]}], "order": ["skills", "education", "experience"]}
+_res5, _ = _tl.apply(_v5, {"order": ["skills", "experience"], "experience": [{"id": "lab", "bullets": [
+    {"from": "lab.0", "text": "Built a regression test suite comparing outputs to the legacy code to 1e-12 relative tolerance."}, "lab.1"]}]})
+_b5 = _res5['experience'][0]['bullets']
+res.append(ok(not any(b == _v5['experience'][0]['bullets'][0] for b in _b5) and len(_b5) >= 2 and _res5['order'][-1] == 'skills'
+              and _dl(_v5['education'][0]) == 'Bachelor of Science in Management, Finance'
+              and _dl({"degree": "B.S.", "major": "Physics"}) == 'B.S. in Physics',
+              f'no bullet twice (rewrite + original), skills close the page, degree lines read right {_b5} {_res5["order"]}'))
 # real form questions that used to get the wrong answer
 _pb = _an.default_bank({'name': 'Maya Chen', 'location': 'Austin, TX', 'grad_month': 'May', 'grad_year': '2028', 'major': 'Computer Science',
                         'work_authorized_us': True, 'needs_sponsorship': True, 'government_employee': False, 'willing_to_relocate': True})

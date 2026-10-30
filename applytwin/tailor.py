@@ -134,6 +134,48 @@ def check_rewrite(orig, new, vault_txt, jd, entry_txt=None):
 IMPACT = re.compile(r'\b(1st|2nd|3rd|first place|second place|winner|won|finalist|champion|gold|top \d+%?|1 of \d+|'
                     r'published|first author|patent|acquired|funded|raised|record|co-?founder|founded|founding|'
                     r'\d[\d,.]*\+?\s*(?:k\s*)?(?:users|customers|downloads|members|students|teams))\b', re.I)
+# bullets a recruiter skips: no scope, no result, chores. Never kept when the same entry has a stronger true one unused.
+WEAK = re.compile(r'^\W*(help(ed|s|ing)?|assist(ed|s|ing)?|attend(ed|s)?|participat(ed|es)|complet(ed|es) (training|onboarding)|'
+                  r'responsible for|worked on|did|cleaned|created some|made some|was part of|took part|shadow(ed|s)|learn(ed|s|ing)|'
+                  r'maintain(ed|s)? (shop|lab|the)|answer(ed|s) (customer )?questions|present(ed|s) (my |our |a |the )?final|'
+                  r'organiz(ed|es) (events|socials)|supported (vehicle )?teardowns|gained|exposed to|familiariz)\b'
+                  r'|\b(ITAR|safety|compliance|onboarding|orientation) training\b|\bintern (events?|socials?)\b|'
+                  r'\bagile ceremonies\b|\bad[- ]hoc requests\b', re.I)
+
+
+def weak(b):
+    """Filler a recruiter skips: a chore or vague verb, or a short line with no number ('Graded homework.', 'Made the slides.')."""
+    t = ats.plain(b)
+    return bool(WEAK.search(t) or (len(t) < 48 and not re.search(r'\d', t)) or
+                re.match(r'^\W*(grad(ed|es|ing)|read papers|sold|ran (philanthropy|events?)|made the)\b', t, re.I))
+
+
+def strength(b, kws=()):
+    """How hard a bullet works on the page: a measured result and the posting's words count, filler and chores don't."""
+    t = ats.plain(b)
+    return ((3 if re.search(r'\d', t) else 0) + (2 if IMPACT.search(t) else 0) + min(len(t), 160) / 80
+            + (_kw_score(t, kws) if kws else 0) - (6 if weak(t) else 0))
+
+
+def _upgrade(bl, src, avoid, kws, least=1):
+    """Swap each weak bullet for the entry's strongest unused one (a real, unchosen vault bullet), never adding length."""
+    used = set(bl)
+    spare = sorted((b for i, b in enumerate(src.get('bullets', [])) if b not in used and f"{src['id']}.{i}" not in avoid
+                    and not weak(b) and not any(_closest([b], x)[1] > 0.5 for x in bl)),
+                   key=lambda b: -strength(b, kws))
+    out = []
+    for b in bl:
+        t = ats.plain(b)
+        if spare and weak(t) and strength(spare[0], kws) > strength(b, kws):
+            out.append(spare.pop(0))
+        elif spare and not re.search(r'\d', t) and re.search(r'\d', ats.plain(spare[0])) and strength(spare[0], kws) >= strength(b, kws) + 3:
+            out.append(spare.pop(0))   # the entry's measured result beats an unmeasured line
+        else:
+            out.append(b)
+    keep = [b for b in out if not (weak(b) and not re.search(r'\d', ats.plain(b)))]   # measured lines stay
+    return keep if len(keep) >= least else out
+
+
 OLD = re.compile(r'\b(high school|middle school|secondary school)\b', re.I)  # or set "high_school": true on a vault entry
 
 
@@ -255,6 +297,16 @@ RULES (hard):
 - Each bullet: past-tense action verb first (present tense for current roles), 80-200 characters, ideally a number.
 - Fill one page with the strongest material: usually 4-6 entries and 14-18 bullets. 2-4 bullets per relevant role, 1-2 per
   project or leadership entry; drop entries that do not help this posting.
+- Every entry you keep shows its single most impressive measured result (the bullet with the biggest number, scale or
+  outcome), even if its wording is less on-topic: reframe it for this role rather than dropping it.
+- Never spend a line on filler ("helped with", "attended", "participated in", trainings, ad-hoc requests, intern events,
+  generic duties) when the vault has a stronger true bullet for that entry or a stronger entry left out.
+- No fact twice: an honor in education is not repeated in awards, a placement in a bullet is not repeated in awards.
+- No orphan section: a section with one entry and one short bullet either earns a second bullet or gives way to a
+  stronger entry.
+- A rewrite never adds a purpose, audience, scope, tool or outcome the vault does not state ("to feed the production
+  model", "for the growth team", "before production runs", "validated" for "reduced data"). Reframe with the vault's own
+  facts; if the honest version is less on-topic, keep it honest.
 - Refer to bullets by the exact ids shown in the vault ("drift.0"). A number keeps its meaning ("40K events/sec" never
   becomes "40K users").
 - Order sections for this reader. Ideal order for this field: {', '.join(rules.get('order', []))}.
@@ -262,7 +314,8 @@ RULES (hard):
 {you}
 
 OUTPUT: only a JSON object:
-{{"headline": [strings from vault basics.headline, reordered/subset],
+{{"headline": [2-4 short identity tags for THIS role: the vault's headline tags, or new ones built only from words in the vault
+                ("Avionics Hardware", "Recommender Systems"); the role's identity first],
   "order": ["education", "experience", "projects", ...],
   "experience": [{{"id": "<entry id>", "bullets": ["<id>.<n>" or {{"from": "<id>.<n>", "text": "<reworded bullet>"}}]}}],
   "projects": [same shape], "leadership": [same shape],
@@ -296,8 +349,9 @@ def agent_llm(text, timeout=600):
                                    text=True, encoding='utf-8', errors='replace', timeout=timeout, cwd=store.HOME, **store.NOWIN)
                 if r.returncode == 0 and r.stdout.strip():
                     return r.stdout
+                _llm_log('claude', r)
             else:
-                for _ in range(2):
+                for _ in range(8):   # each refused model is remembered, so this walk happens once per machine
                     with tempfile.NamedTemporaryFile('r', suffix='.txt', delete=False) as f:
                         out = f.name
                     cmd = [agents.exe('codex'), 'exec', '--skip-git-repo-check', '--ephemeral', '-s', 'read-only', '-o', out,
@@ -308,12 +362,22 @@ def agent_llm(text, timeout=600):
                         os.unlink(out)
                     if reply.strip():
                         return reply
-                    if 'model_not_found' not in r.stdout + r.stderr or agents.FALLBACK_MODEL[0]:
-                        break
-                    agents.FALLBACK_MODEL[0] = True   # the configured model isn't on this plan: retry on one the CLI lists
+                    _llm_log('codex', r)
+                    if 'model_not_found' not in r.stdout + r.stderr or not agents.reject_model(r.stdout + r.stderr):
+                        break   # anything but "that model isn't on your plan" won't be fixed by retrying; that one moves to the next model
         except Exception:
             continue
     return None
+
+
+def _llm_log(name, r):
+    """Why a call to the user's agent came back empty, for 'why did my resume use the built-in writer?'."""
+    try:
+        from . import store
+        with open(store.path('llm.log'), 'a', encoding='utf-8') as f:
+            f.write(f"{__import__('time').strftime('%Y-%m-%d %H:%M:%S')} {name} rc={r.returncode} {(r.stderr or r.stdout or '')[-600:]!r}\n")
+    except Exception:
+        pass
 
 
 def call_llm(text, timeout=600):
@@ -407,9 +471,13 @@ def apply(v, plan, jd=''):
     rep = {"rewrites": [], "rejected": [], "notes": plan.get('notes', ''), "positioning": plan.get('positioning', ''),
            "requirements": plan.get('requirements', [])}
     avoid = set(learn_avoid(v))
+    kws = ats.keywords(jd) if jd else []
     head = v.get('basics', {}).get('headline', [])
     if plan.get('headline'):
-        out['basics']['headline'] = [h for h in plan['headline'] if h in head] or head
+        vw = _words(vt)
+        ok = [h for h in plan['headline'] if isinstance(h, str) and (h in head or (
+            len(h) <= 40 and _words(h) and all(w in vw or w in ('and', 'engineering', 'engineer') for w in _words(h))))]
+        out['basics']['headline'] = ok[:4] or head
     out['education'] = v.get('education', [])
     # a plan that numbers bullets from 1 never uses .0 and points one past the end somewhere: shift it back
     refs = [r for sec in ENTRY_SECS for c in (plan.get(sec) or []) if isinstance(c, dict) for r in (c.get('bullets') or [])]
@@ -430,7 +498,7 @@ def apply(v, plan, jd=''):
             if not e:
                 continue
             e2 = {k: e[k] for k in e if k != 'bullets'}
-            bl = []
+            bl, used = [], set()
             for ref in (c.get('bullets') if isinstance(c, dict) and c.get('bullets') is not None else
                         [f'{cid}.{i}' for i in range(len(e.get('bullets', [])))]):
                 src_id, text = (ref.get('from'), ref.get('text')) if isinstance(ref, dict) else (ref, None)
@@ -462,25 +530,34 @@ def apply(v, plan, jd=''):
                         text = None
                     else:
                         rep['rewrites'].append({"bullet": src_id, "from": orig, "to": text})
-                if (text or orig) not in bl:
+                if (text or orig) not in bl and k not in used:
                     bl.append(text or orig)
+                    used.add(k)
             # never ship a thin entry: roles keep at least 2 bullets and projects/leadership at least 1 when the vault has
             # them (the renderer trims to one page afterwards, so this never overflows)
-            least = 2 if sec == 'experience' else 1
+            # a section of one entry with one line reads as an afterthought: that entry gets a second line too
+            least = 2 if sec == 'experience' or len(chosen) == 1 else 1
             for bi, b in enumerate(e.get('bullets', [])):
                 if len(bl) >= least:
                     break
-                if f"{e['id']}.{bi}" in avoid:
+                if f"{e['id']}.{bi}" in avoid or bi in used or weak(b):
                     continue
                 if b not in bl and not any(_closest([b], x)[1] > 0.5 for x in bl):
                     bl.append(b)
-            e2['bullets'] = bl
+            e2['bullets'] = _upgrade(bl, e, avoid, kws, least)
+            e2['_used'] = sorted(used | {i for i, b in enumerate(e.get('bullets', [])) if b in e2['bullets']})
             lst.append(e2)
         out[sec] = lst
     rid = {p.get('id'): p for p in v.get('research', [])}
     out['research'] = [rid[i] for i in plan.get('research', []) if i in rid] if 'research' in plan else v.get('research', [])
     aw = v.get('awards', [])
     out['awards'] = _pick_awards(aw, plan['awards']) if 'awards' in plan else aw
+    out['awards'] = _not_repeated(out['awards'], out)
+    if len(out['awards']) == 1 and out['education'] and isinstance(out['awards'][0], str):
+        # one award doesn't need a section of its own: it reads better beside the school's honors
+        out['education'] = copy.deepcopy(out['education'])
+        out['education'][0]['honors'] = list(out['education'][0].get('honors') or []) + out['awards']
+        out['awards'] = []
     out['certifications'] = v.get('certifications', [])
     out['skills'] = _pick_skills(v.get('skills', []), plan.get('skills'))
     # every section the plan selected is shown, education leads, and experience is newest first
@@ -490,6 +567,8 @@ def apply(v, plan, jd=''):
     if 'education' in order and order[0] != 'education':
         order.remove('education')
         order.insert(0, 'education')
+    tail = [s for s in ('skills', 'certifications', 'awards') if s in order]
+    order = [s for s in order if s not in tail] + tail   # what you did leads; lists of skills and honors close the page
     out['order'] = order
     for sec in ('experience', 'leadership', 'volunteering'):
         if out.get(sec):
@@ -511,7 +590,8 @@ def _fill_page(v, res, jd, style, probe, k=1.0):
         for e in res.get(sec, []):
             src = byid.get(e.get('id'))
             for i, b in enumerate((src or {}).get('bullets', [])):
-                if f"{src['id']}.{i}" in avoid or any(_closest([b], x)[1] > 0.45 for x in e.get('bullets', [])):
+                if (f"{src['id']}.{i}" in avoid or i in e.get('_used', []) or weak(b)
+                        or any(_closest([b], x)[1] > 0.45 for x in e.get('bullets', []))):
                     continue
                 cands.append((_kw_score(ats.plain(b), kws) + (2 if IMPACT.search(b) else 0), 'bullet', sec, e.get('id'), b))
         for e in v.get(sec, []):
@@ -534,9 +614,11 @@ def _fill_page(v, res, jd, style, probe, k=1.0):
             tgt = next(e for e in res[sec] if e.get('id') == eid)
             tgt['bullets'].append(x)
             undo = lambda: tgt['bullets'].pop()
+            src_b = next((e for e in v[sec] if e['id'] == eid), {}).get('bullets', [])
+            tgt.setdefault('_used', []).extend(j for j, b in enumerate(src_b) if b == x)
         else:
             e2 = {k: x[k] for k in x if k != 'bullets'}
-            e2['bullets'] = x['bullets'][:2]
+            e2['bullets'] = [b for b in x['bullets'] if not weak(b)][:2] or x['bullets'][:1]
             res.setdefault(sec, []).append(e2)
             if sec not in res.get('order', []):
                 res.setdefault('order', []).append(sec)
@@ -573,7 +655,26 @@ def _recency(e):
     parts = re.split(r'\s*[–—-]\s*|\s+to\s+', str(dates)) if dates else []
     end = _when(e.get('end')) or (_when(parts[-1]) if parts else None)
     start = _when(e.get('start')) or (_when(parts[0]) if parts else None)
-    return end or start or 0   # ties (several current roles) keep the plan's relevance order: sorted() is stable
+    when = end or start or 0
+    # anything current or finished in the last year is "recent": among those the plan's relevance order stands (sorted() is
+    # stable), so this summer's internship isn't pushed under an older part-time role that happens to still be ongoing
+    import time
+    now = time.localtime()
+    return 9999.0 if when >= now.tm_year + now.tm_mon / 12 - 1 else when
+
+
+def _not_repeated(awards, res):
+    """An award already stated under education or in a bullet only takes a line twice."""
+    seen = json.dumps([res.get('education', [])] + [[e.get(k) for k in ('org', 'name', 'title', 'tagline')] + e.get('bullets', [])
+                                                     for sec in ENTRY_SECS for e in res.get(sec, [])], ensure_ascii=False)
+    sw = _words(seen)
+    keep = []
+    for a in awards:
+        w = _words(a if isinstance(a, str) else ' '.join(str(x) for x in a.values() if isinstance(x, str)))
+        if len(w) >= 3 and len(w & sw) / len(w) >= 0.75:
+            continue
+        keep.append(a)
+    return keep
 
 
 def _pick_awards(aw, picks):
@@ -640,10 +741,18 @@ def tailor(v, job, jd, mode='auto', plan=None, style=None, out_dir=None):
     style = style or ctx['template']
     if plan is None:
         if mode in ('auto', 'api'):
-            try:
-                plan = call_llm(prompt(v, job, jd, ctx), timeout=150)   # never leave someone waiting: past this, the built-in writer takes over
-            except Exception:
-                plan = None
+            import time
+            t0 = time.time()
+            for _ in range(2):   # a busy or rate-limited agent often answers on the second try; the built-in writer is a big step down
+                left = 330 - (time.time() - t0)   # never leave someone waiting: past this, the built-in writer takes over
+                if left < 90:
+                    break
+                try:
+                    plan = call_llm(prompt(v, job, jd, ctx), timeout=min(200, left))   # a full plan takes Sonnet ~2 min
+                except Exception:
+                    plan = None
+                if plan:
+                    break
         if plan is None:
             plan = heuristic_plan(v, jd, title=job.get('title', ''), ctx=ctx)
             mode = 'heuristic'

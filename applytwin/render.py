@@ -12,6 +12,17 @@ import shutil
 import subprocess
 import tempfile
 
+
+def degree_line(e):
+    """'Bachelor of Science' + 'Finance' -> 'Bachelor of Science in Finance'; a degree that already names its field
+    ('B.S. in Management') takes the major after a comma, and a major the degree already states isn't said twice."""
+    deg, major = (e.get('degree') or '').strip(), (e.get('major') or '').strip()
+    if not deg or not major:
+        return deg or major
+    if major.lower() in deg.lower():
+        return deg
+    return f'{deg}, {major}' if re.search(r'\b(in|of)\s+\w', deg.split(' of ', 1)[-1] if deg.lower().startswith(('bachelor of', 'master of', 'doctor of')) else deg) else f'{deg} in {major}'
+
 TEMPLATES = {
     'classic': {"label": "Jake's Classic", "desc": "The r/cscareerquestions favorite. Serif, small-caps headings, full rules, dense.",
                 "best": "SWE, quant, research"},
@@ -145,8 +156,7 @@ def build_html(r, style='classic', k=1.0, titles=None):
         body = []
         if sec == 'education':
             for e in data:
-                deg = ', '.join(x for x in (e.get('degree'), e.get('major') and ('in ' + e['major'] if e.get('degree') else e['major'])) if x)
-                deg = deg.replace(', in ', ' in ')
+                deg = degree_line(e)
                 extra = '; '.join(x for x in (e.get('minor') and 'Minor in ' + e['minor'], e.get('gpa') and 'GPA: ' + e['gpa']) if x)
                 body.append(f'<div class="entry"><div class="row"><span class="org">{html.escape(e.get("school", ""))}</span>'
                             f'<span>{html.escape(e.get("location", ""))}</span></div><div class="row"><span class="role">{html.escape(deg)}'
