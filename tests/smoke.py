@@ -90,10 +90,12 @@ _v = _tl.ensure_ids(json.load(open(os.path.join(ROOT, 'examples', 'resume.exampl
 _roles = [e for e in _v['experience'] if len(e.get('bullets', [])) >= 2][:2]
 _plan = {"experience": [{"id": e['id'], "bullets": [f"{e['id']}.{i + 1}" for i in range(len(e['bullets']))]} for e in _roles]}
 _res, _ = _tl.apply(_v, _plan)
-_ok1 = all(r['bullets'] == e['bullets'] for r, e in zip(_res['experience'], _roles))
+_by = {r['id']: r for r in _res['experience']}
+_ok1 = all(_by[e['id']]['bullets'] == e['bullets'] for e in _roles)
 _plan2 = {"experience": [{"id": e['id'], "bullets": [{"from": f"{e['id']}.{len(e['bullets'])}", "text": e['bullets'][-1]}]} for e in _roles]}
 _res2, _ = _tl.apply(_v, _plan2)
-_ok2 = all(len(r['bullets']) >= 2 and e['bullets'][-1] in r['bullets'] for r, e in zip(_res2['experience'], _roles))
+_by2 = {r['id']: r for r in _res2['experience']}
+_ok2 = all(len(_by2[e['id']]['bullets']) >= 2 and e['bullets'][-1] in _by2[e['id']]['bullets'] for e in _roles)
 res.append(ok(_ok1 and _ok2, 'bullets numbered from 1 still land right, and no role is left with fewer than 2'))
 # real form questions that used to get the wrong answer
 _pb = _an.default_bank({'name': 'Maya Chen', 'location': 'Austin, TX', 'grad_month': 'May', 'grad_year': '2028', 'major': 'Computer Science',
@@ -128,6 +130,11 @@ store.claim('lim3'); api.release_claims()
 _released = api._latest('lim3')['status'] == 'Needs User'
 api.update_profile(p0)
 res.append(ok(_skipped and _canon and _limited and _released, f'skip list, daily limit, statuses and unfinished claims hold ({_skipped}, {_canon}, {_limited}, {_released})'))
+# a thin plan never ships a half-empty page: the tailor adds the user's next best true bullets until the page is full
+_thin = {"experience": [{"id": _v['experience'][0]['id'], "bullets": [f"{_v['experience'][0]['id']}.0"]}], "projects": [], "leadership": []}
+_tr = _tl.tailor(store.load('resume.json'), {'id': 'fill', 'title': 'Software Engineer Intern', 'company': 'Acme'},
+                 'Python distributed systems backend APIs', plan=_thin, style='classic')
+res.append(ok(_tr['pages'] == 1 and len(_tr['added']) >= 2, f"thin plans are filled to a full page ({len(_tr['added'])} added)"))
 from applytwin import telemetry as _tm
 res.append(ok(not _tm.enabled() and _tm.ping() is False and len(_tm.install_id()) == 36, 'install count is off in tests and uses only a random ID'))
 

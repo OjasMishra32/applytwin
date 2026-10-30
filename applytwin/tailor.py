@@ -333,9 +333,13 @@ def _closest(bullets, text):
 def apply(v, plan, jd=''):
     """Vault + plan -> concrete resume dict, plus a report of accepted/rejected rewrites."""
     v = ensure_ids(copy.deepcopy(v))
+    if isinstance(plan, dict) and len(plan) == 1 and isinstance(next(iter(plan.values())), dict):
+        plan = next(iter(plan.values()))   # {"plan": {...}} from a chatty model
+    plan = plan if isinstance(plan, dict) else {}
     vt = vault_text(v)
     out = {"basics": copy.deepcopy(v.get('basics', {})), "titles": v.get('titles', {})}
     rep = {"rewrites": [], "rejected": [], "notes": plan.get('notes', '')}
+    avoid = set(learn_avoid(v))
     head = v.get('basics', {}).get('headline', [])
     if plan.get('headline'):
         out['basics']['headline'] = [h for h in plan['headline'] if h in head] or head
@@ -364,9 +368,7 @@ def apply(v, plan, jd=''):
                         [f'{cid}.{i}' for i in range(len(e.get('bullets', [])))]):
                 src_id, text = (ref.get('from'), ref.get('text')) if isinstance(ref, dict) else (ref, None)
                 m = re.match(r'(.+)\.(\d+)$', str(src_id or ''))
-                owner = byid.get(m.group(1)) if m else e
-                if owner is None:
-                    owner = e
+                owner = e   # a bullet only ever appears under its own role/project, whatever id the plan wrote
                 obl = owner.get('bullets', [])
                 if not obl:
                     continue
@@ -375,9 +377,13 @@ def apply(v, plan, jd=''):
                     near, score = _closest(obl, text)
                     if near is not None and (not 0 <= k < len(obl) or score > len(_words(text) & _words(obl[k])) / (len(_words(text) | _words(obl[k])) or 1)):
                         k = near
+                if m and m.group(1) != e['id'] and not text:
+                    continue   # a bare reference to another entry's bullet: skip it rather than mislabel
                 if not 0 <= k < len(obl):
                     continue
                 orig = obl[k]
+                if f"{e['id']}.{k}" in avoid:
+                    continue   # the user said never to use this one
                 src_id = f"{owner['id']}.{k}"
                 if text and text.strip() != orig:
                     src = owner
@@ -394,9 +400,11 @@ def apply(v, plan, jd=''):
             # never ship a thin entry: roles keep at least 2 bullets and projects/leadership at least 1 when the vault has
             # them (the renderer trims to one page afterwards, so this never overflows)
             least = 2 if sec == 'experience' else 1
-            for b in e.get('bullets', []):
+            for bi, b in enumerate(e.get('bullets', [])):
                 if len(bl) >= least:
                     break
+                if f"{e['id']}.{bi}" in avoid:
+                    continue
                 if b not in bl and not any(_closest([b], x)[1] > 0.5 for x in bl):
                     bl.append(b)
             e2['bullets'] = bl
@@ -405,21 +413,149 @@ def apply(v, plan, jd=''):
     rid = {p.get('id'): p for p in v.get('research', [])}
     out['research'] = [rid[i] for i in plan.get('research', []) if i in rid] if 'research' in plan else v.get('research', [])
     aw = v.get('awards', [])
-    out['awards'] = [aw[i] for i in plan.get('awards', []) if isinstance(i, int) and i < len(aw)] if 'awards' in plan else aw
+    out['awards'] = _pick_awards(aw, plan['awards']) if 'awards' in plan else aw
     out['certifications'] = v.get('certifications', [])
-    labels = {s.get('label'): s.get('items', []) for s in v.get('skills', [])}
-    if plan.get('skills'):
-        sk = []
-        for s in plan['skills']:
-            items = [i for i in s.get('items', []) if i in labels.get(s.get('label'), [])]
-            if items:
-                sk.append({"label": s['label'], "items": items})
-        out['skills'] = sk or v.get('skills', [])
-    else:
-        out['skills'] = v.get('skills', [])
+    out['skills'] = _pick_skills(v.get('skills', []), plan.get('skills'))
+    # every section the plan selected is shown, education leads, and experience is newest first
     order = [s for s in (plan.get('order') or v.get('order') or []) if out.get(s)]
-    out['order'] = order + [s for s in (v.get('order') or []) if s not in order and out.get(s) and s not in ('research', 'awards')]
+    order += [s for s in (v.get('order') or []) if s not in order and out.get(s) and s not in ('research', 'awards')]
+    order += [s for s in ('research', 'awards') if s not in order and out.get(s) and s in plan]
+    if 'education' in order and order[0] != 'education':
+        order.remove('education')
+        order.insert(0, 'education')
+    out['order'] = order
+    for sec in ('experience', 'leadership', 'volunteering'):
+        if out.get(sec):
+            out[sec] = sorted(out[sec], key=_recency, reverse=True)
     return out, rep
+
+
+def _fill_page(v, res, jd, style, probe):
+    """A two-thirds-empty page reads as thin. While there's clear room, add the user's next strongest true bullets for
+    this posting (from the same roles first, then roles/projects the plan left out), never past one page."""
+    from . import render
+    v = ensure_ids(copy.deepcopy(v))
+    if render.fits(res, style, 1.07, probe) is False:
+        return []
+    kws = ats.keywords(jd)
+    avoid = set(learn_avoid(v))
+    shown = {e.get('id') for sec in ENTRY_SECS for e in res.get(sec, [])}
+    cands = []
+    for sec in ('experience', 'projects', 'leadership'):
+        byid = {e['id']: e for e in v.get(sec, [])}
+        for e in res.get(sec, []):
+            src = byid.get(e.get('id'))
+            for i, b in enumerate((src or {}).get('bullets', [])):
+                if f"{src['id']}.{i}" in avoid or any(_closest([b], x)[1] > 0.45 for x in e.get('bullets', [])):
+                    continue
+                cands.append((_kw_score(ats.plain(b), kws) + (2 if IMPACT.search(b) else 0), 'bullet', sec, e.get('id'), b))
+        for e in v.get(sec, []):
+            if e['id'] not in shown and e.get('bullets') and not OLD.search(json.dumps(e)):
+                cands.append((_kw_score(ats.plain(' '.join(e['bullets'])), kws) - 1, 'entry', sec, e['id'], e))
+    cands.sort(key=lambda c: -c[0])
+    added = []
+    for score, kind, sec, eid, x in cands[:10]:
+        if kind == 'bullet':
+            tgt = next(e for e in res[sec] if e.get('id') == eid)
+            tgt['bullets'].append(x)
+            undo = lambda: tgt['bullets'].pop()
+        else:
+            e2 = {k: x[k] for k in x if k != 'bullets'}
+            e2['bullets'] = x['bullets'][:2]
+            res.setdefault(sec, []).append(e2)
+            if sec not in res.get('order', []):
+                res.setdefault('order', []).append(sec)
+            undo = lambda: res[sec].pop()
+        if not render.fits(res, style, 1.0, probe):
+            undo()
+            break
+        added.append(f"{sec}: {ats.plain(x if isinstance(x, str) else x.get('org') or x.get('name', ''))[:60]}")
+        if not render.fits(res, style, 1.04, probe):   # full enough
+            break
+    return added
+
+
+MONTHS = {m: i for i, m in enumerate(['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'], 1)}
+
+
+def _when(s):
+    """'November 2025' -> 2025.83; 'Present' -> far future; unknown -> None."""
+    s = (s or '').strip().lower()
+    if not s:
+        return None
+    if re.search(r'present|current|now|ongoing', s):
+        return 9999.0
+    y = re.search(r'(19|20)\d\d', s)
+    if not y:
+        return None
+    mo = next((v for k, v in MONTHS.items() if k in s), 6)
+    return int(y.group(0)) + mo / 12
+
+
+def _recency(e):
+    """Sort key: current roles first, then by end date (resumes read newest first)."""
+    dates = e.get('dates') or ' '.join(str(e.get(k, '')) for k in ('start', 'end'))
+    parts = re.split(r'\s*[–—-]\s*|\s+to\s+', str(dates)) if dates else []
+    end = _when(e.get('end')) or (_when(parts[-1]) if parts else None)
+    start = _when(e.get('start')) or (_when(parts[0]) if parts else None)
+    return end or start or 0   # ties (several current roles) keep the plan's relevance order: sorted() is stable
+
+
+def _pick_awards(aw, picks):
+    texts = [a if isinstance(a, str) else json.dumps(a) for a in aw]
+    ints = [p for p in picks if isinstance(p, int)]
+    shift = 1 if ints and min(ints) >= 1 and max(ints) == len(aw) else 0   # counted from 1
+    out = []
+    for p in picks:
+        if isinstance(p, int) and 0 <= p - shift < len(aw):
+            a = aw[p - shift]
+        elif isinstance(p, str):
+            i, score = _closest(texts, p)
+            a = aw[i] if i is not None and score > 0.4 else None
+        else:
+            a = None
+        if a is not None and a not in out:
+            out.append(a)
+    return out or aw
+
+
+def _pick_skills(vault_skills, picks):
+    """Keep the plan's order and emphasis, but only real items, matched to the user's labels loosely ('Programming
+    Languages' is 'Languages'), and never drop most of what the user knows."""
+    if not picks:
+        return vault_skills
+    norm = lambda x: re.sub(r'[^a-z0-9+#]', '', (x or '').lower())
+    allitems = {norm(i): i for s in vault_skills for i in s.get('items', [])}
+    out, used = [], set()
+    for s in picks:
+        if not isinstance(s, dict):
+            continue
+        items = [allitems[norm(i)] for i in s.get('items', []) if norm(i) in allitems and norm(i) not in used]
+        lab = next((vs['label'] for vs in vault_skills if norm(vs.get('label')) == norm(s.get('label'))), None) or \
+            next((vs['label'] for vs in vault_skills if items and items[0] in vs.get('items', [])), s.get('label'))
+        if items:
+            used.update(norm(i) for i in items)
+            out.append({"label": lab, "items": items})
+    if sum(len(s['items']) for s in out) < 0.35 * len(allitems):   # a lost line, not a choice: add back the rest
+        for vs in vault_skills:
+            rest = [i for i in vs.get('items', []) if norm(i) not in used]
+            if not rest:
+                continue
+            tgt = next((o for o in out if o['label'] == vs.get('label')), None)
+            if tgt:
+                tgt['items'] += rest
+            else:
+                out.append({"label": vs.get('label'), "items": rest})
+            used.update(norm(i) for i in rest)
+    return out or vault_skills
+
+
+def learn_avoid(v):
+    try:
+        from . import learn
+        return learn.context_for({}).get('avoid', [])
+    except Exception:
+        return []
 
 
 def tailor(v, job, jd, mode='auto', plan=None, style=None, out_dir=None):
@@ -445,6 +581,14 @@ def tailor(v, job, jd, mode='auto', plan=None, style=None, out_dir=None):
     name = re.sub(r'[^A-Za-z]+', '_', res['basics'].get('name', 'Resume')).strip('_') + '_Resume.pdf'
     pdf = os.path.join(out_dir, name)
     r = render.render(res, style, pdf)
+    if r['pages'] == 1 and not r['dropped'] and style != 'latex':   # room left on the page: fill it with real material
+        added = _fill_page(v, res, jd, style, pdf + '.probe.pdf')
+        if added:
+            rep['added'] = added
+            r = render.render(res, style, pdf)
+        for f in (pdf + '.probe.pdf',):
+            if os.path.exists(f):
+                os.remove(f)
     from . import latex
     with open(pdf[:-4] + '.tex', 'w', encoding='utf-8') as f:  # every tailored resume also ships as editable LaTeX
         f.write(latex.build_tex(res))
@@ -456,4 +600,4 @@ def tailor(v, job, jd, mode='auto', plan=None, style=None, out_dir=None):
     return {"pdf": pdf, "tex": pdf[:-4] + '.tex', "pages": r['pages'], "dropped": r['dropped'], "mode": mode, "style": style,
             "coverage_vault": before.get('coverage'), "coverage": after.get('coverage'), "score": after['score'],
             "missing": [m['term'] for m in after.get('missing', []) if m['hard']][:12],
-            "rewrites": len(rep['rewrites']), "rejected": rep['rejected'], "notes": rep['notes'], "field": ctx['field']}
+            "rewrites": len(rep["rewrites"]), "rejected": rep["rejected"], "notes": rep["notes"], "field": ctx["field"], "added": rep.get("added", [])}

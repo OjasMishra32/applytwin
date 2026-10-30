@@ -257,22 +257,28 @@ def render(r, style, out_pdf, one_page=True):
             return _fit(r, out_pdf, one_page, dropped, lambda rr, k: latex.compile_tex(latex.build_tex(rr, k), out_pdf), (1.0, .96, .92))
         except RuntimeError:
             style = 'classic'
-    steps = (1.0, .97, .945, .92, .9, .88, .86)
-    for k in steps:
+    # keep the type readable: shrink only a little, then cut the weakest lines; go smaller only if cutting runs out
+    for k in (1.0, .97, .95):
         html_to_pdf(build_html(r, style, k), out_pdf)
         n = page_count(out_pdf)
         if n == 1 or not one_page:
             return {"pdf": out_pdf, "pages": n, "scale": k, "dropped": dropped}
-    k = steps[-1]
-    for _ in range(30):
-        victim = _drop_one(r)
-        if not victim:
-            break
-        dropped.append(victim)
-        html_to_pdf(build_html(r, style, k), out_pdf)
-        if page_count(out_pdf) == 1:
-            return {"pdf": out_pdf, "pages": 1, "scale": k, "dropped": dropped}
-    return {"pdf": out_pdf, "pages": page_count(out_pdf), "scale": k, "dropped": dropped}
+    for k, budget in ((.95, 12), (.92, 12), (.9, 30)):
+        for _ in range(budget):
+            victim = _drop_one(r)
+            if not victim:
+                break
+            dropped.append(victim)
+            html_to_pdf(build_html(r, style, k), out_pdf)
+            if page_count(out_pdf) == 1:
+                return {"pdf": out_pdf, "pages": 1, "scale": k, "dropped": dropped}
+    return {"pdf": out_pdf, "pages": page_count(out_pdf), "scale": .9, "dropped": dropped}
+
+
+def fits(r, style, k, out_pdf):
+    """Would this resume fit on one page at type scale k? (k above 1 asks whether there's room to spare.)"""
+    html_to_pdf(build_html(r, style, k), out_pdf)
+    return page_count(out_pdf) == 1
 
 
 def _fit(r, out_pdf, one_page, dropped, make, steps):
