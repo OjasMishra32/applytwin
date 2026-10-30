@@ -85,8 +85,8 @@ export default function Welcome() {
       <div className="card p-8 md:p-10">
         <div className="text-[15px] font-semibold text-signal">Step 2 of 3 · Your application answers</div>
         <h2 className="mt-2 text-[34px] font-bold leading-[1.08] tracking-[-0.035em] text-ink">Answer these once. Your twin uses them on every form.</h2>
-        <p className="mt-2 text-[14px] text-muted">Nothing is pre-filled or guessed. Pick an answer for each one (you can decline the self-identification questions). Change any of it later in Settings.</p>
-        <div className="mt-7"><ProfileQuestions qs={qs} p={p} setP={setP} showMissing /></div>
+        <p className="mt-2 text-[14px] text-muted">{imp?.filled?.length ? `${imp.filled.length} filled in from your resume; check them.` : 'Nothing is guessed.'} Answer the rest (you can decline the self-identification questions). You can change any of it later in Settings.</p>
+        <div className="mt-7"><ProfileQuestions qs={qs} p={p} setP={setP} showMissing filled={imp?.filled || []} /></div>
         <div className="mt-9 flex flex-wrap items-center justify-between gap-3">
           <Button variant="ghost" onClick={() => setStep(1)}><ArrowLeft className="size-4" />Back</Button>
           <div className="flex items-center gap-3">

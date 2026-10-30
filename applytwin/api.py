@@ -391,19 +391,19 @@ def playbook(ats_name):
 def setup_status():
     p, v = store.profile(), store.resume()
     steps = [
-        ("profile", not ans.gaps(p), f"Answer your application questions ({len(ans.gaps(p))} left)" if ans.gaps(p) else "Answer your application questions"),
-        ("vault", len(v.get('experience', [])) + len(v.get('projects', [])) >= 2, "Add your experience and projects to the vault"),
-        ("skills", bool(v.get('skills')), "Add your skills"),
-        ("search", bool(p['search'].get('roles')), "Choose the roles you want"),
-        ("scan", bool(store.rows('select 1 from jobs limit 1')), "Run your first job scan"),
+        ("profile", not ans.gaps(p), "Answer your application questions", f"{len(ans.gaps(p))} left" if ans.gaps(p) else ''),
+        ("vault", len(v.get('experience', [])) + len(v.get('projects', [])) >= 2, "Add experience and projects", ''),
+        ("skills", bool(v.get('skills')), "Add your skills", ''),
+        ("search", bool(p['search'].get('roles')), "Choose the roles you want", ''),
+        ("scan", bool(store.rows('select 1 from jobs limit 1')), "Run your first job scan", ''),
     ]
     try:
         render.chrome()
         chrome = True
     except Exception:
         chrome = False
-    steps.append(("chrome", chrome, "Install Google Chrome (used to make PDFs)"))
-    return [{"id": a, "done": b, "label": c} for a, b, c in steps]
+    steps.append(("chrome", chrome, "Install Chrome (for PDFs)", ''))
+    return [{"id": a, "done": b, "label": c, "detail": d} for a, b, c, d in steps]
 
 
 # ------------------------------------------------------------------ import, queue, autopilot

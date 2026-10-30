@@ -127,7 +127,7 @@ export default function Dashboard() {
                   <motion.div key={l} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ ...spring, delay: 0.1 + i * 0.05 }}
                     className="rounded-[20px] bg-[#111526]/90 px-5 py-4 ring-1 ring-white/[.06] backdrop-blur">
                     <div className="text-[34px] font-semibold leading-none tracking-[-0.04em] text-white tabular-nums">{v.toLocaleString()}</div>
-                    <div className="mt-2 flex items-center gap-1.5 text-[13px] text-muted"><span className="size-2 rounded-full" style={{ background: c }} />{l}</div>
+                    <div className="mt-2 text-[13px] text-muted">{l}</div>
                   </motion.div>))}
               </section>
             </>}

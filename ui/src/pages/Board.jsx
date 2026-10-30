@@ -41,8 +41,7 @@ export default function Board() {
       {empty ? (
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={spring}
           className="mx-auto mt-6 max-w-[560px] rounded-[22px] bg-[#111526] px-8 py-12 text-center ring-1 ring-white/[.06]">
-          <div className="mx-auto flex w-fit gap-1.5">{COLS.map(([st, , c]) => <span key={st} className="size-2 rounded-full" style={{ background: c }} />)}</div>
-          <h2 className="mt-5 text-[26px] font-semibold tracking-[-0.03em] text-white">No applications yet</h2>
+          <h2 className="text-[26px] font-semibold tracking-[-0.03em] text-white">No applications yet</h2>
           <p className="mx-auto mt-2 max-w-[400px] text-[15px] leading-relaxed text-muted">Start your twin and every application shows up here, from needs-you to offer. Already applied somewhere? Import your tracker so your twin never applies twice.</p>
           <div className="mt-7 flex flex-wrap justify-center gap-3">
             <a href="#agents" className="inline-flex h-10 items-center rounded-full bg-signal px-5 text-[14px] font-semibold text-white hover:bg-[#2b95ff]">Start Autopilot</a>
@@ -59,7 +58,7 @@ export default function Board() {
               onDrop={() => { setOver(null); drag && move(drag, st); setDrag(null) }}
               className={`min-h-[120px] rounded-[18px] p-2 transition ${over === st ? 'bg-signal/[.08] ring-2 ring-signal' : ''}`}>
               <div className="mb-3 flex items-center justify-between px-1.5"><div className="flex items-center gap-2 text-[13.5px] font-semibold text-ink">
-                <span className="size-2 rounded-full" style={{ background: color }} />{label}</div><span className="text-[13px] tabular-nums text-muted">{xs.length.toLocaleString()}</span></div>
+                {label}</div><span className="text-[13px] tabular-nums text-muted">{xs.length.toLocaleString()}</span></div>
               <div className="space-y-2.5">
                 <AnimatePresence>{xs.slice(0, 40).map(a => (
                   <motion.div layout layoutId={a.job_id} key={a.job_id} transition={spring} draggable onDragStart={() => setDrag(a)}

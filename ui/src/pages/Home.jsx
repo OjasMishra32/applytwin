@@ -56,10 +56,28 @@ export default function Home() {
             ['Left today', next?.remaining_today ?? 0, '#7d869f']].map(([l, v, c]) => (
             <div key={l} className="card px-5 py-4">
               <div className="text-[34px] font-semibold leading-none tracking-[-0.04em] text-white"><Odometer value={v || 0} /></div>
-              <div className="mt-2 flex items-center gap-1.5 text-[13px] text-muted"><span className="size-2 rounded-full" style={{ background: c }} />{l}</div></div>))}
+              <div className="mt-2 text-[13px] text-muted">{l}</div></div>))}
         </div></Reveal>
 
-        <div className={`mt-8 grid gap-8 ${todo.length ? 'md:grid-cols-[1.7fr_1fr]' : ''}`}>
+        {todo.length > 0 && (
+          <Reveal><section className="card mt-8 p-5">
+            <div className="flex flex-wrap items-baseline justify-between gap-2 px-1">
+              <h2 className="text-[20px] font-semibold tracking-[-0.02em] text-white">Finish setting up</h2>
+              <span className="text-[13px] text-muted">{setup.length - todo.length} of {setup.length} done</span>
+            </div>
+            <div className="mt-3 h-1 overflow-hidden rounded-full bg-white/[.06]"><div className="h-full rounded-full bg-signal" style={{ width: `${100 * (setup.length - todo.length) / setup.length}%` }} /></div>
+            <div className="mt-3 grid gap-1 sm:grid-cols-2">
+              {setup.map(s => (
+                <button key={s.id} onClick={() => go({ profile: 'settings', vault: 'studio', skills: 'studio', search: 'settings', scan: 'jobs', chrome: 'agents' }[s.id])}
+                  className="flex items-center gap-3 rounded-[12px] px-2 py-2.5 text-left text-[14.5px] transition hover:bg-white/[.04]">
+                  <span className={`grid size-[20px] shrink-0 place-items-center rounded-full ${s.done ? 'bg-good text-white' : 'ring-[1.5px] ring-inset ring-white/25'}`}>{s.done && <Check className="size-3" strokeWidth={3} />}</span>
+                  <span className={`min-w-0 flex-1 truncate ${s.done ? 'text-muted line-through decoration-white/20' : 'text-white'}`}>{s.label}</span>
+                  {s.detail && !s.done && <span className="shrink-0 text-[12.5px] text-[#ff9f0a]">{s.detail}</span>}
+                </button>))}
+            </div>
+          </section></Reveal>)}
+
+        <div className="mt-8 grid gap-8">
           <Reveal delay={0.05}><section>
             <div className="mb-3 flex items-end justify-between px-1"><h2 className="text-[28px] font-bold tracking-[-0.035em] text-white">Up next</h2>
               <button onClick={() => go('jobs')} className="flex items-center text-[15px] text-signal-ink hover:underline">See all<ChevronRight className="size-4" /></button></div>
@@ -72,18 +90,7 @@ export default function Home() {
               {next && !next.jobs.length && <div className="px-6 py-14 text-center text-[15px] text-muted">No matches yet. Tap <b>Find new jobs</b>.</div>}
             </Stagger>
           </section></Reveal>
-          {todo.length > 0 && (
-            <section>
-              <div className="mb-3 px-1"><h2 className="text-[28px] font-bold tracking-[-0.035em] text-white">Finish setting up</h2></div>
-              <div className="card divide-y divide-white/[.06] overflow-hidden">
-                {setup.map(s => (
-                  <button key={s.id} onClick={() => go({ profile: 'settings', vault: 'studio', skills: 'studio', search: 'settings', scan: 'jobs', chrome: 'agents' }[s.id])}
-                    className="flex w-full items-center gap-3 px-5 py-3.5 text-left text-[15px] transition hover:bg-white/[.025]">
-                    <span className={`grid size-[22px] place-items-center rounded-full ${s.done ? 'bg-good text-white' : 'ring-[1.5px] ring-inset ring-white/20'}`}>{s.done && <Check className="size-3.5" strokeWidth={3} />}</span>
-                    <span className={`flex-1 ${s.done ? 'text-muted' : 'text-ink'}`}>{s.label}</span>{!s.done && <ChevronRight className="size-4 text-faint" />}
-                  </button>))}
-              </div>
-            </section>)}
+
         </div>
 
         {fresh.length > 0 && (

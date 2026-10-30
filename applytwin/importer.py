@@ -8,6 +8,7 @@ import io
 import json
 import os
 import re
+import time
 import zipfile
 
 from . import store
@@ -318,6 +319,59 @@ RESUME:
 """
 
 
+DEGREES = [(r'\bb\.?s\.?e?\b|bachelor of science', 'Bachelor of Science'), (r'\bb\.?a\.?\b|bachelor of arts', 'Bachelor of Arts'),
+           (r'\bb\.?eng|bachelor of engineering', 'Bachelor of Engineering'), (r'\bbfa\b|fine arts', 'Bachelor of Fine Arts'),
+           (r'\bbba\b|business administration', 'Bachelor of Business Administration'), (r'associate', 'Associate'), (r'\bmba\b', 'MBA'),
+           (r'\bm\.?s\.?\b|master', 'Master'), (r'ph\.?d|doctor of philosophy', 'PhD'), (r'\bj\.?d\b|juris', 'JD'), (r'\bm\.?d\b', 'MD')]
+
+
+def profile_from_resume(vault, p):
+    """Every application answer a resume can answer: contact, links, school, degree, major/minor, GPA, graduation,
+    year in school and enrollment. Only fills blanks; the rest is the person's to answer."""
+    from . import store
+    b = vault.get('basics', {})
+    patch = {k: b[k] for k in ('name', 'email', 'phone', 'location') if b.get(k) and not p.get(k)}
+    for l in b.get('links', []):
+        url = l.get('url', '')
+        for site in ('linkedin', 'github'):
+            if site in url and not p.get(site) and site not in patch:
+                patch[site] = url
+        if url and not any(x in url for x in ('linkedin', 'github', 'mailto:')) and not p.get('website') and 'website' not in patch:
+            patch['website'] = url
+    edu = (vault.get('education') or [{}])[0]
+    if edu.get('school'):
+        if not p.get('school'):
+            patch['school'] = edu['school']
+        if not p.get('degree') and edu.get('degree'):
+            patch['degree'] = next((name for pat, name in DEGREES if re.search(pat, edu['degree'], re.I)), edu['degree'])
+        major = edu.get('major', '')
+        mm = re.split(r'[;,]?\s*(?:minor(?:ing)? in|minor:|minor -)\s*', major, maxsplit=1, flags=re.I)   # only a minor splits off
+        if not p.get('major') and major:
+            patch['major'] = mm[0].strip()
+        if not p.get('minor') and len(mm) > 1:
+            patch['minor'] = mm[1].strip(' ;,.')
+        if not p.get('gpa') and edu.get('gpa'):
+            patch['gpa'] = edu['gpa']
+        m = re.search(rf'({MONTH})?\s*((?:19|20)\d\d)', edu.get('end', ''), re.I)
+        if m:
+            year = int(m.group(2))
+            month = (m.group(1) or 'May').title()[:3]
+            full = next((x for x in ('January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September',
+                                     'October', 'November', 'December') if x.startswith(month)), 'May')
+            if not p.get('grad_year'):
+                patch['grad_year'] = str(year)
+            if not p.get('grad_month'):
+                patch['grad_month'] = full
+            t = time.gmtime()
+            ay_end = t.tm_year + (1 if t.tm_mon >= 8 else 0)   # the academic year that ends next spring
+            ahead = year - ay_end
+            if not p.get('class_standing') and 0 <= ahead <= 3 and not re.search(r'master|mba|ph\.?d|j\.?d|\bm\.?d', edu.get('degree', ''), re.I):
+                patch['class_standing'] = ['Senior', 'Junior', 'Sophomore', 'Freshman'][ahead]
+            if p.get('enrolled') is None and (year, ) >= (t.tm_year, ):
+                patch['enrolled'] = True
+    return patch
+
+
 def import_resume(name='', data=None, text=None):
     from . import match, tailor
     txt, source_tex = extract_text(name, data, text)
@@ -341,17 +395,7 @@ def import_resume(name='', data=None, text=None):
     store.save('resume.json', vault)
     p = store.profile()
     b = vault.get('basics', {})
-    patch = {k: b[k] for k in ('name', 'email', 'phone', 'location') if b.get(k) and not p.get(k)}
-    for l in b.get('links', []):
-        for site in ('linkedin', 'github'):
-            if site in l.get('url', '') and not p.get(site):
-                patch[site] = l['url']
-    edu = (vault.get('education') or [{}])[0]
-    if edu.get('school') and not p.get('school'):
-        patch.update(school=edu['school'], degree=edu.get('degree', ''), major=edu.get('major', ''), gpa=edu.get('gpa', ''))
-        m = re.search(rf'({MONTH})?\s*((?:19|20)\d\d)', edu.get('end', ''), re.I)
-        if m:
-            patch.update(grad_year=m.group(2), grad_month=(m.group(1) or 'May').title()[:3])
+    patch = profile_from_resume(vault, p)
     if patch:
         api.update_profile(patch)
     low = txt.lower()
@@ -361,5 +405,5 @@ def import_resume(name='', data=None, text=None):
     counts = {k: len(vault.get(k, [])) for k in ('experience', 'projects', 'education', 'skills', 'awards', 'research')}
     found = ', '.join(f'{n} {k}' for k, n in counts.items() if n)
     return {"structured": True, "ai": structured, "vault": vault, "counts": counts, "name": b.get('name', ''), "suggest_roles": suggest,
-            "latex_source": bool(source_tex),
+            "latex_source": bool(source_tex), "filled": sorted(patch),
             "message": f"Found {found or 'your details'}." + ('' if structured else ' Check it in Resume Studio; your agent can polish it.')}

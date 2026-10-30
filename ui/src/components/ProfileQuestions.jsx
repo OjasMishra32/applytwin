@@ -14,7 +14,7 @@ export const getv = (p, k) => k.startsWith('eeo.') ? (p.eeo || {})[k.slice(4)] :
 export const setv = (p, k, v) => k.startsWith('eeo.') ? { ...p, eeo: { ...(p.eeo || {}), [k.slice(4)]: v } } : { ...p, [k]: v }
 export const missing = (qs, p) => (qs || []).filter(q => !q.optional && [undefined, null, ''].includes(getv(p, q.key)))
 
-export function ProfileQuestions({ qs, p, setP, groups, showMissing }) {
+export function ProfileQuestions({ qs, p, setP, groups, showMissing, filled = [] }) {
   if (!qs) return <div className="skel h-64" />
   const names = groups || [...new Set(qs.map(q => q.group))]
   return (
@@ -29,8 +29,9 @@ export function ProfileQuestions({ qs, p, setP, groups, showMissing }) {
               return (
                 <div key={q.key} className="flex min-h-[52px] flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-2.5">
                   <div className="flex min-w-0 items-center gap-2 text-[14.5px] text-white">
-                    {showMissing && blank && !q.optional && <span className="size-1.5 shrink-0 rounded-full bg-[#ff9f0a]" title="Needs an answer" />}
                     <span>{q.label}</span>{q.optional && <span className="text-[12px] text-faint">optional</span>}
+                    {showMissing && blank && !q.optional && <span className="text-[12px] text-[#ff9f0a]">Needed</span>}
+                    {filled.includes(q.key) && !blank && <span className="text-[12px] text-[#64d2ff]">from your resume</span>}
                   </div>
                   <div className="w-full sm:w-[48%]">
                     {q.kind === 'yesno' ? <YesNo value={v} onChange={x => setP(setv(p, q.key, x))} />
@@ -38,7 +39,7 @@ export function ProfileQuestions({ qs, p, setP, groups, showMissing }) {
                         <select value={v || ''} onChange={e => setP(setv(p, q.key, e.target.value))}
                           className={'h-9 w-full rounded-[10px] bg-white/[.06] px-3 text-[14px] outline-none focus:ring-2 focus:ring-signal ' + (v ? 'text-white' : 'text-faint')}>
                           <option value="" disabled>Choose…</option>
-                          {q.options.map(o => <option key={o} value={o} className="text-black">{o}</option>)}
+                          {(v && !q.options.includes(v) ? [v, ...q.options] : q.options).map(o => <option key={o} value={o} className="text-black">{o}</option>)}
                         </select>)
                       : <input value={v || ''} placeholder={q.hint || ''} onChange={e => setP(setv(p, q.key, e.target.value))}
                           className="h-9 w-full rounded-[10px] bg-white/[.06] px-3 text-[14px] text-white outline-none placeholder:text-faint focus:ring-2 focus:ring-signal" />}

@@ -80,9 +80,6 @@ export default function Agents() {
           <div className="flex flex-wrap items-start justify-between gap-8">
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 text-[13px] font-medium" style={{ color: running ? GREEN : 'var(--color-muted)' }}>
-                <span className="relative flex size-2">
-                  {running && <span className="absolute inset-0 animate-ping rounded-full opacity-60" style={{ background: GREEN }} />}
-                  <span className="relative size-2 rounded-full" style={{ background: running ? GREEN : '#5f6a8a' }} /></span>
                 {running ? `${label} is applying` : 'Ready'}
               </div>
               <div className="relative mt-3 h-[52px] overflow-hidden">
@@ -159,8 +156,9 @@ export default function Agents() {
               {!needs && <div className="flex items-center gap-2 px-4 py-4 text-[14px] text-muted"><Check className="size-4" style={{ color: GREEN }} />Nothing right now.</div>}
             </Group>
 
-            <Group title="From your terminal" footer="Your twin works inside Claude Code or Codex too. It never types passwords, solves CAPTCHAs, creates accounts or invents a fact.">
-              {[`${app_dir}/bin/applytwin doctor`, 'twin: apply to my top 25', `${app_dir}/bin/applytwin run --agent ${agent} --n ${n}`].map(t => <CopyRow key={t} text={t} />)}
+            <Group title="Or use it from your terminal" footer="It never types passwords, solves CAPTCHAs, creates accounts or invents a fact.">
+              {[['Check your setup', 'applytwin doctor'], [`Tell ${label} directly`, 'apply to my top 25 with applytwin'],
+                ['Start Autopilot from a terminal', `applytwin run --agent ${agent} --n ${n}`]].map(([l, t]) => <CopyRow key={t} label={l} text={t} />)}
             </Group>
 
             {run?.log && (
@@ -218,12 +216,14 @@ function ResultRow({ a, onClick }) {
   )
 }
 
-function CopyRow({ text }) {
+function CopyRow({ label, text }) {
   const [ok, setOk] = useState(false)
   return (
     <button onClick={() => { navigator.clipboard.writeText(text); setOk(true); setTimeout(() => setOk(false), 1400) }}
-      className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left font-mono text-[12.5px] text-white/85 hover:bg-white/[.035]">
-      <span className="truncate">{text}</span>{ok ? <Check className="size-4" style={{ color: GREEN }} /> : <Copy className="size-4 text-white/30" />}
+      className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left hover:bg-white/[.035]">
+      <span className="min-w-0"><span className="block text-[13px] text-muted">{label}</span>
+        <span className="block font-mono text-[13px] text-white">{text}</span></span>
+      <span className="shrink-0 text-[12.5px] font-medium" style={{ color: ok ? GREEN : BLUE }}>{ok ? 'Copied' : 'Copy'}</span>
     </button>
   )
 }
