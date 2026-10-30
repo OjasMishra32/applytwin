@@ -374,6 +374,8 @@ def agent_llm(text, timeout=600, fast=False, think=True):
     import subprocess
     import tempfile
     from . import agents, store
+    if os.environ.get('APPLYTWIN_NO_AGENT'):   # tests: the same result on a laptop with Claude as on CI without it
+        return None
     for name in agents.preferred(store.profile()):
         try:
             if name == 'claude':

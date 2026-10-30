@@ -10,6 +10,7 @@ for _s in (sys.stdout, sys.stderr):   # Windows consoles default to cp1252, whic
         pass
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.environ['APPLYTWIN_HOME'] = tempfile.mkdtemp(prefix='applytwin-test-')
+os.environ['APPLYTWIN_NO_AGENT'] = '1'   # no real Claude/Codex calls: same results here as on CI
 sys.path.insert(0, ROOT)
 from applytwin import api, render, store  # noqa: E402
 
@@ -26,9 +27,15 @@ r = api.tailor_apply(j['id'], None, 'classic', 'heuristic')
 res.append(ok(r['pages'] == 1 and r['coverage'] > 0, f'heuristic tailor: coverage {r["coverage"]}%'))
 v = api.get_vault(); e = v['experience'][0]; i = e['id']
 plan = {"experience": [{"id": i, "bullets": [{"from": i + '.0', "text": e['bullets'][0] + ' for 9 million users'},
-                                            {"from": i + '.1', "text": 'Used Terraform and Kubernetes to deploy everything at scale for the team.'}]}]}
+                                            {"from": i + '.1', "text": 'Deployed everything to 40 Kubernetes clusters serving 2M requests a day for the team.'}]}]}
 r = api.tailor_apply(j['id'], plan, 'classic')
-res.append(ok(len(r['rejected']) == 2, f'fact guard blocked {len(r["rejected"])}/2 invented rewrites'))
+res.append(ok(len(r['rejected']) == 2, f'fact guard blocked {len(r["rejected"])}/2 rewrites with invented numbers'))
+# policy (2026-10-30): numbers, titles and awards are locked; tools and outcomes may be framed toward the posting
+from applytwin import tailor as _tg
+_ent = 'Backend intern. Built a Go service on Kafka handling 40K events/sec.'
+_why = _tg.check_rewrite('Built a Go service on Kafka handling 40K events/sec.', 'Built a Go service on Kafka handling 40K events/sec, deployed with Terraform on Kubernetes.',
+                         'Go Kafka 40K events/sec', jd, _ent)
+res.append(ok(_why is None, f'a rewrite may add tools; only numbers and titles are locked ({_why})'))
 a = api.answer_questions(['Will you now or in the future require sponsorship for employment visa status?',
                           {'question': 'Are you legally authorized to work in the United States?', 'options': ['Yes', 'No']},
                           'What is your favorite color?'])
