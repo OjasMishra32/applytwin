@@ -115,12 +115,23 @@ REQ_HDR = re.compile(r'(requirements|qualifications|what you.ll need|what we.re 
                      r'minimum|basic|must have|preferred|nice to have|bonus|skills)', re.I)
 
 
+# word stems that should match any ending ("prototyp" -> prototyping, prototypes; "autonom" -> autonomy, autonomous)
+STEMS = {'autonom', 'collaborat', 'communicat', 'concurren', 'copyedit', 'econometric', 'fundrais', 'multithread', 'prototyp',
+         'statistic', 'backtest', 'microservice', 'algorithm', 'derivative', 'circuit', 'database', 'robotic', 'websocket',
+         'debug', 'budget', 'proofread', 'container', 'optimiz', 'optimis', 'simulat', 'automat', 'visualiz', 'forecast'}
+
+
 def _compiled():
     out = {}
     for canon, aliases in LEXICON.items():
         parts = []
         for a in aliases:
-            parts.append(a if a.startswith('\\b') else r'(?<![a-z0-9])' + re.escape(a) + r'(?![a-z0-9])')
+            if a.startswith('\\b'):
+                parts.append(a)
+                continue
+            # every term also matches its plural ("distributed systems", "REST APIs", "LLMs"); stems match any ending
+            tail = '[a-z]*' if a in STEMS else (r"(?:e?s|'s)?" if a[-1:].isalpha() else '')
+            parts.append(r'(?<![a-z0-9])' + re.escape(a) + tail + r'(?![a-z0-9])')
         out[canon] = re.compile('|'.join(parts), re.I)
     return out
 

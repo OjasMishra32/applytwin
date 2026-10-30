@@ -7,6 +7,7 @@ applytwin.db        jobs found by the scrapers + applications you sent
 """
 import copy
 import json
+import re
 import os
 import sqlite3
 import threading
@@ -105,8 +106,37 @@ def profile():
     return p
 
 
+LIST_FIELDS = ('bullets', 'tech', 'alts', 'coursework', 'items', 'links', 'headline', 'honors')
+
+
+def clean(x):
+    """Resume data from any importer or model, made safe to render: null text becomes '', null lists become [], numbers
+    (a GPA of 3.86) become text, and a list that arrived as one comma-separated string is split."""
+    if isinstance(x, dict):
+        out = {}
+        for k, v in x.items():
+            if k in LIST_FIELDS:
+                if v is None:
+                    v = []
+                elif isinstance(v, str):
+                    v = [s.strip() for s in re.split(r'[,;]\s*' if k != 'bullets' else r'\n+', v) if s.strip()]
+                out[k] = [clean(i) for i in v if i not in (None, '')] if isinstance(v, list) else v
+            else:
+                out[k] = clean(v)
+        return out
+    if isinstance(x, list):
+        return [clean(i) for i in x if i is not None]
+    if x is None:
+        return ''
+    if isinstance(x, bool):
+        return x
+    if isinstance(x, (int, float)):
+        return ('%g' % x) if isinstance(x, float) else str(x)
+    return x
+
+
 def resume():
-    return load('resume.json', DEFAULT_RESUME)
+    return clean(load('resume.json', DEFAULT_RESUME))
 
 
 def answers():

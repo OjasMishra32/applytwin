@@ -6,6 +6,7 @@ Bullets accept light markdown: **bold** and [text](url).
 import glob
 import html
 import os
+import pathlib
 import re
 import shutil
 import subprocess
@@ -226,7 +227,7 @@ def html_to_pdf(doc, out_pdf):
         # Linux keyring) for its password store on every launch, which pops "A keychain cannot be found" over and over
         cmd = [chrome(), '--headless=new', '--disable-gpu', '--no-sandbox', '--no-pdf-header-footer', '--use-mock-keychain',
                '--password-store=basic', '--no-first-run', '--no-default-browser-check', '--disable-extensions', '--disable-sync',
-               '--print-to-pdf-no-header', f'--user-data-dir={td}/profile', f'--print-to-pdf={out_pdf}', 'file://' + src]
+               '--print-to-pdf-no-header', f'--user-data-dir={td}/profile', f'--print-to-pdf={out_pdf}', pathlib.Path(src).as_uri()]   # file:///C:/... on Windows too
         subprocess.run(cmd, capture_output=True, timeout=90)
     if not os.path.exists(out_pdf):
         raise RuntimeError('Chrome did not produce a PDF')

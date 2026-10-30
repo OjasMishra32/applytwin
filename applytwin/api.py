@@ -370,7 +370,7 @@ def render_resume(template=None, job_id=None, one_page=True):
     p = store.profile()
     template = template or p['apply'].get('template', 'classic')
     v = get_vault()
-    name = re.sub(r'[^A-Za-z]+', '_', v['basics'].get('name') or 'Resume').strip('_') + '_Resume.pdf'
+    name = (re.sub(r'[^\w]+', '_', v['basics'].get('name') or 'Resume' or '', flags=re.UNICODE).strip('_') or 'Resume') + '_Resume.pdf'
     if job_id:
         j = get_job(job_id)
         return tailor.tailor(v, j, j.get('description', ''), mode='heuristic', style=template)

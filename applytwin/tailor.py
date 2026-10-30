@@ -298,8 +298,20 @@ def call_llm(text, timeout=600):
         out = agent_llm(text, timeout=timeout)
         if not out:
             return None
-    m = re.search(r'\{.*\}', out, re.S)
-    return json.loads(m.group()) if m else None
+    return _first_json(out)
+
+
+def _first_json(out):
+    """The first JSON object in a model's reply, even with prose or code fences around it."""
+    dec = json.JSONDecoder()
+    for m in re.finditer(r'\{', out or ''):
+        try:
+            obj, _ = dec.raw_decode(out[m.start():])
+            if isinstance(obj, dict):
+                return obj
+        except ValueError:
+            continue
+    return None
 
 
 # ---------------------------------------------------------------- apply a plan
@@ -578,7 +590,7 @@ def tailor(v, job, jd, mode='auto', plan=None, style=None, out_dir=None):
         mode = 'agent'
     res, rep = apply(v, plan, jd)
     out_dir = out_dir or store.path('resumes', job.get('id', 'general'))
-    name = re.sub(r'[^A-Za-z]+', '_', res['basics'].get('name', 'Resume')).strip('_') + '_Resume.pdf'
+    name = (re.sub(r'[^\w]+', '_', res['basics'].get('name', 'Resume') or '', flags=re.UNICODE).strip('_') or 'Resume') + '_Resume.pdf'
     pdf = os.path.join(out_dir, name)
     r = render.render(res, style, pdf)
     if r['pages'] == 1 and not r['dropped'] and style != 'latex':   # room left on the page: fill it with real material
