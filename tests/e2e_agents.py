@@ -1,0 +1,145 @@
+"""The parts that talk to Claude Code and Codex, on every OS (Windows included), with stand-in agent commands.
+
+Real `claude`/`codex` need a paid login, so this puts fake ones on PATH (.cmd files on Windows, which is exactly how npm
+installs them there) and checks: sign-in detection, the Codex config ApplyTwin writes is valid TOML (Windows paths!),
+an Autopilot run delivers its instructions intact (quotes, ampersands, newlines) and logs the agent's output, a one-shot
+subscription LLM call returns the agent's reply, desktop notifications don't crash, a PDF browser is found, and a
+self-update can swap the app folder while the app is running.
+
+    python3 tests/e2e_agents.py
+"""
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+WIN = os.name == 'nt'
+TMP = tempfile.mkdtemp(prefix='applytwin-agents-')
+BIN = os.path.join(TMP, 'fakebin')
+os.makedirs(BIN)
+os.environ.update(HOME=TMP, USERPROFILE=TMP, APPLYTWIN_HOME=os.path.join(TMP, '.applytwin'),
+                  PATH=BIN + os.pathsep + os.environ.get('PATH', ''))
+os.environ.pop('ANTHROPIC_API_KEY', None)
+os.environ.pop('OPENAI_API_KEY', None)
+
+# A stand-in agent: answers --version / auth status / login status, and for a run echoes back what it got on stdin.
+FAKE = r'''
+import json, os, sys
+a = sys.argv[1:]
+name = os.environ.get('FAKE_NAME', 'agent')
+if a[:1] == ['--version']: print(f'9.9.9 ({name})'); sys.exit(0)
+if a[:2] == ['auth', 'status']: print(json.dumps({"loggedIn": True, "authMethod": "claude.ai"})); sys.exit(0)
+if a[:2] == ['login', 'status']: print('Logged in using ChatGPT'); sys.exit(0)
+if a[:1] == ['mcp']: sys.exit(0)
+if a[:1] == ['plugin']: sys.exit(1)
+data = sys.stdin.read()
+open(os.path.join(os.environ['APPLYTWIN_HOME'], f'{name}_stdin.txt'), 'w', encoding='utf-8').write(data)
+if '-o' in a:   # codex exec -o FILE: last message goes to the file
+    open(a[a.index('-o') + 1], 'w').write('{"ok": true, "from": "%s"}' % name)
+print(f'{name} received {len(data)} chars')
+'''
+
+
+def make_fake(name):
+    py = os.path.join(BIN, f'fake_{name}.py')
+    open(py, 'w').write(FAKE)
+    if WIN:
+        with open(os.path.join(BIN, f'{name}.cmd'), 'w') as f:
+            f.write(f'@echo off\r\nset FAKE_NAME={name}\r\n"{sys.executable}" "{py}" %*\r\n')
+    else:
+        p = os.path.join(BIN, name)
+        with open(p, 'w') as f:
+            f.write(f'#!/bin/sh\nFAKE_NAME={name} exec "{sys.executable}" "{py}" "$@"\n')
+        os.chmod(p, 0o755)
+
+
+results = []
+
+
+def check(name, ok, detail=''):
+    results.append((name, bool(ok)))
+    print(('\033[32mPASS\033[0m ' if ok else '\033[31mFAIL\033[0m ') + name + (f'  \033[2m{detail}\033[0m' if detail else ''))
+
+
+def main():
+    for n in ('claude', 'codex'):
+        make_fake(n)
+    sys.path.insert(0, ROOT)
+    from applytwin import agents, api, install, render, store, tailor
+
+    st = {n: agents.status(n, fresh=True) for n in ('claude', 'codex')}
+    check('agents detected and signed in', all(s['installed'] and s['signed_in'] for s in st.values()),
+          ', '.join(f"{n}: {s['version']}" for n, s in st.items()))
+    d = agents.doctor()
+    check('doctor sees a ready agent', next(i for i in d['items'] if i['id'] == 'agent')['ok'])
+
+    # install-agents writes a Codex config that must parse (Windows paths have backslashes)
+    out = install.install_codex()
+    cfg = os.path.join(TMP, '.codex', 'config.toml')
+    try:
+        import tomllib
+        parsed = tomllib.loads(open(cfg).read())
+        ok = parsed['mcp_servers']['applytwin']['command'] == sys.executable
+        check('Codex config is valid TOML with the right paths', ok, parsed['mcp_servers']['applytwin']['command'])
+    except ModuleNotFoundError:
+        check('Codex config written', '[mcp_servers.applytwin]' in open(cfg).read(), 'tomllib needs Python 3.11+')
+    check('install_claude runs', 'Claude Code' in install.install_claude())
+
+    # an Autopilot run: the instructions must arrive whole, even with quotes, ampersands and newlines
+    store.save('resume.json', {"basics": {"name": "Test"}, "experience": [{"org": "A", "title": "B", "bullets": ["c"]}]})
+    for agent in ('claude', 'codex'):
+        api.start_run(agent, 3)
+        for _ in range(100):
+            if not api.run_status()['running']:
+                break
+            time.sleep(0.2)
+        got = open(os.path.join(os.environ['APPLYTWIN_HOME'], f'{agent}_stdin.txt'), encoding='utf-8').read()
+        want = api.run_prompt(3)
+        log = api.run_status()['log']
+        check(f'{agent}: Autopilot instructions delivered intact', got == want and ('"' in want or "'" in want), f'{len(got)} chars')
+        check(f'{agent}: run output logged', f'{agent} received' in log)
+
+    # in-app tailoring on the subscription (no API key) returns the agent's JSON
+    agents._cache.clear()
+    store.save('profile.json', {**store.profile(), "apply": {**store.profile()['apply'], "agent": "codex"}})
+    r = tailor.call_llm('Reply with JSON & "quotes" please')
+    check('subscription LLM call returns the reply', r and r.get('from') == 'codex', json.dumps(r))
+
+    try:
+        if os.environ.get('CI'):   # only on CI machines, so running tests locally doesn't pop a real notification
+            install.notify('ApplyTwin test', 'Code needed for "Acme" & co')
+        check('desktop notification does not crash', True)
+    except Exception as e:
+        check('desktop notification does not crash', False, str(e))
+
+    try:
+        check('a PDF browser is found', bool(render.chrome()), render.chrome())
+    except RuntimeError as e:
+        check('a PDF browser is found', False, str(e))
+
+    # self-update swaps the app folder in place (Windows refuses to rename folders with open files)
+    app = os.path.join(TMP, 'app')
+    shutil.copytree(ROOT, app, ignore=shutil.ignore_patterns('.git', 'node_modules', 'site', '__pycache__'))
+    code = ("import sys, os; sys.path.insert(0, sys.argv[1]); from applytwin import update; update.APP = sys.argv[1]; "
+            "src = sys.argv[2]; import shutil; "
+            "update._get = lambda url, timeout=8: open(src, 'rb').read(); print(update.apply('0' * 40))")
+    tgz = os.path.join(TMP, 'new.tgz')
+    import tarfile
+    with tarfile.open(tgz, 'w:gz') as t:
+        t.add(app, arcname='applytwin-new', filter=lambda i: None if '__pycache__' in i.name else i)
+    r = subprocess.run([sys.executable, '-c', code, app, tgz], capture_output=True, text=True, timeout=120)
+    check('self-update swaps the app folder', "'updated': True" in r.stdout and os.path.exists(os.path.join(app, 'INSTALLED')),
+          (r.stdout + r.stderr).strip()[-160:])
+
+    bad = [n for n, ok in results if not ok]
+    print(f'\n{len(results) - len(bad)}/{len(results)} passed' + (f"  failed: {', '.join(bad)}" if bad else ''))
+    shutil.rmtree(TMP, ignore_errors=True)
+    sys.exit(1 if bad else 0)
+
+
+if __name__ == '__main__':
+    main()

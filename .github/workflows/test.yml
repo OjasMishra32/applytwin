@@ -14,6 +14,7 @@ jobs:
       - run: python tests/smoke.py
       - run: python tests/e2e_fresh.py
       - run: python tests/e2e_careers.py
+      - run: python tests/e2e_agents.py
 
   installer:
     # runs the real one-line installer on fresh machines, for this exact commit
