@@ -316,7 +316,7 @@ function NeedsYou({ item, onDone }) {
 function StarAsk({ count }) {
   // once your twin has done real work for you, ask (once) for a star; never again after a star or a dismiss
   const [gone, setGone] = useState(() => safeGet('at:starAsk') === 'done')
-  if (gone || count < 3) return null
+  if (gone || count < 1) return null   // right after the first round of applications
   const done = () => { safeSet('at:starAsk', 'done'); setGone(true) }
   return (
     <motion.section initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={spring}

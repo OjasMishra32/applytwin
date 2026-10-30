@@ -175,7 +175,7 @@ function Doc({ v, set, save }) {
         <Sec key={sec} title={title} onAdd={() => add(sec)}>
           {(v[sec] || []).map((e, i) => (
             <motion.div layout transition={spring} key={e.id || i} className="group relative mb-4 rounded-lg">
-              <div className="absolute -left-12 top-0 hidden flex-col gap-0.5 font-sans group-hover:flex">
+              <div className="absolute right-full top-0 hidden flex-col gap-0.5 pr-3 font-sans group-hover:flex">
                 <Tool onClick={() => mv(sec, i, -1)}><ArrowUp className="size-3.5" /></Tool><Tool onClick={() => mv(sec, i, 1)}><ArrowDown className="size-3.5" /></Tool>
                 <Tool onClick={() => del(sec, i)} danger><Trash2 className="size-3.5" /></Tool></div>
               {sec === 'projects' ? (
@@ -191,7 +191,7 @@ function Doc({ v, set, save }) {
                 {(e.bullets || []).map((x, j) => (
                   <li key={j} className="group/b relative list-disc font-sans text-[13.5px] leading-[1.5] marker:text-faint">
                     <E value={x} ph="What you did, how, and the result (add a number)" multiline onChange={y => { const nv = structuredClone(v); nv[sec][i].bullets[j] = y; save(nv) }} className="block" />
-                    <span className="absolute -right-24 top-0 hidden gap-0.5 group-hover/b:flex">
+                    <span className="absolute left-full top-0 hidden gap-0.5 pl-2 group-hover/b:flex">
                       <Tool onClick={() => bul(sec, i, j, -1)}><ArrowUp className="size-3" /></Tool><Tool onClick={() => bul(sec, i, j, 1)}><ArrowDown className="size-3" /></Tool>
                       <Tool onClick={() => bul(sec, i, j, 'add')}><Plus className="size-3" /></Tool><Tool onClick={() => bul(sec, i, j, 'del')} danger><Trash2 className="size-3" /></Tool></span>
                   </li>))}
