@@ -10,7 +10,7 @@ import { Avatar, Segmented, spring } from '../components/ui'
 
 const URL = 'https://advktwnedlgnhswpxokg.supabase.co'
 const ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFkdmt0d25lZGxnbmhzd3B4b2tnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1NzkzMTUsImV4cCI6MjA5NzE1NTMxNX0.kPKEMNuqvvzGWKHRSnCtq4vkiYQTicX0wDSiwyYj7LE'
-const INSTALL = 'curl -fsSL https://apply.twinly.tech/install.sh | bash'
+const INSTALL = 'curl -fsSL apply.twinly.tech/install | bash'
 const KEY = 'applytwin:session'
 const BLUE = '#0a84ff', GREEN = '#30d158', ORANGE = '#ff9f0a'
 const STATUS = { Applied: [GREEN, Check, 'Applied'], 'Needs User': [ORANGE, Hand, 'Needs you'], Skipped: ['#7d869f', CircleSlash, 'Skipped'] }
@@ -239,7 +239,7 @@ function Install() {
   return (
     <button onClick={() => { navigator.clipboard.writeText(INSTALL); setOk(true); setTimeout(() => setOk(false), 1500) }}
       className="flex w-full items-center gap-3 rounded-[12px] bg-black/40 px-3.5 py-3 text-left ring-1 ring-white/10 hover:ring-white/25">
-      <span className="min-w-0 flex-1 truncate font-mono text-[12.5px] text-white">{INSTALL}</span>
+      <span className="min-w-0 flex-1 break-words font-mono text-[12.5px] leading-snug text-white">{INSTALL}</span>
       <span className="shrink-0 text-[12.5px] font-semibold" style={{ color: ok ? GREEN : BLUE }}>{ok ? 'Copied' : 'Copy'}</span>
     </button>
   )

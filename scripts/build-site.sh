@@ -13,8 +13,9 @@ tar -czf site/applytwin.tar.gz -s ',^\.,applytwin,' --exclude './ui/node_modules
 cat > site/vercel.json <<'JSON'
 {
   "cleanUrls": true,
+  "rewrites": [{ "source": "/install", "destination": "/install.sh" }],
   "headers": [
-    { "source": "/install.sh", "headers": [{ "key": "Content-Type", "value": "text/plain; charset=utf-8" }, { "key": "Cache-Control", "value": "no-cache" }] },
+    { "source": "/install(.sh)?", "headers": [{ "key": "Content-Type", "value": "text/plain; charset=utf-8" }, { "key": "Cache-Control", "value": "no-cache" }] },
     { "source": "/applytwin.tar.gz", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] }
   ]
 }

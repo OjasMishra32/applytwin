@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ApplyTwin installer:  curl -fsSL https://apply.twinly.tech/install.sh | bash
+# ApplyTwin installer:  curl -fsSL apply.twinly.tech/install | bash
 # Installs (or updates) ApplyTwin in ~/.applytwin-app, connects it to Claude Code and Codex, checks your setup, opens the app.
 # No API keys: ApplyTwin runs on the Claude Code or Codex plan you already have. Your data lives in ~/.applytwin.
 set -euo pipefail

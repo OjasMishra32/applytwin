@@ -10,7 +10,7 @@ import { Reveal, Words, soft, spring } from '../components/ui'
 /* apply.twinly.tech: the public home of ApplyTwin. The app itself runs on each person's own computer,
    on the Claude Code or Codex plan they already pay for, so this page's one job is a calm, one-line setup. */
 
-const INSTALL = 'curl -fsSL https://apply.twinly.tech/install.sh | bash'
+const INSTALL = 'curl -fsSL apply.twinly.tech/install | bash'
 const COMPANIES = ['Stripe', 'Figma', 'Pinterest', 'Notion', 'Databricks', 'Anthropic', 'OpenAI', 'Ramp', 'Jane Street', 'Citadel', 'Two Sigma',
   'Roblox', 'MongoDB', 'Palantir', 'Duolingo', 'Airbnb', 'Robinhood', 'Plaid', 'Scale AI', 'Skydio', 'Anduril', 'SpaceX', 'Tesla', 'NVIDIA',
   'Microsoft', 'Google', 'Apple', 'Meta', 'Amazon', 'Netflix', 'Uber', 'Lyft', 'DoorDash', 'Coinbase', 'Snowflake', 'Datadog', 'Cloudflare',
@@ -113,7 +113,7 @@ function InstallBox() {
   return (
     <button onClick={copy} className="group flex w-full items-center gap-3 rounded-[16px] bg-black/55 px-4 py-3.5 text-left ring-1 ring-white/15 backdrop-blur transition hover:ring-white/30">
       <span className="select-none font-mono text-[14px] text-white/40">$</span>
-      <span className="min-w-0 flex-1 truncate font-mono text-[14px] text-white">{INSTALL}</span>
+      <span className="min-w-0 flex-1 break-words font-mono text-[13px] leading-snug text-white sm:text-[14px]">{INSTALL}</span>
       <span className="flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-[12.5px] font-semibold text-white" style={{ background: ok ? GREEN : BLUE }}>
         {ok ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}{ok ? 'Copied' : 'Copy'}</span>
     </button>

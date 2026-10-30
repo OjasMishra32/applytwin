@@ -29,7 +29,7 @@ iCIMS and LinkedIn, with everything learned there turned into code and agent pla
 ## Install
 
 ```bash
-curl -fsSL https://apply.twinly.tech/install.sh | bash
+curl -fsSL apply.twinly.tech/install | bash
 ```
 
 That's it. It installs ApplyTwin in `~/.applytwin-app`, connects it to Claude Code and Codex, checks your setup and opens
