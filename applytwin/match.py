@@ -24,6 +24,37 @@ CITIZEN = re.compile(r'u\.?s\.? citizen(?:ship)? (?:is )?required|must be (?:a )
 CANADA = re.compile(r'\b(canada|toronto|vancouver|montreal|ottawa|calgary|waterloo|ontario|quebec|british columbia|alberta)\b|,\s*(ON|BC|QC|AB|MB|NS)\b(?!\w)', re.I)
 MONTHS = 'jan feb mar apr may jun jul aug sep oct nov dec'.split()
 
+STATES = ('AL AK AZ AR CA CO CT DE FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC '
+          'SD TN TX UT VT VA WA WV WI WY DC PR').split()
+US_STATE = re.compile(r"[A-Za-z][A-Za-z .'-]*,\s*(" + '|'.join(STATES) + r")\b(?!\s*,\s*(?!US\b|USA\b)[A-Z]{2}\b)")   # case-sensitive
+US_WORDS = re.compile(r'\b(united states|usa|u\.s\.a?\.?|us only|us-based|us remote|remote,? us\b|remote - us\b)', re.I)
+FOREIGN = re.compile(r'\b(india|bengaluru|bangalore|hyderabad|pune|mumbai|delhi|gurgaon|gurugram|noida|chennai|israel|tel aviv|haifa|'
+                     r'united kingdom|\buk\b|england|london|manchester|edinburgh|ireland|dublin|germany|berlin|munich|frankfurt|'
+                     r'france|paris|netherlands|amsterdam|spain|madrid|barcelona|italy|milan|switzerland|zurich|geneva|poland|'
+                     r'warsaw|krakow|romania|bucharest|portugal|lisbon|sweden|stockholm|denmark|copenhagen|singapore|japan|tokyo|'
+                     r'china|beijing|shanghai|shenzhen|hong kong|taiwan|taipei|korea|seoul|australia|sydney|melbourne|'
+                     r'brazil|s[aã]o paulo|mexico|mexico city|argentina|buenos aires|colombia|bogot[aá]|philippines|manila|'
+                     r'vietnam|indonesia|jakarta|uae|dubai|emea|apac|latam)\b', re.I)
+
+
+def place(loc):
+    """'us', 'foreign' or 'unknown' for a location string. Every option counts: 'New York, NY or Toronto, ON' is US."""
+    if not loc or re.fullmatch(r'\s*\d+\s+locations?\s*', loc, re.I):
+        return 'unknown'
+    kinds = set()
+    for p in re.split(r';|\||\s/\s|\bor\b|\band\b|\n', loc):
+        p = p.strip(' ,-')
+        if not p:
+            continue
+        if US_WORDS.search(p) or (US_STATE.search(p) and not FOREIGN.search(p)) or (US.search(p) and not FOREIGN.search(p)
+                                                                                   and not CANADA.search(p) and not re.fullmatch(r'remote', p, re.I)):
+            kinds.add('us')
+        elif FOREIGN.search(p) or (CANADA.search(p) and not US_STATE.search(p)) or re.search(r',\s*[A-Z]{2}\s*$', p) and not US_STATE.search(p):
+            kinds.add('foreign')
+        else:
+            kinds.add('unknown')
+    return 'us' if 'us' in kinds else ('unknown' if 'unknown' in kinds or not kinds else 'foreign')
+
 ROLE_SYNONYMS = {
     'software engineer': ['software', 'swe', 'sde', 'developer', 'backend', 'back-end', 'frontend', 'front-end', 'full stack',
                           'full-stack', 'mobile', 'ios', 'android', 'platform engineer', 'infrastructure', 'devops', 'site reliability',
@@ -129,6 +160,17 @@ def role_terms(role):
     r = role.lower().strip()
     if r in ROLE_SYNONYMS:
         return ROLE_SYNONYMS[r], []
+    # the same role in other words: "software engineering", "software engineers", "Software Developer" -> software engineer
+    def base(x):
+        while True:
+            y = re.sub(r'(ing|ers|er|s)$', '', x)
+            if y == x:
+                return x
+            x = y
+    for k in ROLE_SYNONYMS:
+        if base(k) == base(r) or (r in ROLE_SYNONYMS[k] and len(r) > 4) or \
+                re.fullmatch(re.escape(k) + r' (engineer|engineering|intern|internship|role|scientist|developer)s?', r):
+            return ROLE_SYNONYMS[k] + [r], []
     words = [w for w in re.findall(r'[a-z0-9+#&]+', r) if w not in ('and', 'of', 'the', 'for', 'in')]
     stems = [w if len(w) <= 4 else w[:max(4, len(w) - 3)] for w in words]
     return [r], stems
@@ -136,7 +178,8 @@ def role_terms(role):
 
 def role_hit(role, title, desc=''):
     syns, stems = role_terms(role)
-    if any(re.search(r'\b' + re.escape(x), title) for x in syns):
+    # short synonyms need a whole word ("ai" is not "Aircraft", "ml" is not "html")
+    if any(re.search(r'\b' + re.escape(x) + (r'\b' if len(x) <= 3 else ''), title) for x in syns):
         return True
     if stems and all(re.search(r'\b' + re.escape(x), title) for x in stems):
         return True
@@ -169,7 +212,9 @@ def _grad_ok(text, year, month):
     return None, ''
 
 
-ONLY = re.compile(r'([A-Z][\w&.\- ]{1,40}?)\s+(?:students?|candidates?)\s+only', re.I)
+ONLY = re.compile(r'((?:\b[A-Z][\w&.\-]*\s+){1,4}?)(?:students?|candidates?)\s+only')
+GENERIC_ONLY = re.compile(r'^(current|undergraduate|undergrad|graduate|college|university|enrolled|us|u\.s\.|international|'
+                          r'domestic|eligible|qualified|female|women|black|hispanic|latinx?|first[- ]generation|\s)+$', re.I)
 
 
 def fit(job, prof, vault_terms=None):
@@ -180,13 +225,23 @@ def fit(job, prof, vault_terms=None):
     text = f"{title}\n{job.get('description', '')}"
     why, score = [], 32.0
     only = ONLY.search(title)
-    if only and (prof.get('school') or '').lower()[:6] not in only.group(1).lower():
-        return 0, f'restricted to {only.group(1).strip()} students'
+    who = only.group(1).strip(' -,(') if only else ''
+    if only and not GENERIC_ONLY.match(who) and (prof.get('school') or '').lower()[:6] not in who.lower():
+        return 0, f'restricted to {who} students'
     company = job.get('company') or ''
     if any(same_company(c, company) for c in s.get('companies_skip', [])):
         return 0, 'company on skip list'
-    if any(x and re.search(r'\b%s' % re.escape(x.lower()), t) for x in s.get('exclude', [])):
-        return 0, 'excluded keyword in title'
+    intern_title = bool(re.search(r'\b(intern|internship|co-?op)\b', t))
+    for x in s.get('exclude', []):
+        x = (x or '').lower().strip()
+        if not x:
+            continue
+        if x in ('master', 'masters') and not re.search(r"\bmaster'?s?\b(?! ?card)", t):
+            continue   # "Mastercard" is not a master's program
+        if x in ('manager', 'senior', 'staff', 'principal') and intern_title:
+            continue   # "Product Manager Intern", "Staff Accountant Intern" are internships
+        if re.search(r'\b%s' % re.escape(x), t):
+            return 0, 'excluded keyword in title'
     kind = s.get('kind') or 'internship'
     if kind == 'co-op':   # co-ops are internships for matching; the term picks which ones
         kind = 'internship'
@@ -197,7 +252,8 @@ def fit(job, prof, vault_terms=None):
             return 0, 'senior role'
         score += 10
     elif kind == 'new-grad':
-        if SENIOR.search(title) or INTERN.search(title):
+        program = re.search(r'early career|new grad|graduate (program|trainee|scheme)|rotational|fellowship program', t)
+        if re.search(r'\b(intern|internship|co-?op)\b', t) or (SENIOR.search(title) and not program):
             return 0, 'not new-grad level'
         score += 10 if NEWGRAD.search(title) else 0
     elif SENIOR.search(title) and not s.get('allow_senior'):
@@ -259,9 +315,7 @@ def fit(job, prof, vault_terms=None):
     loc = job.get('location') or ''
     if locs and loc:
         if any(l in ('united states', 'us', 'usa') for l in locs):
-            parts = [p for p in re.split(r';|\|| / ', loc) if p.strip()]
-            us_parts = [p for p in parts if US.search(p) and not CANADA.search(p)]
-            if not us_parts and not any(l in loc.lower() for l in locs if l not in ('united states', 'us', 'usa')):
+            if place(loc) == 'foreign' and not any(l in loc.lower() for l in locs if l not in ('united states', 'us', 'usa')):
                 return 0, 'outside target locations'
         elif not any(l in loc.lower() for l in locs):
             score -= 20
@@ -274,7 +328,8 @@ def fit(job, prof, vault_terms=None):
     if prof.get('needs_sponsorship') and NO_SPONSOR.search(text):
         return 3, 'no sponsorship / citizenship required'
     cit = (prof.get('citizenship') or '').lower()
-    if cit and not re.search(r'\bu\.?s\.?\b|united states|american', cit) and CITIZEN.search(text):
+    us_citizen = re.match(r'\s*(u\.?s\.?|us|united states|american)\b.*citizen|^\s*citizen', cit) and not re.search(r'\bnot\b|non-?citizen', cit)
+    if cit and not us_citizen and CITIZEN.search(text):
         return 3, 'US citizenship or clearance required'
     m = re.match(r'(20\d\d)-(\d\d)-(\d\d)', job.get('posted') or '')
     if m:

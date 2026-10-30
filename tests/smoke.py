@@ -160,6 +160,19 @@ for _t in (_txt, _txt.replace('• ', '➢ '), _txt.replace('• ', '')):
     _shapes.append(([(e.get('org'), len(e.get('bullets', []))) for e in _p['experience']], [(e.get('name'), len(e.get('bullets', []))) for e in _p['projects']]))
 _want = ([('Acme Corp', 2), ('UF Machine Learning Lab', 1)], [('Ledgerly', 1), ('Tinydb', 1)])
 res.append(ok(all(sh == _want for sh in _shapes), f'resumes import right with any bullet style {[sh for sh in _shapes if sh != _want][:1]}'))
+# job finding: US vs abroad, roles that are the same vs different, internships the default excludes used to kill
+from applytwin import match as _m
+_places = {'Bengaluru, IN': 'foreign', 'Indianapolis, IN': 'us', 'Tel Aviv, IL': 'foreign', 'Berlin, DE': 'foreign',
+           'Cambridge, United Kingdom': 'foreign', 'Cambridge, MA': 'us', 'New York, NY or Toronto, ON': 'us', '2 Locations': 'unknown',
+           'Vancouver, WA': 'us', 'Toronto, ON': 'foreign', 'Amsterdam, NH, NL': 'foreign'}
+_pl = {k: _m.place(k) for k, want in _places.items() if _m.place(k) != want}
+_same = api.role_key('Acme', 'Software Engineer Intern - New York') == api.role_key('Acme', 'Software Engineering Internship - Seattle')
+_diff = api.role_key('Acme', 'Intern - Software Engineering') != api.role_key('Acme', 'Intern - Investment Banking')
+_P = {'search': {'kind': 'internship', 'exclude': ['master', 'manager', 'senior'], 'roles': []}}
+_kept = all(_m.fit({'title': t, 'company': 'X'}, _P)[0] > 0 for t in ('Product Manager Intern', 'Software Engineer Intern, Mastercard Send',
+                                                                     'Software Engineer Intern - Undergraduate Students Only'))
+_roles = _m.role_hit('software engineering', 'software developer intern') and not _m.role_hit('machine learning', 'aircraft maintenance intern')
+res.append(ok(not _pl and _same and _diff and _kept and _roles, f'job matching: places, same/different roles, excludes, role words {_pl or ""}'))
 from applytwin import telemetry as _tm
 res.append(ok(not _tm.enabled() and _tm.ping() is False and len(_tm.install_id()) == 36, 'install count is off in tests and uses only a random ID'))
 

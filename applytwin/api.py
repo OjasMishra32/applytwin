@@ -153,8 +153,8 @@ def list_jobs(query='', status='new', min_fit=None, limit=100, ats_filter=None, 
     sql += ' order by ' + ('found_at desc, fit desc' if order == 'new' else 'fit desc, found_at desc') + ' limit ?'
     args.append(int(limit) * 3)
     out, seen = [], set()
-    for j in store.rows(sql, args):  # the same role posted in many cities shows once
-        k = (j['company'].lower(), re.sub(r'\s*[-(,].*$', '', j['title'].lower()))
+    for j in store.rows(sql, args):  # the same role posted in many cities shows once (different roles never merge)
+        k = role_key(j['company'], j['title'])
         if k in seen:
             continue
         seen.add(k)
@@ -242,8 +242,15 @@ def role_key(company, title):
     """Same role at the same company, however a board spells it: 'Software Engineer Intern (First Play) - Summer 2027
     (Mountain View, CA)' and 'Software Engineer Intern, First Play' are one job."""
     c = match.company_key(company)
-    t = (title or '').lower()
+    t = title or ''
+    # a trailing place is not part of the role: "Software Engineer Intern - New York" == "... - Seattle"
+    parts = re.split(r'\s+[-–—|]\s+|\s*,\s*(?=[A-Z][a-z]+(?:\s[A-Z][a-z]+)?,?\s*(?:[A-Z]{2})?$)', t)
+    while len(parts) > 1 and (match.place(parts[-1]) != 'unknown' or match.US.search(parts[-1]) and len(parts[-1]) < 30):
+        parts.pop()
+    t = ' '.join(parts).lower()
     t = re.sub(r'\([^)]*,[^)]*\)', ' ', t)                                  # (Mountain View, CA)
+    t = re.sub(r'\binternships?\b', 'intern', t)
+    t = re.sub(r'\bengineering\b', 'engineer', t)
     t = re.sub(r'\b(summer|fall|spring|winter|autumn)\b|\b20\d\d\b', ' ', t)
     toks = frozenset(w for w in re.split(r'[^a-z0-9+#]+', t) if w and w not in STOP)
     return c, toks
