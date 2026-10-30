@@ -22,15 +22,15 @@ def path(*parts):
     return os.path.join(HOME, *parts)
 
 
-DEFAULT_PROFILE = {
+DEFAULT_PROFILE = {   # nothing about the person is assumed: unanswered fields stay blank and the user is asked
     "name": "", "email": "", "phone": "", "location": "", "linkedin": "", "github": "", "website": "",
-    "school": "", "degree": "Bachelor of Science", "major": "", "minor": "", "gpa": "",
-    "grad_month": "May", "grad_year": "", "start_year": "", "class_standing": "",
-    "work_authorized_us": True, "needs_sponsorship": False, "citizenship": "",
-    "willing_to_relocate": True, "earliest_start": "",
-    "eeo": {"gender": "Decline to self-identify", "race": "Decline to self-identify",
-            "hispanic": "Decline to self-identify", "veteran": "I am not a protected veteran",
-            "disability": "I do not want to answer", "pronouns": ""},
+    "school": "", "degree": "", "major": "", "minor": "", "gpa": "",
+    "grad_month": "", "grad_year": "", "start_year": "", "class_standing": "",
+    "work_authorized_us": None, "needs_sponsorship": None, "citizenship": "",
+    "willing_to_relocate": None, "onsite_ok": None, "earliest_start": "",
+    "over_18": None, "background_check_ok": None, "has_noncompete": None, "government_employee": None,
+    "salary_expectation": "", "sms_ok": None, "ai_review_ok": None,
+    "eeo": {"gender": "", "race": "", "hispanic": "", "veteran": "", "disability": "", "pronouns": ""},
     "search": {
         "kind": "internship",                       # internship | new-grad | full-time
         "season": "",
@@ -110,8 +110,15 @@ def resume():
 
 
 def answers():
+    """Profile-backed answers always come from the current profile (so a Settings change reaches every form), then
+    anything you wrote or edited yourself on top."""
     from . import answers as ans
-    return load('answers.json', None) or ans.default_bank(profile())
+    base = ans.default_bank(profile())
+    saved = load('answers.json', None) or []
+    mine = {r.get('key'): r for r in saved if r.get('source') == 'user' and r.get('key')}
+    out = [mine.pop(r['key'], r) for r in base]
+    keys = {r['key'] for r in base}
+    return out + [r for r in saved if r.get('key') not in keys and r.get('source') == 'user'] + list(mine.values())
 
 
 def companies():

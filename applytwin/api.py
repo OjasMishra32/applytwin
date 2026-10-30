@@ -72,7 +72,8 @@ def save_answer(question, answer, key=None):
 
 
 def answer_questions(questions, job_id=None):
-    """questions: list of strings or {question, options}. Returns an answer (or 'ask') for each."""
+    """questions: list of strings or {question, options}. Returns an answer (or 'ask') for each. When a form asks
+    something you haven't told ApplyTwin, you get a 'Needs you' item saying exactly what to add (once per question)."""
     bank = store.answers()
     out = []
     for q in questions or []:
@@ -80,7 +81,22 @@ def answer_questions(questions, job_id=None):
             out.append(ans.match(q.get('question') or q.get('label', ''), bank, q.get('options')))
         else:
             out.append(ans.match(q, bank))
+    profile_keys = {r['key'] for r in ans.default_bank(store.profile())}
+    for r in out:
+        if r.get('answer') is None:
+            known = r.get('key') in profile_keys
+            title = f"Add your answer: {r['question'][:80]}"
+            if not store.rows('select 1 from inbox where title=? and resolved is null', (title,)):
+                notify(title, ("Forms keep asking this and it's blank in your profile. Add it in Settings so your twin never "
+                               "has to guess." if known else "A form asked this and ApplyTwin doesn't know your answer yet. "
+                               "Answer it on the Answers page; your twin reuses it everywhere."),
+                       job_id=job_id or '', kind='question')
     return out
+
+
+def profile_questions():
+    p = store.profile()
+    return {"questions": ans.questions(), "missing": ans.gaps(p)}
 
 
 # ------------------------------------------------------------------ jobs
@@ -375,7 +391,7 @@ def playbook(ats_name):
 def setup_status():
     p, v = store.profile(), store.resume()
     steps = [
-        ("profile", bool(p.get('name') and p.get('email') and p.get('school')), "Fill in your profile"),
+        ("profile", not ans.gaps(p), f"Answer your application questions ({len(ans.gaps(p))} left)" if ans.gaps(p) else "Answer your application questions"),
         ("vault", len(v.get('experience', [])) + len(v.get('projects', [])) >= 2, "Add your experience and projects to the vault"),
         ("skills", bool(v.get('skills')), "Add your skills"),
         ("search", bool(p['search'].get('roles')), "Choose the roles you want"),
@@ -512,13 +528,22 @@ def run_status():
 
 # ------------------------------------------------------------------ inbox: things only the user can do
 
+_app_seen = [0.0]   # last time the app (open in a browser tab) checked its inbox
+
+
 def notify(title, message='', url='', job_id='', kind='needs_you'):
-    """Tell the user something needs them (a code, a sign-in, a CAPTCHA, a question). Desktop notification + in-app inbox."""
+    """Tell the user something needs them (a code, a sign-in, a CAPTCHA, a question). In-app inbox, plus a notification:
+    the open app shows its own (click it to answer); if the app isn't open, a system notification says where to go."""
     store.execute('insert into inbox(kind,title,message,url,job_id,at) values(?,?,?,?,?,?)', (kind, title, message, url, job_id, time.time()))
-    if store.profile()['apply'].get('notify_desktop', True):
+    if store.profile()['apply'].get('notify_desktop', True) and time.time() - _app_seen[0] > 60:
         from .install import notify as desk
-        desk('ApplyTwin: ' + title, message or url)
+        desk('ApplyTwin: ' + title, 'Open ApplyTwin (localhost:4747) to handle it. ' + (message or url))
     return {"ok": True}
+
+
+def inbox_poll():
+    _app_seen[0] = time.time()
+    return {"items": inbox(), "pending": pending_jobs()}
 
 
 def inbox(include_resolved=False):

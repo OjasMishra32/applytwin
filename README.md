@@ -1,5 +1,9 @@
 # ApplyTwin
 
+[![Star ApplyTwin](https://img.shields.io/github/stars/OjasMishra32/applytwin?style=social)](https://github.com/OjasMishra32/applytwin)
+
+> **Free for every student.** If ApplyTwin helps you, please ⭐ star this repo. It's how other students find it.
+
 **Your job search on autopilot.** ApplyTwin finds internships and jobs across thousands of company career pages,
 builds a fact-checked resume tuned to each posting, and lets your own Claude Code or Codex fill out the
 applications in your browser, on the plan you already pay for. No API keys.

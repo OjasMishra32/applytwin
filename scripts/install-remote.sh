@@ -59,6 +59,7 @@ python3 "$DIR/bin/applytwin" install-agents || warn "Could not connect an agent 
 echo; b "Checking your setup"
 python3 "$DIR/bin/applytwin" doctor || true
 echo
+printf '\033[33m★\033[0m Free for every student. If it helps you, star it: https://github.com/OjasMishra32/applytwin\n\n'
 b "Opening ApplyTwin at http://localhost:4747  (Ctrl+C to stop, 'applytwin app' to open it again)"
 [ -n "${APPLYTWIN_NO_APP:-}" ] && exit 0
 exec python3 "$DIR/bin/applytwin" app ${APPLYTWIN_NO_OPEN:+--no-open} </dev/null

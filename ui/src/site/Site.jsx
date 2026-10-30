@@ -6,6 +6,7 @@ import { Sky } from '../components/Sky'
 import { Hero3D } from '../components/Hero3D'
 import { LogoWall, Story } from '../components/Story'
 import { Reveal, Words, soft, spring } from '../components/ui'
+import { REPO_URL, StarButton } from '../lib/star'
 
 /* apply.twinly.tech: the public home of ApplyTwin. The app itself runs on each person's own computer,
    on the Claude Code or Codex plan they already pay for, so this page's one job is a calm, one-line setup. */
@@ -43,6 +44,7 @@ export default function Site() {
           <nav className="flex items-center gap-4 text-[13.5px] text-white/70 sm:gap-5">
             <a href="#how" className="hidden hover:text-white sm:block">How it works</a>
             <a href="#faq" className="hidden hover:text-white sm:block">Questions</a>
+            <StarButton className="hidden sm:inline-flex" />
             <a href="/app" className="hover:text-white">Your account</a>
             <a href="#start" className="rounded-full px-4 py-1.5 font-medium text-white" style={{ background: BLUE }}>Get started</a>
           </nav>
@@ -102,9 +104,19 @@ export default function Site() {
         </Reveal>
       </section>
 
+      <section className="px-5 pb-16">
+        <Reveal className="mx-auto flex max-w-[760px] flex-col items-center gap-4 rounded-[24px] bg-[#111526] px-6 py-10 text-center ring-1 ring-white/[.06]">
+          <div className="text-[13px] font-medium text-[#ffd60a]">★ ★ ★ ★ ★</div>
+          <h2 className="text-[28px] font-bold tracking-[-0.03em] text-white sm:text-[34px]">Free for every student. Help it reach more of them.</h2>
+          <p className="max-w-[520px] text-[15px] text-muted">ApplyTwin costs nothing and has no ads. A star on GitHub is how other students find it, and it's the best way to say thanks.</p>
+          <a href={REPO_URL} target="_blank" rel="noreferrer" className="mt-1 inline-flex h-11 items-center gap-2 rounded-full bg-white px-6 text-[15px] font-semibold text-[#0b1020] transition hover:bg-white/90">
+            <span className="text-[#f5a524]">★</span> Star ApplyTwin on GitHub</a>
+        </Reveal>
+      </section>
+
       <footer className="mx-auto flex max-w-[1180px] flex-wrap items-center justify-between gap-3 border-t border-white/[.06] px-5 py-8 text-[13px] text-faint">
         <span className="flex items-center gap-2"><Logo size={16} />© 2026 Ojasva Mishra · ApplyTwin, from Twinly</span>
-        <span>Runs on your own Claude Code or Codex.</span>
+        <a href={REPO_URL} target="_blank" rel="noreferrer" className="hover:text-white">★ Star on GitHub</a>
       </footer>
     </div>
   )

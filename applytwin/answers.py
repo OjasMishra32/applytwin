@@ -11,7 +11,8 @@ STOP = set('a an the of to for in on and or is are you your do does did be been 
 
 
 def _yn(b):
-    return 'Yes' if b else 'No'
+    """True/False -> Yes/No; None (never answered) -> '' so the twin asks instead of guessing."""
+    return '' if b is None else ('Yes' if b else 'No')
 
 
 YEARS = ['Freshman', 'Sophomore', 'Junior', 'Senior']
@@ -31,14 +32,14 @@ def default_bank(p):
     grad = f"{p.get('grad_month', '')} {p.get('grad_year', '')}".strip()
     rows = [
         ('work_auth', 'Are you legally authorized to work in the United States?',
-         r'(legally )?(authori[sz]ed|eligible|permitted) to work|work authori[sz]ation|right to work', _yn(p.get('work_authorized_us', True))),
+         r'(legally )?(authori[sz]ed|eligible|permitted) to work|work authori[sz]ation|right to work', _yn(p.get('work_authorized_us'))),
         ('sponsorship', 'Will you now or in the future require visa sponsorship?',
-         r'sponsor|h-?1b|visa status|immigration (support|assistance)', _yn(p.get('needs_sponsorship', False))),
+         r'sponsor|h-?1b|visa status|immigration (support|assistance)', _yn(p.get('needs_sponsorship'))),
         ('citizenship', 'What is your citizenship status?', r'citizen(ship)?\b(?! of)|u\.?s\.? person|green card|permanent resident',
          p.get('citizenship') or ''),
-        ('relocate', 'Are you willing to relocate?', r'relocat', _yn(p.get('willing_to_relocate', True))),
+        ('relocate', 'Are you willing to relocate?', r'relocat', _yn(p.get('willing_to_relocate'))),
         ('onsite', 'Are you able to work on-site / hybrid at this location?', r'on-?site|in[- ]office|in person|hybrid|commut',
-         'Yes'),
+         _yn(p.get('onsite_ok'))),
         ('start', 'When can you start?', r'start date|available to start|earliest (start|date)|when can you (start|begin)',
          p.get('earliest_start', '')),
         ('grad', 'What is your expected graduation date?', r'graduat(ion|e) (date|month|year)|expected graduation|when (do|will) you graduate',
@@ -56,19 +57,20 @@ def default_bank(p):
         ('major', 'Major / field of study', r'major|field of study|discipline|area of study|concentration', p.get('major', '')),
         ('gpa', 'GPA', r'\bgpa\b|grade point', p.get('gpa', '')),
         ('enrolled', 'Are you currently enrolled in a degree program?', r'currently (enrolled|pursuing|a student)|enrolled in',
-         'Yes'),
-        ('age', 'Are you at least 18 years old?', r'18 (years|or older)|at least 18|over the age', 'Yes'),
-        ('background', 'Will you consent to a background check?', r'background (check|screen)|drug (test|screen)', 'Yes'),
+         _yn(p.get('enrolled'))),
+        ('age', 'Are you at least 18 years old?', r'18 (years|or older)|at least 18|over the age', _yn(p.get('over_18'))),
+        ('background', 'Will you consent to a background check?', r'background (check|screen)|drug (test|screen)', _yn(p.get('background_check_ok'))),
         ('prior_employee', 'Have you previously worked for this company?',
          r'(previously|ever|currently) (been )?(employed|worked) (by|for|at)|former employee|worked (for|at) .* before', 'No'),
         ('referral', 'Were you referred by an employee?', r'referr?(ed|al)|who referred', 'No'),
         ('hear', 'How did you hear about us?', r'how did you (hear|find|learn)|source of (application|referral)|where did you (hear|find)',
          'Company careers website'),
-        ('noncompete', 'Are you subject to a non-compete or non-solicit agreement?', r'non-?compete|non-?solicit|restrictive covenant', 'No'),
-        ('government', 'Are you a current or former government employee?', r'government (official|employee)|public official', 'No'),
-        ('relatives', 'Do you have relatives working here?', r'relative|family member|related to (anyone|an employee)', 'No'),
+        ('noncompete', 'Are you subject to a non-compete or non-solicit agreement?', r'non-?compete|non-?solicit|restrictive covenant',
+         _yn(p.get('has_noncompete'))),
+        ('government', 'Are you a current or former government employee?', r'government (official|employee)|public official',
+         _yn(p.get('government_employee'))),
         ('salary', 'What are your salary expectations?', r'salary|compensation (expectation|requirement)|pay (expectation|range)|desired (pay|rate)',
-         'Open and flexible, in line with the posted range'),
+         p.get('salary_expectation', '')),
         ('linkedin', 'LinkedIn profile', r'linkedin', p.get('linkedin', '')),
         ('github', 'GitHub', r'github', p.get('github', '')),
         ('website', 'Website / portfolio', r'website|portfolio|personal (site|url)', p.get('website', '')),
@@ -81,8 +83,8 @@ def default_bank(p):
         ('veteran', 'Veteran status', r'veteran|military (service|status)', s.get('veteran', '')),
         ('disability', 'Disability status', r'disab', s.get('disability', '')),
         ('pronouns', 'Pronouns', r'pronoun', s.get('pronouns', '')),
-        ('sms', 'Do you consent to SMS / text messages?', r'\bsms\b|text messag', 'Yes'),
-        ('ai_review', 'May AI tools help review your application?', r'automated tools|\bai\b.*(review|process)', 'Yes'),
+        ('sms', 'Do you consent to SMS / text messages?', r'\bsms\b|text messag', _yn(p.get('sms_ok'))),
+        ('ai_review', 'May AI tools help review your application?', r'automated tools|\bai\b.*(review|process)', _yn(p.get('ai_review_ok'))),
         ('privacy', 'Do you acknowledge the privacy policy / certify your answers?', r'privacy (policy|notice)|certify|acknowledge|attest|i agree',
          'Yes'),
     ]
@@ -150,3 +152,70 @@ def upsert(bank, question, answer, key=None):
             return bank
     bank.append({"key": key, "question": question, "pattern": None, "answer": answer, "source": "user"})
     return bank
+
+
+# ------------------------------------------------------------------ the questions every application asks
+
+YES_NO = ['Yes', 'No']
+MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+QUESTIONS = [   # (key, label, group, kind, options, optional, hint)  ... kind: text | yesno | select. 'eeo.x' keys are nested.
+    ('name', 'Full name', 'You', 'text', None, False, ''),
+    ('email', 'Email', 'You', 'text', None, False, ''),
+    ('phone', 'Phone', 'You', 'text', None, False, ''),
+    ('location', 'Where you live', 'You', 'text', None, False, 'City, State'),
+    ('linkedin', 'LinkedIn', 'You', 'text', None, True, 'linkedin.com/in/...'),
+    ('github', 'GitHub', 'You', 'text', None, True, ''),
+    ('website', 'Website or portfolio', 'You', 'text', None, True, ''),
+    ('school', 'School', 'School', 'text', None, False, ''),
+    ('degree', 'Degree', 'School', 'select', ['Bachelor of Science', 'Bachelor of Arts', 'Bachelor of Engineering', 'Bachelor of Fine Arts',
+                                              'Bachelor of Business Administration', 'Associate', 'Master', 'MBA', 'PhD', 'JD', 'MD', 'Other'], False, ''),
+    ('major', 'Major', 'School', 'text', None, False, ''),
+    ('minor', 'Minor', 'School', 'text', None, True, ''),
+    ('gpa', 'GPA', 'School', 'text', None, True, 'Leave blank to never share it'),
+    ('grad_month', 'Graduation month', 'School', 'select', MONTHS, False, ''),
+    ('grad_year', 'Graduation year', 'School', 'text', None, False, ''),
+    ('class_standing', 'Year in school right now', 'School', 'select', ['Freshman', 'Sophomore', 'Junior', 'Senior', 'Graduate'], False, ''),
+    ('enrolled', 'Currently enrolled in a degree program', 'School', 'yesno', YES_NO, False, ''),
+    ('earliest_start', 'Earliest start date', 'School', 'text', None, False, 'May 2027'),
+    ('work_authorized_us', 'Legally authorized to work in the US', 'Work authorization', 'yesno', YES_NO, False, ''),
+    ('needs_sponsorship', 'Will need visa sponsorship, now or later', 'Work authorization', 'yesno', YES_NO, False, ''),
+    ('citizenship', 'Citizenship status', 'Work authorization', 'select',
+     ['U.S. citizen', 'U.S. permanent resident (green card)', 'Authorized to work, not a citizen or permanent resident',
+      'Need sponsorship (F-1, H-1B, etc.)', 'Prefer not to say'], False, 'Only used when a form asks'),
+    ('willing_to_relocate', 'Willing to relocate', 'Work authorization', 'yesno', YES_NO, False, ''),
+    ('onsite_ok', 'Able to work on-site or hybrid', 'Work authorization', 'yesno', YES_NO, False, ''),
+    ('over_18', 'At least 18 years old', 'Standard questions', 'yesno', YES_NO, False, ''),
+    ('background_check_ok', 'Consent to a background check', 'Standard questions', 'yesno', YES_NO, False, ''),
+    ('has_noncompete', 'Bound by a non-compete or non-solicit', 'Standard questions', 'yesno', YES_NO, False, ''),
+    ('government_employee', 'Current or former government employee', 'Standard questions', 'yesno', YES_NO, False, ''),
+    ('sms_ok', 'OK with recruiters texting you', 'Standard questions', 'yesno', YES_NO, False, ''),
+    ('ai_review_ok', 'OK with companies using AI to review your application', 'Standard questions', 'yesno', YES_NO, False, ''),
+    ('salary_expectation', 'Salary expectations', 'Standard questions', 'text', None, False, 'e.g. Flexible, in line with the posted range'),
+    ('eeo.gender', 'Gender', 'Voluntary self-identification', 'select', ['Male', 'Female', 'Non-binary', 'Decline to self-identify'], False, ''),
+    ('eeo.race', 'Race', 'Voluntary self-identification', 'select',
+     ['American Indian or Alaska Native', 'Asian', 'Black or African American', 'Native Hawaiian or Other Pacific Islander', 'White',
+      'Two or more races', 'Decline to self-identify'], False, ''),
+    ('eeo.hispanic', 'Hispanic or Latino', 'Voluntary self-identification', 'select', ['Yes', 'No', 'Decline to self-identify'], False, ''),
+    ('eeo.veteran', 'Veteran status', 'Voluntary self-identification', 'select',
+     ['I am not a protected veteran', 'I identify as one or more of the classifications of protected veteran', 'Decline to self-identify'], False, ''),
+    ('eeo.disability', 'Disability', 'Voluntary self-identification', 'select',
+     ['No, I do not have a disability', 'Yes, I have a disability (or previously had one)', 'I do not want to answer'], False, ''),
+    ('eeo.pronouns', 'Pronouns', 'Voluntary self-identification', 'text', None, True, 'Optional'),
+]
+
+
+def get(p, key):
+    if key.startswith('eeo.'):
+        return (p.get('eeo') or {}).get(key[4:], '')
+    return p.get(key)
+
+
+def gaps(p):
+    """Required questions with no answer yet: [{key, label, group}]. Blank never gets guessed; the user is asked."""
+    return [{"key": k, "label": l, "group": g} for k, l, g, kind, opts, optional, hint in QUESTIONS
+            if not optional and get(p, k) in (None, '')]
+
+
+def questions():
+    return [{"key": k, "label": l, "group": g, "kind": kind, "options": opts, "optional": optional, "hint": hint}
+            for k, l, g, kind, opts, optional, hint in QUESTIONS]

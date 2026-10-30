@@ -117,7 +117,11 @@ def doctor():
     p = store.profile()
     vault = store.resume()
     add('resume', bool(vault.get('experience') or vault.get('projects')), 'Resume imported', '', 'Drop your resume on the Welcome page')
-    add('profile', bool(p.get('name') and p.get('email')), 'Name and email set', p.get('email', ''), 'Fill them in on Settings')
+    from . import answers as ans
+    miss = ans.gaps(p)
+    add('profile', not miss, 'Application answers complete',
+        'all answered' if not miss else f"{len(miss)} unanswered: " + ', '.join(m['label'] for m in miss[:4]) + ('…' if len(miss) > 4 else ''),
+        'Answer them in Settings (your twin asks instead of guessing)')
     n = store.rows('select count(*) n from jobs')[0]['n'] if _has_table('jobs') else 0
     add('jobs', n > 0, 'Jobs found', f'{n:,} in your database', 'Press Scan on the Jobs page')
     ready = all(i['ok'] for i in items if not i['optional'])

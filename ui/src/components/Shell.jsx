@@ -4,6 +4,7 @@ import { Command } from 'cmdk'
 import { Bell, Search, Settings2, Sparkles } from 'lucide-react'
 import { cn } from '../lib/utils'
 import { spring } from './ui'
+import { StarButton } from '../lib/star'
 
 export const NAV = [['home', 'Today'], ['jobs', 'Jobs'], ['studio', 'Resume'], ['answers', 'Answers'], ['board', 'Applications'], ['agents', 'Autopilot']]
 
@@ -46,7 +47,27 @@ function Account({ auth, signIn, signOut }) {
 function Inbox() {
   const [d, setD] = useState({ items: [], pending: [] })
   const [open, setOpen] = useState(false)
-  useEffect(() => { let t; const f = async () => { try { const r = await fetch('/api/inbox').then(r => r.json()); setD(r) } catch {} t = setTimeout(f, 12000) }; f(); return () => clearTimeout(t) }, [])
+  useEffect(() => {
+    let t
+    const f = async () => {
+      try {
+        const r = await fetch('/api/inbox').then(r => r.json()); setD(r)
+        // anything new pops up as an ApplyTwin notification; clicking it opens the place to answer it
+        let seen = [], first = true
+        try { const raw = localStorage.getItem('at:notified'); first = raw === null; seen = JSON.parse(raw || '[]') } catch {}
+        const fresh = r.items.filter(i => !seen.includes(i.id))
+        if (!first && fresh.length && typeof Notification !== 'undefined' && Notification.permission === 'granted') {   // first load just records what's there
+          for (const i of fresh.slice(0, 3)) {
+            const n = new Notification('ApplyTwin: ' + i.title, { body: i.message || 'Open ApplyTwin to handle it.', tag: 'at' + i.id })
+            n.onclick = () => { window.focus(); location.hash = 'agents'; n.close() }
+          }
+        }
+        try { localStorage.setItem('at:notified', JSON.stringify([...seen, ...fresh.map(i => i.id)].slice(-300))) } catch {}
+      } catch {}
+      t = setTimeout(f, 12000)
+    }
+    f(); return () => clearTimeout(t)
+  }, [])
   const n = d.items.length
   const done = async id => { await fetch(`/api/inbox/${id}/resolve`, { method: 'POST', body: '{}' }); setD(x => ({ ...x, items: x.items.filter(i => i.id !== id) })) }
   return (
@@ -97,6 +118,7 @@ export function TopBar({ page, go, onPalette, matched, auth, signIn, signOut }) 
             <Search className="size-3.5" /><span className="hidden sm:inline">Search</span><kbd className="text-[11px] text-faint">⌘K</kbd>
           </button>
           <button onClick={() => go('settings')} className={cn('grid size-8 place-items-center rounded-full transition', page === 'settings' ? 'bg-white text-[#0b1020]' : 'bg-white/[.05] text-muted hover:text-ink')} title="Settings"><Settings2 className="size-4" /></button>
+          <StarButton compact className="hidden md:inline-flex" />
           <Inbox />
           <Account auth={auth} signIn={signIn} signOut={signOut} />
         </div>

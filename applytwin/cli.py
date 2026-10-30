@@ -87,6 +87,7 @@ def main():
             if not i['ok'] and i['fix']:
                 print(f"    → {i['fix']}")
         print('\nReady to apply.' if d['ok'] else '\nFix the ✗ items above, then run `applytwin doctor` again.')
+        print('\033[33m★\033[0m Like ApplyTwin? Star it so other students find it: https://github.com/OjasMishra32/applytwin')
         sys.exit(0 if d['ok'] else 1)
     elif cmd == 'import-history':
         _p(api.import_history(sys.argv[2]))

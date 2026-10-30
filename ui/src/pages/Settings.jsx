@@ -4,6 +4,7 @@ import { X } from 'lucide-react'
 import { api } from '../lib/api'
 import { useApp, Page } from '../App'
 import { Button, Segmented, Slider, Switch, Title } from '../components/ui'
+import { ProfileQuestions, missing, useQuestions } from '../components/ProfileQuestions'
 
 export function Chips({ value = [], onChange, placeholder, suggestions = [] }) {
   const [t, setT] = useState('')
@@ -53,16 +54,21 @@ export default function Settings() {
   const se = (k, v) => setP({ ...p, eeo: { ...p.eeo, [k]: v } })
   const save = async () => { await api('/api/profile', p); await refresh(); toast.success('Saved', { description: 'Rescan to re-rank jobs with your new preferences.' }) }
   const T = (k, ph) => <input className="uline" value={p[k] || ''} placeholder={ph} onChange={e => set(k, e.target.value)} />
+  const qs = useQuestions()
+  const left = missing(qs, p)
   const Sel = (k, opts) => <select className="uline" value={p.eeo[k]} onChange={e => se(k, e.target.value)}>{opts.map(o => <option key={o}>{o}</option>)}</select>
   return (
     <div className="relative"><Page>
       <Title sub="Who you are, what you want, and how far your twin may go on its own." right={<Button onClick={save} arrow>Save</Button>}>
         Settings</Title>
       <div className="mx-auto max-w-[860px]">
+        {left.length > 0 && <div className="mb-6 rounded-[14px] bg-[#ff9f0a]/10 px-4 py-3 text-[14px] text-[#ffc56b] ring-1 ring-[#ff9f0a]/25">
+          {left.length} application answer{left.length === 1 ? '' : 's'} missing (marked below). Until you answer, your twin asks you instead of guessing.</div>}
         <Group title="Your twin's permissions">
           <Row label="Submit applications on its own" hint="Off: it fills everything and stops so you can press Submit."><div className="flex justify-end"><Switch checked={a.auto_submit} onChange={v => sa('auto_submit', v)} /></div></Row>
           <Row label="Read verification codes from my email" hint="When a site emails you a code, your agent finds it in your inbox and types it. Off: you get a notification instead."><div className="flex justify-end"><Switch checked={a.email_codes === 'agent'} onChange={v => sa('email_codes', v ? 'agent' : 'notify')} /></div></Row>
           <Row label="Desktop notifications" hint="Ping my Mac when my twin needs me."><div className="flex justify-end"><Switch checked={a.notify_desktop !== false} onChange={v => sa('notify_desktop', v)} /></div></Row>
+          <Row label="Applies with" hint="The agent Autopilot uses."><div className="flex justify-end"><Segmented id="agentset" value={a.agent || 'claude'} onChange={v => sa('agent', v)} options={[['claude', 'Claude Code'], ['codex', 'Codex']]} /></div></Row>
           <Row label="Tailor a resume for every job" hint="A new one-page resume, rewritten for each posting."><div className="flex justify-end"><Switch checked={a.tailor_every_resume} onChange={v => sa('tailor_every_resume', v)} /></div></Row>
           <Row label={`Up to ${a.daily_limit} applications a day`}><Slider value={a.daily_limit} min={5} max={200} step={5} onChange={v => sa('daily_limit', v)} /></Row>
           <Row label={`At most ${a.per_company_cap} per company`} hint="Many companies cap or flag repeat applicants."><Slider value={a.per_company_cap} min={1} max={10} step={1} onChange={v => sa('per_company_cap', v)} /></Row>
@@ -77,27 +83,8 @@ export default function Settings() {
           <Row label="Skip titles with" stack><Chips value={s.exclude} onChange={v => ss('exclude', v)} placeholder="senior, phd…" /></Row>
           <Row label={`Show jobs with fit ${s.min_fit}+`}><Slider value={s.min_fit} min={0} max={95} onChange={v => ss('min_fit', v)} /></Row>
         </Group>
-        <Group title="About you">
-          {[['name', 'Full name'], ['email', 'Email'], ['phone', 'Phone'], ['location', 'City, State'], ['linkedin', 'LinkedIn'], ['github', 'GitHub'], ['website', 'Website']].map(([k, l]) => <Row key={k} label={l}>{T(k, l)}</Row>)}
-        </Group>
-        <Group title="School">
-          {[['school', 'School'], ['degree', 'Degree'], ['major', 'Major'], ['minor', 'Minor'], ['gpa', 'GPA'], ['grad_month', 'Graduation month'], ['grad_year', 'Graduation year'], ['earliest_start', 'Earliest start']].map(([k, l]) => <Row key={k} label={l}>{T(k, l)}</Row>)}
-          <Row label="Class standing now" hint="Your twin answers year-in-school questions with this, and knows a sophomore is a rising junior next summer.">
-            <select className="uline" value={p.class_standing || ''} onChange={e => set('class_standing', e.target.value)}>
-              {['', 'Freshman', 'Sophomore', 'Junior', 'Senior', 'Graduate'].map(o => <option key={o} value={o}>{o || 'Not set'}</option>)}</select></Row>
-        </Group>
-        <Group title="Work authorization">
-          <Row label="Authorized to work in the US"><div className="flex justify-end"><Switch checked={p.work_authorized_us} onChange={v => set('work_authorized_us', v)} /></div></Row>
-          <Row label="Will need visa sponsorship"><div className="flex justify-end"><Switch checked={p.needs_sponsorship} onChange={v => set('needs_sponsorship', v)} /></div></Row>
-          <Row label="Willing to relocate"><div className="flex justify-end"><Switch checked={p.willing_to_relocate} onChange={v => set('willing_to_relocate', v)} /></div></Row>
-          <Row label="Citizenship" hint="Only used for roles that require it.">{T('citizenship', 'Optional')}</Row>
-        </Group>
-        <Group title="Voluntary self-identification">
-          <Row label="Gender">{Sel('gender', ['Decline to self-identify', 'Male', 'Female', 'Non-binary'])}</Row>
-          <Row label="Race / ethnicity">{Sel('race', ['Decline to self-identify', 'Asian', 'Black or African American', 'Hispanic or Latino', 'White', 'Native American or Alaska Native', 'Native Hawaiian or Pacific Islander', 'Two or more races'])}</Row>
-          <Row label="Veteran">{Sel('veteran', ['I am not a protected veteran', 'I identify as a protected veteran', 'Decline to self-identify'])}</Row>
-          <Row label="Disability">{Sel('disability', ['I do not want to answer', 'No, I do not have a disability', 'Yes, I have a disability'])}</Row>
-        </Group>
+        <div className="mb-3 px-4 text-[13px] text-muted">Your application answers, used on every form</div>
+        <div className="mb-8"><ProfileQuestions qs={qs} p={p} setP={setP} showMissing /></div>
       </div>
     </Page></div>
   )

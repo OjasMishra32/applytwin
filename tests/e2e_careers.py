@@ -135,7 +135,9 @@ sys.path.insert(0, sys.argv[1])
 from applytwin import api, learn, store
 spec = json.loads(sys.argv[2])
 api.import_resume('resume.txt', None, spec['resume'])
-p = store.profile(); p['search'].update(kind='internship', roles=spec['roles'], season='Summer 2027'); api.update_profile(p)
+p = store.profile(); p['search'].update(kind='internship', roles=spec['roles'], season='Summer 2027')
+p.update(work_authorized_us=True, needs_sponsorship=False, grad_month='May', grad_year='2028')   # answered in onboarding
+api.update_profile(p)
 g = api.add_job('https://jobs.example.com/good-' + spec['field'], spec['good'][0], 'Acme ' + spec['field'].title(), spec['good'][1])
 b = api.add_job('https://jobs.example.com/bad-' + spec['field'], spec['bad'][0], 'Other Co', spec['bad'][1])
 api.rescore()
@@ -150,6 +152,25 @@ print(json.dumps({"vault": sum(len(v.get(k, [])) for k in ('experience', 'resear
                   "answers": [a.get('answer') for a in ans]}))
 '''
 
+def _stub_agents(tmp):
+    """Stand-in claude/codex that report 'signed out', so tests never run the real CLIs against a throwaway HOME
+    (on macOS that makes them look for a keychain that isn't there, and the system shows a pop-up)."""
+    import stat
+    d = os.path.join(tmp, 'stubbin')
+    os.makedirs(d, exist_ok=True)
+    for name in ('claude', 'codex'):
+        py = os.path.join(d, name + '_stub.py')
+        open(py, 'w').write("import sys, json\na = sys.argv[1:]\n"
+                            "print(json.dumps({'loggedIn': False}) if a[:2] == ['auth', 'status'] else '9.9.9 (stub)' if a[:1] == ['--version'] else 'Not logged in')\n"
+                            "sys.exit(0 if a[:1] in (['--version'], ['auth'], ['mcp'], ['plugin']) else 1)\n")
+        if os.name == 'nt':
+            open(os.path.join(d, name + '.cmd'), 'w').write(f'@"{sys.executable}" "{py}" %*\r\n')
+        else:
+            p = os.path.join(d, name)
+            open(p, 'w').write(f'#!/bin/sh\nexec "{sys.executable}" "{py}" "$@"\n')
+            os.chmod(p, os.stat(p).st_mode | stat.S_IEXEC)
+    return d
+
 results = []
 
 
@@ -163,6 +184,7 @@ def main():
         tmp = tempfile.mkdtemp(prefix=f'applytwin-{who}-')
         env = {k: v for k, v in os.environ.items() if k not in ('ANTHROPIC_API_KEY', 'OPENAI_API_KEY')}
         env.update(HOME=tmp, USERPROFILE=tmp, APPLYTWIN_HOME=os.path.join(tmp, '.applytwin'))
+        env['PATH'] = _stub_agents(tmp) + os.pathsep + env.get('PATH', '')
         r = subprocess.run([sys.executable, '-c', RUNNER, ROOT, json.dumps({**spec, 'field': who})], env=env, capture_output=True, text=True, timeout=600)
         shutil.rmtree(tmp, ignore_errors=True)
         try:

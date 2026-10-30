@@ -4,6 +4,7 @@ import { Check, CircleSlash, ExternalLink, FileText, Hand, Search } from 'lucide
 import { Toaster, toast } from 'sonner'
 import { Sky } from '../components/Sky'
 import { Avatar, Segmented, spring } from '../components/ui'
+import { StarButton } from '../lib/star'
 
 /* apply.twinly.tech/app: your ApplyTwin account from any device. Your twin applies from your own computer (on your
    Claude Code or Codex plan); every application it logs syncs here, with the exact resume it sent. */
@@ -104,6 +105,7 @@ export default function Dashboard() {
         <div className="mx-auto flex h-14 max-w-[1080px] items-center justify-between px-5">
           <a href="/" className="flex items-center gap-2 text-[15px] font-semibold text-white"><Logo />ApplyTwin</a>
           {session && <div className="flex items-center gap-4 text-[13.5px]">
+            <StarButton compact />
             <span className="hidden text-white/60 sm:block">{session.user?.email}</span>
             <button onClick={signOut} className="text-white/70 hover:text-white">Sign out</button></div>}
         </div>

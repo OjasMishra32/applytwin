@@ -39,10 +39,11 @@ GET = {
     r'/api/queue': lambda m, qs, b: api.queue(int(_q(qs, 'n', 50))),
     r'/api/run': lambda m, qs, b: api.run_status(),
     r'/api/doctor': lambda m, qs, b: api.doctor(),
+    r'/api/questions': lambda m, qs, b: api.profile_questions(),
     r'/api/update': lambda m, qs, b: api.update_status(),
     r'/api/agents': lambda m, qs, b: api.agent_status(),
     r'/api/auth': lambda m, qs, b: cloud.status(),
-    r'/api/inbox': lambda m, qs, b: {"items": api.inbox(), "pending": api.pending_jobs()},
+    r'/api/inbox': lambda m, qs, b: api.inbox_poll(),
     r'/api/auth/login': lambda m, qs, b: {"url": cloud.login_url(_q(qs, 'redirect', 'http://localhost:4747/'))},
 }
 POST = {

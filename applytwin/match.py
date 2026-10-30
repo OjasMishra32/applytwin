@@ -198,6 +198,13 @@ def fit(job, prof, vault_terms=None):
         if yr.group() in title:
             score += 8
             why.append(yr.group())
+    # a title that names a different term (a Spring or January co-op when you're after Summer) isn't your cycle
+    want = re.search(r'summer|spring|fall|autumn|winter', season)
+    if want and kind == 'internship' and not s.get('any_term'):
+        terms = set(re.findall(r'\b(summer|spring|fall|autumn|winter)\b', t)) | (
+            {'winter'} if re.search(r'\b(jan(uary)?|feb(ruary)?)\b\.? ?20\d\d|\(jan', t) else set())
+        if terms and want.group() not in terms and not ({want.group()} & {'fall', 'autumn'} and terms & {'fall', 'autumn'}):
+            return 0, f"{'/'.join(sorted(terms))} term, you want {want.group()}"
     if re.search(r'\bhigh[- ]school\b', title, re.I) and prof.get('school'):
         return 0, 'high school program'
     es = re.search(r'20\d\d', prof.get('earliest_start') or '')

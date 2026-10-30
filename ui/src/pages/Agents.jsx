@@ -6,6 +6,7 @@ import { api } from '../lib/api'
 import { parseRun } from '../lib/runlog'
 import { useApp, Page } from '../App'
 import { Avatar, Segmented, burst, spring } from '../components/ui'
+import { REPO_URL } from '../lib/star'
 
 /* Autopilot, Apple-style: one quiet hero that says what your twin is doing, grouped lists for everything else. */
 
@@ -24,6 +25,8 @@ export default function Agents() {
   const [inbox, setInbox] = useState({ items: [], pending: [] })
   const [apps, setApps] = useState([])
   const [raw, setRaw] = useState(false)
+  const [gaps, setGaps] = useState([])
+  useEffect(() => { api('/api/questions').then(d => setGaps(d.missing || [])).catch(() => {}) }, [])
   const since = useRef(+(safeGet('at:runStart') || 0) || Date.now() / 1000 - 3 * 3600)
   const refresh = () => { api('/api/inbox').then(setInbox); api('/api/applications').then(setApps) }
 
@@ -52,6 +55,7 @@ export default function Agents() {
   const needs = inbox.items.length + pending.length
 
   const start = async () => {
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') Notification.requestPermission()   // so it can tell you when it needs you
     try {
       since.current = Date.now() / 1000; safeSet('at:runStart', since.current)
       setRun(await api('/api/run', { agent, n }))
@@ -114,9 +118,13 @@ export default function Agents() {
                 {running ? 'Stop' : 'Start'}
               </motion.button>
               <div className="text-[12.5px] text-faint">{profile.apply?.auto_submit ? 'Submits on its own.' : 'Stops at the review screen so you press submit.'}</div>
+              {gaps.length > 0 && <button onClick={() => go('settings')} className="text-right text-[12.5px] text-[#ff9f0a] hover:underline">
+                {gaps.length} application answer{gaps.length === 1 ? '' : 's'} missing. Add them so it never has to stop and ask →</button>}
             </div>
           </div>
         </section>
+
+        <StarAsk count={apps.filter(a => a.status === 'Applied' || a.status === 'Needs User').length} />
 
         <div className="mt-8 grid gap-8 lg:grid-cols-[1.25fr_1fr]">
           <div className="min-w-0 space-y-8">
@@ -260,5 +268,25 @@ function NeedsYou({ item, onDone }) {
         </motion.div>)}
       </AnimatePresence>
     </motion.div>
+  )
+}
+
+function StarAsk({ count }) {
+  // once your twin has done real work for you, ask (once) for a star; never again after a star or a dismiss
+  const [gone, setGone] = useState(() => safeGet('at:starAsk') === 'done')
+  if (gone || count < 3) return null
+  const done = () => { safeSet('at:starAsk', 'done'); setGone(true) }
+  return (
+    <motion.section initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={spring}
+      className="mt-5 flex flex-wrap items-center gap-4 rounded-[18px] bg-[#111526] px-5 py-4 ring-1 ring-white/[.06]">
+      <span className="text-[22px] text-[#ffd60a]">★</span>
+      <div className="min-w-0 flex-1">
+        <div className="text-[15px] font-semibold text-white">Your twin has handled {count} applications. Like it?</div>
+        <div className="text-[13px] text-muted">ApplyTwin is free. A star on GitHub helps other students find it.</div>
+      </div>
+      <a href={REPO_URL} target="_blank" rel="noreferrer" onClick={done}
+        className="inline-flex h-9 items-center gap-1.5 rounded-full bg-white px-4 text-[13.5px] font-semibold text-[#0b1020] hover:bg-white/90"><span className="text-[#f5a524]">★</span>Star on GitHub</a>
+      <button onClick={done} className="text-[13px] text-muted hover:text-white">Not now</button>
+    </motion.section>
   )
 }

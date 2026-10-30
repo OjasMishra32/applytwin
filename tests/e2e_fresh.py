@@ -42,6 +42,27 @@ Epic EHR, BLS/CPR certified, phlebotomy, patient education, Spanish (conversatio
 JD = """Summer 2027 Nursing Extern. Work alongside RNs on med-surg and ICU units. Requirements: enrolled in a BSN program,
 BLS certification, experience with Epic EHR, strong patient communication. Bilingual Spanish a plus."""
 
+def _stub_agents(tmp):
+    """Stand-in claude/codex that report 'signed out', so tests never run the real CLIs against a throwaway HOME
+    (on macOS that makes them look for a keychain that isn't there, and the system shows a pop-up)."""
+    import stat
+    d = os.path.join(tmp, 'stubbin')
+    os.makedirs(d, exist_ok=True)
+    for name in ('claude', 'codex'):
+        py = os.path.join(d, name + '_stub.py')
+        open(py, 'w').write("import sys, json\na = sys.argv[1:]\n"
+                            "print(json.dumps({'loggedIn': False}) if a[:2] == ['auth', 'status'] else '9.9.9 (stub)' if a[:1] == ['--version'] else 'Not logged in')\n"
+                            "sys.exit(0 if a[:1] in (['--version'], ['auth'], ['mcp'], ['plugin']) else 1)\n")
+        if os.name == 'nt':
+            open(os.path.join(d, name + '.cmd'), 'w').write(f'@"{sys.executable}" "{py}" %*\r\n')
+        else:
+            p = os.path.join(d, name)
+            open(p, 'w').write(f'#!/bin/sh\nexec "{sys.executable}" "{py}" "$@"\n')
+            os.chmod(p, os.stat(p).st_mode | stat.S_IEXEC)
+    return d
+
+ENV['PATH'] = _stub_agents(TMP) + os.pathsep + ENV.get('PATH', '')
+
 results = []
 
 
@@ -126,8 +147,21 @@ def main():
         check('PDF is real', txt[:4] == b'%PDF' and len(txt) > 5000, f'{len(txt):,} bytes')
 
         # 6. answers the bank already knows for a new user
-        ans = http('/api/answer/test', {'questions': ['Are you legally authorized to work in the United States?', 'What is your expected graduation date?']})
-        check('answer bank fills standard questions', all(x.get('answer') for x in ans), ' | '.join(str(x.get('answer')) for x in ans))
+        # nothing is assumed: before onboarding, work authorization is unanswered, and asking creates a 'Needs you' item
+        q = http('/api/questions')
+        check('onboarding lists unanswered questions', len(q['missing']) > 10, f"{len(q['missing'])} to answer")
+        blank = http('/api/answer/test', {'questions': ['Are you legally authorized to work in the United States?']})[0]
+        inbox = http('/api/inbox')['items']
+        check('a blank answer is never guessed', blank.get('answer') is None)
+        check('...and the user is told what to add', any('authorized to work' in i['title'] for i in inbox), inbox[0]['title'] if inbox else '')
+        # the user answers them once (as onboarding does), and every form gets them
+        prof = http('/api/state')['profile']
+        prof.update(work_authorized_us=True, needs_sponsorship=False, grad_month='May', grad_year='2028')
+        http('/api/profile', prof)
+        ans = http('/api/answer/test', {'questions': ['Are you legally authorized to work in the United States?', 'What is your expected graduation date?',
+                                                      'Will you now or in the future require sponsorship?']})
+        check('answers given once are used on every form', [x.get('answer') for x in ans] == ['Yes', 'May 2028', 'No'],
+              ' | '.join(str(x.get('answer')) for x in ans))
 
         # 7. run guard: starting an agent that isn't signed in must fail with the fix, not hang
         name = next((k for k, v in a.items() if v['installed'] and not v['signed_in']), None)
@@ -154,24 +188,15 @@ def main():
     code, out = cli('install-agents', timeout=300)
     check('install-agents runs', code == 0, out.strip().replace('\n', ' | ')[:160])
     ccfg = os.path.join(TMP, '.codex', 'config.toml')
-    if shutil.which('codex'):
+    if True:
         t = open(ccfg).read() if os.path.exists(ccfg) else ''
         check('Codex config has ApplyTwin + browser', '[mcp_servers.applytwin]' in t and '[mcp_servers.playwright]' in t)
         check('Codex config pre-approves ApplyTwin tools', t.count('default_tools_approval_mode') >= 2)
         check('Codex skills installed', os.path.isdir(os.path.join(TMP, '.agents', 'skills', 'applytwin-apply')))
-    if shutil.which('claude'):
-        cj = os.path.join(TMP, '.claude.json')
-        check('Claude Code has ApplyTwin', os.path.exists(cj) and 'applytwin' in open(cj).read())
-        plug = os.path.join(TMP, '.claude', 'plugins')
-        via_plugin = os.path.isdir(plug) and 'applytwin' in json.dumps([f for _, _, fs in os.walk(plug) for f in fs] + [d for _, ds, _ in os.walk(plug) for d in ds])
-        check('Claude Code skills installed', via_plugin or os.path.isdir(os.path.join(TMP, '.claude', 'skills', 'applytwin-apply')),
-              'via plugin' if via_plugin else 'copied')
+    check('Claude Code registration ran', 'Claude Code' in out)   # stand-in CLI: real registration is covered by e2e_agents
 
     code, out = cli('doctor')
-    if shutil.which('claude') or shutil.which('codex'):
-        check('doctor after setup: agents connected', 'Resume imported' in out and 'connected to' in out)
-    else:   # a machine with neither agent: doctor must say how to install one
-        check('doctor without agents explains the install', 'npm install -g' in out)
+    check('doctor after setup: agents connected, sign-in flagged', 'Resume imported' in out and 'connected to' in out and 'signed in' in out)
 
     bad = [n for n, ok in results if not ok]
     print(f'\n{len(results) - len(bad)}/{len(results)} passed' + (f"  failed: {', '.join(bad)}" if bad else ''))

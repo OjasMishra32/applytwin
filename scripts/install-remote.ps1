@@ -73,6 +73,7 @@ Write-Host "`nConnecting your agents" -ForegroundColor White
 Write-Host "`nChecking your setup" -ForegroundColor White
 & $Py "$Dir\bin\applytwin" doctor
 $global:LASTEXITCODE = 0   # doctor reports missing steps with a non-zero code; that's advice, not a failed install
+Write-Host "`n* Free for every student. If it helps you, star it: https://github.com/OjasMishra32/applytwin" -ForegroundColor Yellow
 Write-Host "`nOpening ApplyTwin at http://localhost:4747  (Ctrl+C to stop, 'applytwin app' to open it again)" -ForegroundColor White
 if ($env:APPLYTWIN_NO_APP) { return }
 if ($env:APPLYTWIN_NO_OPEN) { & $Py "$Dir\bin\applytwin" app --no-open } else { & $Py "$Dir\bin\applytwin" app }
