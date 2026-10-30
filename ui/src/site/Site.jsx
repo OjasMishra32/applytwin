@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { Suspense, lazy, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion, useInView, useMotionValueEvent, useScroll, useTransform, useReducedMotion } from 'motion/react'
 import { Check, ChevronRight, Copy, Laptop, Lock, KeyRound, ShieldCheck } from 'lucide-react'
 import { Toaster } from 'sonner'
@@ -29,6 +29,9 @@ const FAQ = [
 const EASE = [0.25, 0.1, 0.25, 1]
 const rise = (delay = 0) => ({ initial: { opacity: 0, y: 28 }, animate: { opacity: 1, y: 0 }, transition: { duration: 1.1, ease: EASE, delay } })
 
+const Fan3D = lazy(() => import('./Fan3D'))   // three.js loads after the page is up
+const webgl = () => { try { const c = document.createElement('canvas'); return !!(c.getContext('webgl2') || c.getContext('webgl')) } catch { return false } }
+
 const COMPANIES = [['Google', 'google.com'], ['Meta', 'meta.com'], ['Apple', 'apple.com'], ['NVIDIA', 'nvidia.com'], ['Jane Street', 'janestreet.com'],
   ['Citadel', 'citadel.com'], ['Palantir', 'palantir.com'], ['Anduril', 'anduril.com'], ['Stripe', 'stripe.com'], ['Microsoft', 'microsoft.com'],
   ['Amazon', 'amazon.com'], ['Two Sigma', 'twosigma.com']]
@@ -54,6 +57,8 @@ export default function Site() {
           <a href="#how" className="link inline-flex items-center text-[17px]">See how it works<ChevronRight className="size-4" /></a>
         </motion.div>
       </section>
+
+      <OneToMany />
 
       <section className="px-4 pb-24"><Lid><AppWindow /></Lid></section>
 
@@ -173,6 +178,35 @@ function Nav() {
         </nav>
       </div>
     </header>
+  )
+}
+
+/* One resume becomes many, in 3D: pinned while you scroll, the stack fans out into versions tailored for each company. */
+function OneToMany() {
+  const ref = useRef(null)
+  const progress = useRef(0)
+  const [ok] = useState(() => typeof window !== 'undefined' && webgl())
+  const [show, setShow] = useState(false)
+  const near = useInView(ref, { margin: '400px 0px' })
+  useEffect(() => { if (near) setShow(true) }, [near])
+  const { scrollYProgress } = useScroll({ target: ref, offset: ['start start', 'end end'] })
+  const [p, setP] = useState(0)
+  useMotionValueEvent(scrollYProgress, 'change', v => { progress.current = v; setP(v) })
+  if (!ok) return null
+  return (
+    <section ref={ref} className="relative h-[230vh]">
+      <div className="sticky top-0 h-screen overflow-hidden">
+        <div className="pointer-events-none absolute inset-x-0 top-[12vh] z-10 px-4 text-center">
+          <h2 className="display text-[40px] font-semibold leading-[1.06] sm:text-[56px]">
+            <span style={{ opacity: 1 - Math.min(1, p * 3) * 0.0 }}>One resume.</span><br />
+            <motion.span className="muted" animate={{ opacity: p > 0.25 ? 1 : 0.25 }} transition={{ duration: 0.6, ease: EASE }}>Tailored for every role.</motion.span>
+          </h2>
+        </div>
+        <div className="absolute inset-x-0 bottom-0 top-[20vh]">
+          {show && <Suspense fallback={null}><Fan3D progress={progress} /></Suspense>}
+        </div>
+      </div>
+    </section>
   )
 }
 
