@@ -153,7 +153,7 @@ def outcomes():
         stats[f][1] += 1
         tj = store.path('resumes', jid, 'tailor.json')
         if os.path.exists(tj):
-            d = json.load(open(tj))
+            d = json.load(open(tj, encoding='utf-8'))
             tpl = d.get('render', {}).get('style') or d.get('style') or 'unknown'
             tpl_stats[tpl][0] += won
             tpl_stats[tpl][1] += 1

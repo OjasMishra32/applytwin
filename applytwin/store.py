@@ -74,15 +74,20 @@ def load(name, default=None):
     p = path(name)
     if not os.path.exists(p):
         return copy.deepcopy(default)
-    with open(p) as f:
-        data = json.load(f)
+    try:
+        with open(p, encoding='utf-8') as f:
+            data = json.load(f)
+    except UnicodeDecodeError:   # written by an older version in the Windows code page; read it once, save as UTF-8
+        with open(p, encoding='cp1252', errors='replace') as f:
+            data = json.load(f)
+        save(name, data)
     return _merge(default, data) if isinstance(default, dict) else data
 
 
 def save(name, obj):
     with _lock:
         tmp = path(name + '.tmp')
-        with open(tmp, 'w') as f:
+        with open(tmp, 'w', encoding='utf-8') as f:
             json.dump(obj, f, indent=1, ensure_ascii=False)
         os.replace(tmp, path(name))
     return obj
@@ -118,12 +123,12 @@ def answers():
 
 def companies():
     """Built-in boards + your own additions + boards discovered from job trackers (all merged, so updates reach everyone)."""
-    with open(os.path.join(APP, 'data', 'companies.json')) as f:
+    with open(os.path.join(APP, 'data', 'companies.json'), encoding='utf-8') as f:
         out = json.load(f)
     for extra in (path('companies.json'), path('discovered.json')):
         if os.path.exists(extra):
             try:
-                for k, v in json.load(open(extra)).items():
+                for k, v in json.load(open(extra, encoding='utf-8')).items():
                     out[k] = list(dict.fromkeys(out.get(k, []) + v))
             except (ValueError, OSError):
                 pass

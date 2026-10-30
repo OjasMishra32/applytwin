@@ -18,7 +18,7 @@ import re
 
 from . import ats
 
-GUIDE = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'docs', 'RESUME_GUIDE.md')).read() \
+GUIDE = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'docs', 'RESUME_GUIDE.md'), encoding='utf-8').read() \
     if os.path.exists(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'docs', 'RESUME_GUIDE.md')) else ''
 ENTRY_SECS = ('experience', 'projects', 'leadership', 'volunteering')
 
@@ -241,7 +241,7 @@ def agent_llm(text, timeout=600):
             if name == 'claude':
                 # a one-shot plan doesn't need the biggest model; Sonnet is several times faster for this
                 r = subprocess.run([agents.exe('claude'), '-p', '--model', 'sonnet', '--output-format', 'text', '--tools', ''], input=text, capture_output=True,
-                                   text=True, timeout=timeout, cwd=store.HOME)
+                                   text=True, encoding='utf-8', errors='replace', timeout=timeout, cwd=store.HOME)
                 if r.returncode == 0 and r.stdout.strip():
                     return r.stdout
             else:
@@ -250,8 +250,8 @@ def agent_llm(text, timeout=600):
                         out = f.name
                     cmd = [agents.exe('codex'), 'exec', '--skip-git-repo-check', '--ephemeral', '-s', 'read-only', '-o', out,
                            *agents.codex_model_args(), '-']
-                    r = subprocess.run(cmd, input=text, capture_output=True, text=True, timeout=timeout, cwd=store.HOME)
-                    reply = open(out).read() if os.path.exists(out) else ''
+                    r = subprocess.run(cmd, input=text, capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=timeout, cwd=store.HOME)
+                    reply = open(out, encoding='utf-8').read() if os.path.exists(out) else ''
                     if os.path.exists(out):
                         os.unlink(out)
                     if reply.strip():
@@ -379,13 +379,13 @@ def tailor(v, job, jd, mode='auto', plan=None, style=None, out_dir=None):
     pdf = os.path.join(out_dir, name)
     r = render.render(res, style, pdf)
     from . import latex
-    with open(pdf[:-4] + '.tex', 'w') as f:  # every tailored resume also ships as editable LaTeX
+    with open(pdf[:-4] + '.tex', 'w', encoding='utf-8') as f:  # every tailored resume also ships as editable LaTeX
         f.write(latex.build_tex(res))
     txt = render.pdf_text(pdf)
     before = ats.report(v, jd)
     after = ats.report(res, jd, r['pages'], txt)
     json.dump({"plan": plan, "resume": res, "report": rep, "render": r, "mode": mode, "style": style, "field": ctx['field']},
-              open(os.path.join(out_dir, 'tailor.json'), 'w'), indent=1, ensure_ascii=False)
+              open(os.path.join(out_dir, 'tailor.json'), 'w', encoding='utf-8'), indent=1, ensure_ascii=False)
     return {"pdf": pdf, "tex": pdf[:-4] + '.tex', "pages": r['pages'], "dropped": r['dropped'], "mode": mode, "style": style,
             "coverage_vault": before.get('coverage'), "coverage": after.get('coverage'), "score": after['score'],
             "missing": [m['term'] for m in after.get('missing', []) if m['hard']][:12],

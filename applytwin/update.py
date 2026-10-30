@@ -27,7 +27,7 @@ def is_checkout():
 
 def installed():
     try:
-        return open(MARK).read().strip()
+        return open(MARK, encoding='utf-8').read().strip()
     except OSError:
         return ''
 
@@ -80,7 +80,7 @@ def apply(sha=None):
         shutil.rmtree(old, ignore_errors=True)
         os.rename(APP, old)
         shutil.move(new, APP)
-        open(os.path.join(APP, 'INSTALLED'), 'w').write(sha)
+        open(os.path.join(APP, 'INSTALLED'), 'w', encoding='utf-8').write(sha)
         os.chmod(os.path.join(APP, 'bin', 'applytwin'), 0o755)
         shutil.rmtree(old, ignore_errors=True)
         return {"updated": True, "sha": sha[:7]}

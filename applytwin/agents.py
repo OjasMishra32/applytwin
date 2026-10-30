@@ -24,7 +24,7 @@ def exe(name):
 
 def _run(cmd, timeout=20):
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, stdin=subprocess.DEVNULL)
+        r = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=timeout, stdin=subprocess.DEVNULL)
         return r.returncode, (r.stdout or '') + (r.stderr or '')
     except Exception as e:
         return 1, str(e)
@@ -71,8 +71,8 @@ def codex_model_args():
     """The config's model can be newer than this CLI or plan allows (the desktop app sets it); pick one the CLI lists."""
     home = os.path.expanduser('~/.codex')
     try:
-        want = re.search(r'^model\s*=\s*"([^"]+)"', open(os.path.join(home, 'config.toml')).read(), re.M)
-        cached = json.load(open(os.path.join(home, 'models_cache.json')))
+        want = re.search(r'^model\s*=\s*"([^"]+)"', open(os.path.join(home, 'config.toml'), encoding='utf-8').read(), re.M)
+        cached = json.load(open(os.path.join(home, 'models_cache.json'), encoding='utf-8'))
         models = cached.get('models', cached) if isinstance(cached, dict) else cached
         slugs = [m.get('slug') for m in models if isinstance(m, dict)]
     except Exception:
@@ -106,9 +106,9 @@ def doctor():
         'Install and sign in to Claude Code or Codex (any paid plan works, no API key)')
     add('npx', bool(shutil.which('npx')), 'Node.js (for the browser)', shutil.which('npx') or 'npx not found', 'Install Node.js from nodejs.org')
     cfg = os.path.expanduser('~/.claude.json')
-    claude_mcp = os.path.exists(cfg) and 'applytwin' in open(cfg).read()
+    claude_mcp = os.path.exists(cfg) and 'applytwin' in open(cfg, encoding='utf-8').read()
     ccfg = os.path.expanduser('~/.codex/config.toml')
-    ctxt = open(ccfg).read() if os.path.exists(ccfg) else ''
+    ctxt = open(ccfg, encoding='utf-8').read() if os.path.exists(ccfg) else ''
     if ag[0]['installed']:
         add('claude_mcp', claude_mcp or _claude_has_mcp(), 'ApplyTwin connected to Claude Code', '', 'Run: applytwin install-agents', optional=True)
     if ag[1]['installed']:

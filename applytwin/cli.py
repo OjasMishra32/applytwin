@@ -56,7 +56,7 @@ def main():
         for j in api.list_jobs(q, limit=int(_arg('--limit', 40))):
             print(f"{int(j['fit']):>3}  {j['id']}  {j['company'][:22]:<22} {j['title'][:70]}  [{j['ats']}]")
     elif cmd == 'tailor':
-        plan = json.load(open(_arg('--plan'))) if _arg('--plan') else None
+        plan = json.load(open(_arg('--plan'), encoding='utf-8')) if _arg('--plan') else None
         _p(api.tailor_apply(sys.argv[2], plan, _arg('--template'), 'agent' if plan else 'auto'))
     elif cmd == 'render':
         _p(api.render_resume(_arg('--template')))

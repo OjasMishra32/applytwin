@@ -220,7 +220,7 @@ def html_to_pdf(doc, out_pdf):
     os.makedirs(os.path.dirname(os.path.abspath(out_pdf)), exist_ok=True)
     with tempfile.TemporaryDirectory() as td:
         src = os.path.join(td, 'resume.html')
-        with open(src, 'w') as f:
+        with open(src, 'w', encoding='utf-8') as f:
             f.write(doc)
         cmd = [chrome(), '--headless=new', '--disable-gpu', '--no-sandbox', '--no-pdf-header-footer',
                '--print-to-pdf-no-header', f'--user-data-dir={td}/profile', f'--print-to-pdf={out_pdf}', 'file://' + src]

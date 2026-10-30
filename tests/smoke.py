@@ -48,5 +48,26 @@ prof = {'search': {'kind': 'internship', 'roles': [], 'companies_skip': ['Tesla'
 skipped = [match.fit({'title': 'Software Engineer Intern', 'company': c, 'location': 'Austin, TX'}, prof)[0] for c in ('🔥 Tesla', 'JPMorganChase')]
 res.append(ok(all(match.same_company(a, b) for a, b in same) and not any(match.same_company(a, b) for a, b in different) and skipped == [0, 0],
               'skip list matches every spelling ("🔥 Tesla", "JPMorganChase") and nothing else'))
+# Windows defaults files and pipes to cp1252, which turned en dashes and apostrophes on resumes into �.
+# Every text-mode open() and text pipe must say UTF-8.
+import glob as _g, re as _re
+_bad = []
+for _p in _g.glob(os.path.join(ROOT, 'applytwin', '*.py')):
+    _s = open(_p, encoding='utf-8').read()
+    for _m in _re.finditer(r'(?<![\w.])open\(', _s):
+        _j, _d = _m.end(), 1
+        while _d:
+            _d += {'(': 1, ')': -1}.get(_s[_j], 0); _j += 1
+        _a = _s[_m.end():_j - 1]
+        if 'encoding=' not in _a and not _re.search(r"""['"][rwa]b['"]""", _a):
+            _bad.append(f"{os.path.basename(_p)}:{_s.count(chr(10), 0, _m.start()) + 1}")
+    _bad += [f"{os.path.basename(_p)}: text=True without encoding" for _ in _re.finditer(r'text=True(?!, encoding)', _s)]
+res.append(ok(not _bad, 'every file and pipe is UTF-8 (Windows) ' + ', '.join(_bad[:5])))
+from applytwin import store as _st
+_st.save('enc_test.json', {"t": "June 2025 – Aug. 2025, it’s Zoë"})
+res.append(ok(_st.load('enc_test.json')['t'] == "June 2025 – Aug. 2025, it’s Zoë", 'dashes and apostrophes survive a save'))
+open(_st.path('enc_old.json'), 'wb').write('{"t": "a – b"}'.encode('cp1252'))
+res.append(ok(_st.load('enc_old.json')['t'] == "a – b", 'old Windows-encoded files still load'))
+
 print(f'\n{sum(res)}/{len(res)} passed')
 sys.exit(0 if all(res) else 1)

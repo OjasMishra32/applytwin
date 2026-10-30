@@ -420,7 +420,7 @@ def discover(jobs):
         return {}
     p = store.path('discovered.json')
     _disc_lock.acquire()
-    cur = json.load(open(p)) if os.path.exists(p) else {}
+    cur = json.load(open(p, encoding='utf-8')) if os.path.exists(p) else {}
     known = store.companies()
     new = {}
     for ats, toks in found.items():
@@ -429,7 +429,7 @@ def discover(jobs):
         if fresh:
             new[ats] = fresh
             cur[ats] = sorted(set(cur.get(ats, [])) | fresh)
-    json.dump(cur, open(p, 'w'), indent=1)
+    json.dump(cur, open(p, 'w', encoding='utf-8'), indent=1)
     _disc_lock.release()
     return new
 
@@ -440,11 +440,11 @@ def forget_board(name):
     if not token or not os.path.exists(p):
         return
     with _disc_lock:
-        cur = json.load(open(p))
+        cur = json.load(open(p, encoding='utf-8'))
         keep = [t for t in cur.get(ats, []) if t != token]
         if len(keep) != len(cur.get(ats, [])):
             cur[ats] = keep
-            json.dump(cur, open(p, 'w'), indent=1)
+            json.dump(cur, open(p, 'w', encoding='utf-8'), indent=1)
 
 
 def detect_ats(url):

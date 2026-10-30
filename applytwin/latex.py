@@ -160,7 +160,7 @@ def compile_tex(src, out_pdf):
         raise RuntimeError('No LaTeX engine found (install tectonic or TeX Live, or pick another template)')
     with tempfile.TemporaryDirectory() as td:
         f = os.path.join(td, 'resume.tex')
-        open(f, 'w').write(src)
+        open(f, 'w', encoding='utf-8').write(src)
         cmd = [exe, f] if name == 'tectonic' else [exe, '-interaction=nonstopmode', '-halt-on-error', 'resume.tex']
         for _ in range(1 if name == 'tectonic' else 2):
             subprocess.run(cmd, cwd=td, capture_output=True, timeout=180)

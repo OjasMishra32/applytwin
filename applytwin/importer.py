@@ -48,7 +48,7 @@ def extract_text(name='', data=None, text=None):
                 with tempfile.NamedTemporaryFile(suffix='.pdf') as f:
                     f.write(raw)
                     f.flush()
-                    return subprocess.run(['pdftotext', '-layout', f.name, '-'], capture_output=True, text=True).stdout, None
+                    return subprocess.run(['pdftotext', '-layout', f.name, '-'], capture_output=True, text=True, encoding='utf-8', errors='replace').stdout, None
             raise RuntimeError('Reading PDFs needs pypdf: run  python3 -m pip install pypdf  (or paste the text instead)')
     if low.endswith('.docx') or raw[:2] == b'PK':
         with zipfile.ZipFile(io.BytesIO(raw)) as z:
@@ -378,7 +378,7 @@ def import_resume(name='', data=None, text=None):
     from . import match, tailor
     txt, source_tex = extract_text(name, data, text)
     if source_tex:
-        with open(store.path('source.tex'), 'w') as f:
+        with open(store.path('source.tex'), 'w', encoding='utf-8') as f:
             f.write(source_tex)
     from . import api
     api.save_dump(f'# imported: {name or "pasted text"}\n{txt}')

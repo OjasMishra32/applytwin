@@ -51,14 +51,14 @@ def save_vault(vault):
 
 def save_dump(text):
     """Raw brain-dump text (old resumes, LinkedIn, notes). An agent turns it into the structured vault."""
-    with open(store.path('dump.md'), 'a') as f:
+    with open(store.path('dump.md'), 'a', encoding='utf-8') as f:
         f.write(f'\n\n<!-- {time.strftime("%Y-%m-%d %H:%M")} -->\n{text.strip()}\n')
     return {"ok": True, "chars": len(text), "next": "Ask your agent: 'twin: structure my dump into my vault' (skill applytwin-onboard)"}
 
 
 def get_dump():
     p = store.path('dump.md')
-    return open(p).read() if os.path.exists(p) else ''
+    return open(p, encoding='utf-8').read() if os.path.exists(p) else ''
 
 
 def get_answers():
@@ -320,7 +320,7 @@ def preview_html(template='classic', job_id=None, plan=None):
     v = get_vault()
     saved = store.path('resumes', job_id or '_', 'tailor.json')
     if job_id and not plan and os.path.exists(saved):
-        res = json.load(open(saved))['resume']
+        res = json.load(open(saved, encoding='utf-8'))['resume']
     elif job_id:
         j = get_job(job_id)
         res, _ = tailor.apply(v, plan or tailor.heuristic_plan(v, j.get('description', ''), title=j.get('title', ''),
@@ -402,7 +402,7 @@ def playbook(ats_name):
     f = os.path.join(APP, 'playbooks', f'{PLAYBOOK_ALIAS.get(name, name)}.md')
     if not os.path.exists(f):
         f = os.path.join(APP, 'playbooks', 'general.md')
-    return open(f).read()
+    return open(f, encoding='utf-8').read()
 
 
 def setup_status():
@@ -528,12 +528,12 @@ def start_run(agent='claude', n=25, model=None, prompt=None):
     else:
         cmd = [exe, 'exec', '--skip-git-repo-check', '-s', 'workspace-write', '-c', 'approval_policy=never', *(['-m', model] if model else agents.codex_model_args()), '-']
     logf = store.path('autopilot.log')
-    f = open(logf, 'w')
+    f = open(logf, 'w', encoding='utf-8')
     f.write(f"$ {' '.join(os.path.basename(c) if i == 0 else c for i, c in enumerate(cmd))} … apply to {n} jobs\n")
     f.flush()
     # run from the data folder, not the repo, so the agent loads the installed plugin rather than the repo's dev .mcp.json
     # the instructions go in on stdin: on Windows, claude/codex are .cmd wrappers and cmd.exe would mangle quotes in a long argument
-    proc = subprocess.Popen(cmd, stdout=f, stderr=subprocess.STDOUT, stdin=subprocess.PIPE, cwd=store.HOME, text=True)
+    proc = subprocess.Popen(cmd, stdout=f, stderr=subprocess.STDOUT, stdin=subprocess.PIPE, cwd=store.HOME, text=True, encoding='utf-8', errors='replace')
     proc.stdin.write(prompt)
     proc.stdin.close()
     _run.update(proc=proc, agent=agent, log=logf)
@@ -549,7 +549,7 @@ AUTH_ERRORS = ('failed to authenticate', 'oauth session expired', 'not logged in
 def _watch_run(proc, agent, logf, n, model, prompt=None):
     # when the agent exits early because its own sign-in lapsed, tell the user how to fix it instead of failing silently
     proc.wait()
-    tail = open(logf).read()[-3000:].lower() if os.path.exists(logf) else ''
+    tail = open(logf, encoding='utf-8', errors='replace').read()[-3000:].lower() if os.path.exists(logf) else ''
     name = 'Claude Code' if agent == 'claude' else 'Codex'
     if agent == 'codex' and 'model_not_found' in tail and not model:
         # the configured model isn't on this plan or CLI: retry once on one the CLI lists
@@ -573,7 +573,7 @@ def run_status():
     p = _run['proc']
     log = ''
     if _run['log'] and os.path.exists(_run['log']):
-        log = open(_run['log']).read()[-6000:]
+        log = open(_run['log'], encoding='utf-8', errors='replace').read()[-6000:]
     return {"running": bool(p and p.poll() is None), "agent": _run['agent'], "log": log,
             "exit": None if not p or p.poll() is None else p.returncode}
 
@@ -635,7 +635,7 @@ def import_history(csv_path=None, text=None):
     in the URL, then by company + role."""
     import csv
     import io
-    rows = list(csv.reader(io.StringIO(text) if text is not None else open(csv_path, newline='')))
+    rows = list(csv.reader(io.StringIO(text) if text is not None else open(csv_path, newline='', encoding='utf-8-sig', errors='replace')))
     if not rows:
         return {"matched": 0, "known_applications": 0}
     head = [h.strip().lower() for h in rows[0]]
