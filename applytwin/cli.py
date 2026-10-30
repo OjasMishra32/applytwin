@@ -78,7 +78,8 @@ def main():
         elif not st['available']:
             print(f"Already up to date ({st['current'] or 'unknown'}).")
         else:
-            print('Updated to', update.apply()['sha'])
+            r = update.apply()
+            print(f"Updated to {r['sha']}" if r.get('updated') else r.get('reason', 'No update applied.'))
     elif cmd == 'doctor':
         d = api.doctor()
         for i in d['items']:

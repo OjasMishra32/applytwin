@@ -266,23 +266,36 @@ def update_now():
     return {**st, **r}
 
 
+class _Server(ThreadingHTTPServer):
+    # Windows lets a second program bind a port that's already listening when SO_REUSEADDR is set, so a second copy of
+    # ApplyTwin would start beside the first instead of noticing it. Claim the port exclusively there.
+    allow_reuse_address = os.name != 'nt'
+
+    def server_bind(self):
+        import socket
+        if os.name == 'nt' and hasattr(socket, 'SO_EXCLUSIVEADDRUSE'):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
+
+
 def serve(port=4747, open_browser=True):
     import time as _t
     import urllib.request
     from . import update as _upd
     _upd.ensure_command()
-    _self_update()
     srv = None
-    if os.environ.pop('APPLYTWIN_RESTART', None):   # restarting after an update: wait for the old process to free the port
+    restarting = os.environ.pop('APPLYTWIN_RESTART', None)
+    if restarting:   # restarting after an update: wait for the old process to free the port, and don't open another tab
+        open_browser = False
         for _ in range(40):
             try:
-                srv = ThreadingHTTPServer(('127.0.0.1', port), H)
+                srv = _Server(('127.0.0.1', port), H)
                 break
             except OSError:
                 _t.sleep(0.25)
     for p in ([] if srv else range(port, port + 20)):
         try:
-            srv = ThreadingHTTPServer(('127.0.0.1', p), H)
+            srv = _Server(('127.0.0.1', p), H)
             break
         except OSError:
             try:   # ApplyTwin is already running there: just open it
@@ -305,6 +318,8 @@ def serve(port=4747, open_browser=True):
     threading.Thread(target=lambda: (install.refresh_skills(), install.refresh_agents(), api.rescore(), api.scan_if_stale()), daemon=True).start()
     threading.Thread(target=_update_loop, daemon=True).start()
     threading.Thread(target=_code_watch, daemon=True).start()
+    # update after the app is up (the page opens right away), and only in the copy that owns the port
+    threading.Thread(target=lambda: (_t.sleep(3), _self_update()), daemon=True).start()
     threading.Thread(target=api.on_start, daemon=True).start()
     from . import telemetry
     telemetry.start()   # anonymous install count (random ID, OS, version); off in Settings   # keep updating while it runs for days

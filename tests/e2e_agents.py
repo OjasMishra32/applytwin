@@ -225,6 +225,24 @@ def main():
           "'updated': True" in r.stdout and os.path.exists(os.path.join(app, 'INSTALLED')) and os.path.exists(os.path.join(app, 'applytwin.cmd')),
           (r.stdout + r.stderr).strip()[-160:])
 
+    # a failed update never leaves you without an app: a bad download changes nothing, and a swap that breaks halfway
+    # puts the working version back
+    code2 = ("import sys, os; sys.path.insert(0, sys.argv[1]); from applytwin import update; update.APP = sys.argv[1]; "
+             "update.installed = lambda: 'x'; src = sys.argv[2]; mode = sys.argv[3]; "
+             "update._get = (lambda url, timeout=8: b'not a tarball') if mode == 'bad' else (lambda url, timeout=8: open(src, 'rb').read()); "
+             "real = os.rename; n = [0]\n"
+             "def flaky(a, b):\n"
+             "    n[0] += 1\n"
+             "    if mode == 'swap' and n[0] == 2: raise OSError('disk full')\n"
+             "    return real(a, b)\n"
+             "os.rename = flaky\n"
+             "try: print(update.apply('1' * 40))\n"
+             "except Exception as e: print('error', e)\n")
+    for mode in ('bad', 'swap'):
+        r = subprocess.run([sys.executable, '-c', code2, app, tgz, mode], capture_output=True, text=True, timeout=120)
+        check(f'a failed update ({mode}) leaves the app working', os.path.exists(os.path.join(app, 'bin', 'applytwin'))
+              and os.path.exists(os.path.join(app, 'applytwin', 'server.py')), (r.stdout + r.stderr).strip()[-120:])
+
     bad = [n for n, ok in results if not ok]
     print(f'\n{len(results) - len(bad)}/{len(results)} passed' + (f"  failed: {', '.join(bad)}" if bad else ''))
     shutil.rmtree(TMP, ignore_errors=True)

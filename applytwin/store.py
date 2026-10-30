@@ -135,6 +135,11 @@ def companies():
     return out
 
 
+# Windows: start helper programs without a console window (the app runs in the background with pythonw; a window would
+# flash up, and closing it would kill an Autopilot run)
+NOWIN = {'creationflags': 0x08000000} if os.name == 'nt' else {}
+
+
 SCHEMA = """
 create table if not exists jobs(
   id text primary key, source text, company text, title text, location text,

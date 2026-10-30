@@ -11,6 +11,8 @@ import subprocess
 import sys
 import time
 
+from . import store
+
 NAMES = {'claude': 'Claude Code', 'codex': 'Codex'}
 INSTALL = {'claude': 'npm install -g @anthropic-ai/claude-code', 'codex': 'npm install -g @openai/codex'}
 LOGIN = {'claude': 'claude  (then type /login)', 'codex': 'codex login'}
@@ -24,7 +26,7 @@ def exe(name):
 
 def _run(cmd, timeout=20):
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=timeout, stdin=subprocess.DEVNULL)
+        r = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=timeout, stdin=subprocess.DEVNULL, **store.NOWIN)
         return r.returncode, (r.stdout or '') + (r.stderr or '')
     except Exception as e:
         return 1, str(e)

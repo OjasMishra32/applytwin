@@ -37,15 +37,17 @@ command -v codex >/dev/null && { ok "Codex found"; have=1; }
     npm install -g @anthropic-ai/claude-code     # then run: claude   and type /login
     npm install -g @openai/codex                 # then run: codex login"
 
-tmp="$(mktemp -d)"
-trap 'rm -rf "$tmp"' EXIT
+# unpack next to the install folder (same disk) so the final move is an instant rename, never a copy that can fail halfway
+mkdir -p "$(dirname "$DIR")"
+tmp="$(mktemp -d "$(dirname "$DIR")/.applytwin-install-XXXXXX")"
+trap 'rm -rf "$tmp"; [ ! -d "$DIR" ] && [ -d "$DIR.old" ] && mv "$DIR.old" "$DIR"' EXIT   # never leave you without the app
 curl -fsSL "$SRC" -o "$tmp/applytwin.tar.gz" 2>/dev/null || curl -fsSL "$BASE/applytwin.tar.gz" -o "$tmp/applytwin.tar.gz" \
   || die "Could not download ApplyTwin (tried GitHub and $BASE)"
 mkdir -p "$tmp/x" && tar -xzf "$tmp/applytwin.tar.gz" -C "$tmp/x"
 top="$(find "$tmp/x" -mindepth 1 -maxdepth 1 -type d | head -1)"
 [ -f "$top/bin/applytwin" ] || die "The download looks incomplete. Try again in a minute."
 rm -rf "$DIR.old"; [ -d "$DIR" ] && mv "$DIR" "$DIR.old"
-mv "$top" "$DIR" && rm -rf "$DIR.old"
+if mv "$top" "$DIR"; then rm -rf "$DIR.old"; else [ -d "$DIR.old" ] && mv "$DIR.old" "$DIR"; die "Could not put ApplyTwin in place. Your existing install is untouched."; fi
 [ -n "$SHA" ] && echo "$SHA" > "$DIR/INSTALLED"   # lets the app update itself from here on
 chmod +x "$DIR/bin/applytwin"
 ok "ApplyTwin $(cat "$DIR/VERSION" 2>/dev/null || echo '') in $DIR"
@@ -56,6 +58,7 @@ case ":$PATH:" in
   *":$HOME/.local/bin:"*) ;;
   *) # make the `applytwin` command work in every new terminal
      rcs="$HOME/.bashrc $HOME/.profile"; [ "$(uname)" = Darwin ] && rcs="$HOME/.zprofile $rcs" && touch "$HOME/.zprofile"
+     [ -f "$HOME/.zshrc" ] && rcs="$HOME/.zshrc $rcs"   # zsh on Linux reads .zshrc, not .profile
      for rc in $rcs; do
        [ -f "$rc" ] || continue
        grep -qs 'applytwin: .local/bin' "$rc" || printf '\nexport PATH="$HOME/.local/bin:$PATH"   # applytwin: .local/bin\n' >> "$rc"
@@ -91,7 +94,9 @@ case "$(uname)" in
 </dict></plist>
 PLIST
     launchctl bootout "gui/$(id -u)" "$PL" 2>/dev/null || true
-    launchctl bootstrap "gui/$(id -u)" "$PL" && ok "ApplyTwin starts by itself when you log in"
+    # launchd often refuses a bootstrap right after a bootout ("Bootstrap failed: 5"); give it a few tries
+    for _ in 1 2 3 4 5; do launchctl bootstrap "gui/$(id -u)" "$PL" 2>/dev/null && break; sleep 1; done
+    launchctl kickstart -k "gui/$(id -u)/tech.twinly.applytwin" >/dev/null 2>&1 && ok "ApplyTwin starts by itself when you log in"
     mkdir -p "$HOME/Applications"
     osacompile -o "$HOME/Applications/ApplyTwin.app" -e 'open location "http://localhost:4747"' >/dev/null 2>&1 && ok "ApplyTwin is in your Applications (find it with Spotlight)"
     sleep 2; open "http://localhost:4747" ;;

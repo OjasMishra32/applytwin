@@ -57,14 +57,27 @@ PLAYWRIGHT = [shutil.which('npx') or 'npx' if platform.system() == 'Windows' els
     + ([] if platform.system() == 'Linux' else ['--sandbox'])
 
 
+def _pw_claude():
+    """How Claude Code should launch the browser tool. On Windows npx is a .cmd file, which Node no longer starts without
+    a shell, so it goes through `cmd /c` there."""
+    return (['cmd', '/c', 'npx'] + PLAYWRIGHT[1:]) if platform.system() == 'Windows' else PLAYWRIGHT
+
+
+def _add_playwright(claude, previous=None):
+    subprocess.run([claude, 'mcp', 'remove', '--scope', 'user', 'playwright'], capture_output=True, timeout=60, **store.NOWIN)
+    r = subprocess.run([claude, 'mcp', 'add', '--scope', 'user', 'playwright', '--'] + _pw_claude(), capture_output=True, timeout=60, **store.NOWIN)
+    if r.returncode != 0 and previous:   # never leave the twin without a browser: put the old entry back
+        subprocess.run([claude, 'mcp', 'add', '--scope', 'user', 'playwright', '--', previous['command']] + list(previous.get('args') or []),
+                       capture_output=True, timeout=60, **store.NOWIN)
+
+
 def install_claude():
     claude = shutil.which('claude')
     if not claude:
         return 'Claude Code CLI not found (skip). Install it, then rerun: applytwin install-agents'
     # a browser the agent can drive on any machine (Claude in Chrome works too, if installed); the profile keeps sign-ins
     if shutil.which('npx'):
-        subprocess.run([claude, 'mcp', 'remove', '--scope', 'user', 'playwright'], capture_output=True)
-        subprocess.run([claude, 'mcp', 'add', '--scope', 'user', 'playwright', '--'] + PLAYWRIGHT, capture_output=True)
+        _add_playwright(claude)
     _drop_plugin(claude)
     r3 = _claude_direct(claude)
     return ('Claude Code: MCP server added and skills copied to ~/.claude/skills' if r3.returncode == 0
@@ -132,6 +145,11 @@ def install_codex():
     if '[mcp_servers.applytwin]' not in txt:
         with open(cfg, 'a', encoding='utf-8') as f:
             f.write(block)
+    else:   # repair it in place (its Python may have been upgraded or removed since install)
+        txt2 = re.sub(r'(\[mcp_servers\.applytwin\](?:(?!\n\[).)*?\ncommand = )"[^\n]*"', lambda m: m.group(1) + q(_python()), txt, count=1, flags=re.S)
+        txt2 = re.sub(r'(\[mcp_servers\.applytwin\](?:(?!\n\[).)*?\nargs = )\[[^\n]*\]', lambda m: m.group(1) + f'[{q(APPLYTWIN_BIN)}, "mcp"]', txt2, count=1, flags=re.S)
+        if txt2 != txt:
+            open(cfg, 'w', encoding='utf-8').write(txt2)
     if '[mcp_servers.playwright]' not in txt and shutil.which('npx'):
         args = ', '.join(q(x) for x in PLAYWRIGHT[1:])
         with open(cfg, 'a', encoding='utf-8') as f:
@@ -162,9 +180,10 @@ def refresh_browser():
         cj = os.path.expanduser('~/.claude.json')
         cur = (json.load(open(cj, encoding='utf-8')).get('mcpServers') or {}).get('playwright') if os.path.exists(cj) else None
         claude = shutil.which('claude')
-        if claude and cur and BROWSER_PROFILE in (cur.get('args') or []) and cur.get('args') != PLAYWRIGHT[1:]:
-            subprocess.run([claude, 'mcp', 'remove', '--scope', 'user', 'playwright'], capture_output=True, timeout=60)
-            subprocess.run([claude, 'mcp', 'add', '--scope', 'user', 'playwright', '--'] + PLAYWRIGHT, capture_output=True, timeout=60)
+        want = _pw_claude()
+        if claude and cur and BROWSER_PROFILE in (cur.get('args') or []) and [cur.get('command')] + list(cur.get('args') or []) != want \
+                and not (os.path.basename(cur.get('command') or '') == want[0] and cur.get('args') == want[1:]):
+            _add_playwright(claude, previous=cur)
     except Exception:
         pass
     try:

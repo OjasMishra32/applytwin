@@ -717,7 +717,7 @@ def _close_twin_windows():
         if os.name == 'nt':
             ps = ("Get-CimInstance Win32_Process -Filter \"Name='chrome.exe' or Name='msedge.exe'\" | "
                   f"Where-Object {{ $_.CommandLine -like '*{prof}*' }} | ForEach-Object {{ Stop-Process -Id $_.ProcessId -Force }}")
-            subprocess.run(['powershell', '-NoProfile', '-Command', ps], capture_output=True, timeout=20)
+            subprocess.run(['powershell', '-NoProfile', '-Command', ps], capture_output=True, timeout=20, **store.NOWIN)
         else:
             subprocess.run(['pkill', '-f', f'--user-data-dir={prof}( |$)'], capture_output=True, timeout=10)
     except Exception:
@@ -758,7 +758,7 @@ def _start_run(agent, n, model, prompt, restarts):
     # run from the data folder, not the repo, so the agent loads the installed plugin rather than the repo's dev .mcp.json
     # the instructions go in on stdin: on Windows, claude/codex are .cmd wrappers and cmd.exe would mangle quotes in a long argument
     proc = subprocess.Popen(cmd, stdout=f, stderr=subprocess.STDOUT, stdin=subprocess.PIPE, cwd=store.HOME, text=True, encoding='utf-8',
-                            errors='replace', **({} if os.name == 'nt' else {'start_new_session': True}))   # its own group: Stop ends its browser too
+                            errors='replace', **(store.NOWIN if os.name == 'nt' else {'start_new_session': True}))   # its own group: Stop ends its browser too
     proc.stdin.write(prompt)
     proc.stdin.close()
     _run.update(proc=proc, agent=agent, log=logf, started=time.time(), stopped=False)
@@ -776,7 +776,7 @@ def _kill(proc):
     would leave the real agent running in the background."""
     if os.name == 'nt':
         import subprocess
-        subprocess.run(['taskkill', '/T', '/F', '/PID', str(proc.pid)], capture_output=True)
+        subprocess.run(['taskkill', '/T', '/F', '/PID', str(proc.pid)], capture_output=True, **store.NOWIN)
     else:
         import signal
         try:

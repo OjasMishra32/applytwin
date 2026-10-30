@@ -255,7 +255,7 @@ def agent_llm(text, timeout=600):
             if name == 'claude':
                 # a one-shot plan doesn't need the biggest model; Sonnet is several times faster for this
                 r = subprocess.run([agents.exe('claude'), '-p', '--model', 'sonnet', '--output-format', 'text', '--tools', ''], input=text, capture_output=True,
-                                   text=True, encoding='utf-8', errors='replace', timeout=timeout, cwd=store.HOME)
+                                   text=True, encoding='utf-8', errors='replace', timeout=timeout, cwd=store.HOME, **store.NOWIN)
                 if r.returncode == 0 and r.stdout.strip():
                     return r.stdout
             else:
@@ -264,7 +264,7 @@ def agent_llm(text, timeout=600):
                         out = f.name
                     cmd = [agents.exe('codex'), 'exec', '--skip-git-repo-check', '--ephemeral', '-s', 'read-only', '-o', out,
                            *agents.codex_model_args(), '-']
-                    r = subprocess.run(cmd, input=text, capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=timeout, cwd=store.HOME)
+                    r = subprocess.run(cmd, input=text, capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=timeout, cwd=store.HOME, **store.NOWIN)
                     reply = open(out, encoding='utf-8').read() if os.path.exists(out) else ''
                     if os.path.exists(out):
                         os.unlink(out)

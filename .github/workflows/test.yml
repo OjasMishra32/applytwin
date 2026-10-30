@@ -16,6 +16,17 @@ jobs:
       - run: python tests/e2e_careers.py
       - run: python tests/e2e_agents.py
 
+  oldest-python:
+    # the oldest Python ApplyTwin supports (many Macs and Ubuntu 22.04 still ship 3.9/3.10)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+      - run: python tests/smoke.py
+      - run: python tests/e2e_agents.py
+
   installer:
     # runs the real one-line installer on fresh machines, for this exact commit
     strategy:

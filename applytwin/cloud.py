@@ -10,6 +10,7 @@ import json
 import os
 import threading
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -73,7 +74,15 @@ def token():
         if not s:
             return None
         if time.time() > s.get('expires_at', 0):
-            r = _req('POST', '/auth/v1/token?grant_type=refresh_token', body={"refresh_token": s['refresh_token']})
+            try:
+                r = _req('POST', '/auth/v1/token?grant_type=refresh_token', body={"refresh_token": s['refresh_token']})
+            except urllib.error.HTTPError as e:
+                if e.code in (400, 401, 403):   # the login was revoked or expired for good: ask to sign in again
+                    p = store.path('auth.json')
+                    if os.path.exists(p):
+                        os.remove(p)
+                    return None
+                raise
             s.update(access_token=r['access_token'], refresh_token=r['refresh_token'], expires_at=time.time() + r.get('expires_in', 3600) - 60)
             _save(s)
         return s['access_token']
@@ -88,7 +97,7 @@ def logout():
     s = _session()
     if s:
         try:
-            _req('POST', '/auth/v1/logout', s['access_token'])
+            _req('POST', '/auth/v1/logout?scope=local', s['access_token'])   # only this computer, not every device
         except Exception:
             pass
     p = store.path('auth.json')

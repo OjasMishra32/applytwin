@@ -54,7 +54,10 @@ try {
 if ($env:APPLYTWIN_REF) { $Sha = $env:APPLYTWIN_REF }   # CI installs the exact commit under test
 $Ref = if ($Sha) { $Sha } else { 'refs/heads/main' }
 
-$tmp = Join-Path ([IO.Path]::GetTempPath()) ("applytwin-" + [guid]::NewGuid())
+# unpack next to the install folder (same drive), so moving it into place can't fail halfway across drives
+$parent = Split-Path $Dir -Parent
+if (-not (Test-Path $parent)) { New-Item -ItemType Directory $parent | Out-Null }
+$tmp = Join-Path $parent (".applytwin-install-" + [guid]::NewGuid())
 New-Item -ItemType Directory $tmp | Out-Null
 try {
   Invoke-WebRequest "https://codeload.github.com/$Repo/zip/$Ref" -OutFile "$tmp\a.zip" -UseBasicParsing
@@ -66,13 +69,26 @@ try {
   Move-Item $top.FullName $Dir
   if (Test-Path "$Dir.old") { Remove-Item "$Dir.old" -Recurse -Force }
   if ($Sha) { Set-Content "$Dir\INSTALLED" $Sha -NoNewline }   # lets the app update itself from here on
-} finally { Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue }
+} finally {
+  if (-not (Test-Path $Dir) -and (Test-Path "$Dir.old")) { Rename-Item "$Dir.old" $Dir }   # never leave you without the app
+  Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
+}
 Ok "ApplyTwin in $Dir"
 
 # an `applytwin` command, on PATH for new terminals
-Set-Content "$Dir\applytwin.cmd" "@`"$Py`" `"%~dp0bin\applytwin`" %*" -Encoding ASCII
-$userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
-if (($userPath -split ';') -notcontains $Dir) { [Environment]::SetEnvironmentVariable('Path', "$userPath;$Dir", 'User') }
+# the short (8.3) path keeps it working for usernames with accents (José), which an ASCII .cmd file can't hold
+$PyCmd = $Py
+try { $s = (New-Object -ComObject Scripting.FileSystemObject).GetFile($Py).ShortPath; if ($s) { $PyCmd = $s } } catch {}
+Set-Content "$Dir\applytwin.cmd" "@`"$PyCmd`" `"%~dp0bin\applytwin`" %*" -Encoding ASCII
+# add to the user PATH without expanding entries like %NVM_SYMLINK% (SetEnvironmentVariable would freeze them)
+$envKey = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', $true)
+$rawPath = [string]$envKey.GetValue('Path', '', [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+if (($rawPath -split ';') -notcontains $Dir) {
+  $envKey.SetValue('Path', ($(if ($rawPath) { "$rawPath;$Dir" } else { $Dir })), [Microsoft.Win32.RegistryValueKind]::ExpandString)
+  [Environment]::SetEnvironmentVariable('APPLYTWIN_PATH_REFRESH', '1', 'User')   # tells Windows the environment changed
+  [Environment]::SetEnvironmentVariable('APPLYTWIN_PATH_REFRESH', $null, 'User')
+}
+$envKey.Close()
 $env:Path = "$env:Path;$Dir"
 Run $Py -m pip install --quiet --user pypdf | Out-Null   # optional: lets the ATS check read PDFs; never stops the install
 
