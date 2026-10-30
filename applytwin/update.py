@@ -33,7 +33,12 @@ def installed():
 
 
 def latest():
-    return json.loads(_get(f'https://api.github.com/repos/{REPO}/commits/main'))['sha']
+    """The newest commit on main whose tests passed in CI, so a broken push never reaches anyone's install."""
+    for c in json.loads(_get(f'https://api.github.com/repos/{REPO}/commits?sha=main&per_page=6')):
+        runs = json.loads(_get(f"https://api.github.com/repos/{REPO}/commits/{c['sha']}/check-runs")).get('check_runs', [])
+        if runs and all(r.get('status') == 'completed' and r.get('conclusion') in ('success', 'skipped', 'neutral') for r in runs):
+            return c['sha']
+    return ''
 
 
 def check():
@@ -55,6 +60,8 @@ def apply(sha=None):
     if is_checkout():
         return {"updated": False, "reason": "This is a git checkout; use git pull."}
     sha = sha or latest()
+    if not sha:
+        return {"updated": False, "reason": "No tested version available right now."}
     tmp = tempfile.mkdtemp(prefix='applytwin-update-')
     try:
         tgz = os.path.join(tmp, 'a.tgz')

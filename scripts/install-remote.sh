@@ -6,7 +6,17 @@ set -euo pipefail
 
 BASE="${APPLYTWIN_URL:-https://apply.twinly.tech}"
 REPO="OjasMishra32/applytwin"   # the open-source repo
-SHA="$(curl -fsSL "https://api.github.com/repos/$REPO/commits/main" 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin)["sha"])' 2>/dev/null || true)"
+# newest commit on main that passed CI (falls back to main if GitHub's API is unreachable)
+SHA="$(python3 - "$REPO" <<'PY' 2>/dev/null || true
+import json, sys, urllib.request
+repo = sys.argv[1]
+get = lambda u: json.load(urllib.request.urlopen(urllib.request.Request(u, headers={"User-Agent": "ApplyTwin-installer"}), timeout=10))
+for c in get(f"https://api.github.com/repos/{repo}/commits?sha=main&per_page=6"):
+    runs = get(f"https://api.github.com/repos/{repo}/commits/{c['sha']}/check-runs").get("check_runs", [])
+    if runs and all(r.get("status") == "completed" and r.get("conclusion") in ("success", "skipped", "neutral") for r in runs):
+        print(c["sha"]); break
+PY
+)"
 SRC="${APPLYTWIN_SRC:-https://codeload.github.com/$REPO/tar.gz/${SHA:-refs/heads/main}}"
 DIR="${APPLYTWIN_DIR:-$HOME/.applytwin-app}"
 b() { printf '\033[1m%s\033[0m\n' "$*"; }
