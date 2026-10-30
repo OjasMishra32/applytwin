@@ -998,6 +998,31 @@ class _Track:
         PROGRESS[key] = self
         if ai:
             self.stage('plan')
+        # Autopilot's tools run in another process than the app: publish progress to a file once a second so the app
+        # can show it wherever the build runs
+        self.live = True
+        __import__('threading').Thread(target=self._publish, daemon=True).start()
+
+    def _file(self):
+        from . import store
+        os.makedirs(store.path('progress'), exist_ok=True)
+        return store.path('progress', re.sub(r'[^\w-]', '_', str(self.key)) + '.json')
+
+    def _publish(self):
+        import time
+        while self.live:
+            try:
+                tmp = self._file() + '.tmp'
+                with open(tmp, 'w', encoding='utf-8') as f:
+                    json.dump(self.view(), f)
+                os.replace(tmp, self._file())
+            except Exception:
+                pass
+            time.sleep(1)
+        try:
+            os.unlink(self._file())
+        except OSError:
+            pass
 
     def written(self, n):
         import time
@@ -1027,7 +1052,15 @@ class _Track:
         import time
         self._close(time.time())
         _record(self.secs, self.stream)
+        self.stop()
+
+    def stop(self):
+        self.live = False
         PROGRESS.pop(self.key, None)
+        try:
+            os.unlink(self._file())
+        except OSError:
+            pass
 
     def view(self):
         import time
@@ -1060,8 +1093,24 @@ class _Track:
 
 
 def progress(key):
+    """The live view of a build for this job, from this process or (Autopilot's builds) the file another process keeps
+    fresh. A file older than a few seconds belongs to a build that died."""
+    import time
     p = PROGRESS.get(key)
-    return p.view() if p else None
+    if p:
+        return p.view()
+    from . import store
+    f = store.path('progress', re.sub(r'[^\w-]', '_', str(key)) + '.json')
+    try:
+        age = time.time() - os.path.getmtime(f)
+        if age < 4:
+            v = json.load(open(f, encoding='utf-8'))
+            v['eta'] = max(1.0, v['eta'] - age)
+            v['elapsed'] += age
+            return v
+    except (OSError, ValueError):
+        pass
+    return None
 
 
 def tailor(v, job, jd, mode='auto', plan=None, style=None, out_dir=None):
@@ -1073,7 +1122,7 @@ def tailor(v, job, jd, mode='auto', plan=None, style=None, out_dir=None):
         track.done()
         return r
     except Exception:
-        PROGRESS.pop(track.key, None)
+        track.stop()
         raise
     finally:
         _SINK.fn = None

@@ -9,6 +9,29 @@ import { Avatar, Segmented, burst, spring } from '../components/ui'
 import { REPO_URL } from '../lib/star'
 import { ItemActions } from '../components/ItemActions'
 
+const clock = s => { s = Math.max(0, Math.round(s)); return s >= 60 ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` : `${s}s` }
+
+// The resume for the current job, written while the twin fills the form: its real step and time left.
+function ResumeLine({ p }) {
+  const [seen, setSeen] = useState(Date.now())
+  const [now, setNow] = useState(Date.now())
+  useEffect(() => { const i = setInterval(() => setNow(Date.now()), 250); return () => clearInterval(i) }, [])
+  useEffect(() => setSeen(Date.now()), [p])
+  const drift = Math.min(3, (now - seen) / 1000)   // between status polls, keep the countdown moving
+  const left = Math.max(1, p.eta - drift), elapsed = p.elapsed + drift
+  const label = (p.steps || []).find(s => s.state === 'now')?.label || 'Writing your resume'
+  return (
+    <div className="mt-3 max-w-[460px]">
+      <div className="flex items-baseline justify-between gap-3 text-[13px]">
+        <span className="truncate text-white/80">Resume: {label}</span>
+        <span className="shrink-0 tabular-nums text-muted">about {clock(left)} left</span>
+      </div>
+      <div className="mt-1.5 h-[3px] overflow-hidden rounded-full bg-white/[.08]">
+        <motion.div className="h-full rounded-full bg-white/60" animate={{ width: `${Math.min(97, (elapsed / (elapsed + left)) * 100)}%` }} transition={{ ease: 'linear', duration: 0.25 }} />
+      </div>
+    </div>)
+}
+
 /* Autopilot, Apple-style: one quiet hero that says what your twin is doing, grouped lists for everything else. */
 
 const SIZES = [5, 10, 25, 50, 100, 250]
@@ -100,6 +123,7 @@ export default function Agents() {
                 </AnimatePresence>
               </div>
               <div className="mt-1 text-[15px] text-muted">{subline}</div>
+              {running && now?.resume && <ResumeLine p={now.resume} />}
               {running && <div className="mt-2 text-[13px] text-faint">Watch it live in the Chrome window your twin opened. Don't close that window; it's the twin's.</div>}
               {running && (
                 <div className="mt-6 h-[5px] max-w-[460px] overflow-hidden rounded-full bg-white/[.08]">

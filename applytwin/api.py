@@ -979,7 +979,8 @@ def run_status():
     a = store.load('activity.json', {}) or {}
     if p and p.poll() is None and a.get('at', 0) >= _run.get('started', 0):
         j = (store.rows('select company, title, apply_url, url from jobs where id=?', (a.get('job_id') or '',)) or [{}])[0]
-        now = {"step": a.get('step'), "company": j.get('company', ''), "title": j.get('title', ''), "url": j.get('apply_url') or j.get('url') or '', "at": a['at']}
+        now = {"step": a.get('step'), "company": j.get('company', ''), "title": j.get('title', ''), "url": j.get('apply_url') or j.get('url') or '', "at": a['at'],
+               "resume": tailor.progress(a.get('job_id') or '')}   # this job's resume being written, if it is
     return {"running": bool(p and p.poll() is None), "agent": _run['agent'], "log": log, "now": now,
             "exit": None if not p or p.poll() is None else p.returncode}
 
