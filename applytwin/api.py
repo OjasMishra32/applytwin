@@ -396,9 +396,41 @@ def on_start():
         refresh_resumes()
     except Exception:
         pass
+    threading.Thread(target=_hydrate_loop, daemon=True).start()
     time.sleep(20)
     if not (_run['proc'] and _run['proc'].poll() is None):
         _next_followup()
+
+
+def hydrate_descriptions(limit=20, pause=1.5):
+    """Fetch the full posting for your best-matching queued jobs that only came with a one-line summary (the community
+    lists), a few at a time and slowly, so fit scores and resumes use the real requirements instead of a title."""
+    p = store.profile()
+    rows = store.rows("select * from jobs where status='new' and fit>=? and length(coalesce(description,''))<400 "
+                      "order by fit desc limit ?", (p['search'].get('min_fit', 65), limit))
+    n = 0
+    for j in rows:
+        try:
+            d = sources.fetch_description(j)
+            if d and len(d) >= 400:
+                f, why = match.fit({**j, 'description': d}, p)
+                store.execute('update jobs set fit=?, fit_why=? where id=?', (f, why, j['id']))
+                n += 1
+        except Exception:
+            pass
+        time.sleep(pause)
+    return n
+
+
+def _hydrate_loop():
+    while True:
+        try:
+            if hydrate_descriptions() == 0:
+                time.sleep(3600)   # nothing left to fill in: look again in an hour
+            else:
+                time.sleep(600)
+        except Exception:
+            time.sleep(3600)
 
 
 def refresh_resumes():
