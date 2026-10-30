@@ -35,7 +35,8 @@ jobs:
         shell: pwsh
         run: |
           $env:APPLYTWIN_REF = '${{ github.sha }}'; $env:APPLYTWIN_NO_APP = '1'
-          ./scripts/install-remote.ps1
+          Get-Content scripts/install-remote.ps1 -Raw | Invoke-Expression   # exactly how users run it (irm | iex)
+          Write-Host 'PowerShell window still open after install'
       - name: Installed app runs
         shell: bash
         run: |

@@ -1,13 +1,16 @@
 # ApplyTwin installer for Windows:  irm apply.twinly.tech/install.ps1 | iex
 # Installs (or updates) ApplyTwin in %USERPROFILE%\.applytwin-app, connects it to Claude Code and Codex, checks your
 # setup, opens the app. No API keys: it runs on the Claude Code or Codex plan you already have.
+# Runs inside the user's own PowerShell window (irm | iex): it never calls exit (that would close the window), and the
+# whole script is one script block so the preferences it sets don't leak into the user's session.
+& {
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 $Repo = 'OjasMishra32/applytwin'
 $Dir = if ($env:APPLYTWIN_DIR) { $env:APPLYTWIN_DIR } else { Join-Path $env:USERPROFILE '.applytwin-app' }
 function Ok($m) { Write-Host "  v $m" -ForegroundColor Green }
 function Warn($m) { Write-Host "  ! $m" -ForegroundColor Yellow }
-function Die($m) { Write-Host "  x $m" -ForegroundColor Red; exit 1 }
+function Die($m) { Write-Host "  x $m" -ForegroundColor Red; throw "ApplyTwin install stopped: $m" }
 
 Write-Host "Installing ApplyTwin" -ForegroundColor White
 
@@ -70,5 +73,6 @@ Write-Host "`nConnecting your agents" -ForegroundColor White
 Write-Host "`nChecking your setup" -ForegroundColor White
 & $Py "$Dir\bin\applytwin" doctor
 Write-Host "`nOpening ApplyTwin at http://localhost:4747  (Ctrl+C to stop, 'applytwin app' to open it again)" -ForegroundColor White
-if ($env:APPLYTWIN_NO_APP) { exit 0 }
+if ($env:APPLYTWIN_NO_APP) { return }
 if ($env:APPLYTWIN_NO_OPEN) { & $Py "$Dir\bin\applytwin" app --no-open } else { & $Py "$Dir\bin\applytwin" app }
+}
