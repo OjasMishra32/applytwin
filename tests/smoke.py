@@ -244,6 +244,33 @@ _ag.status = lambda n, fresh=False: {"name": n, "signed_in": n == 'codex', "labe
 _pick = api.pick_agent('claude')
 _sh.which, _ag.status = _ow, _os
 res.append(ok(_pick == 'codex', f'a run asked to use Claude uses Codex when only Codex is set up ({_pick})'))
+# getting an agent ready from the app: signed in already, no Node to install with, and a real sign-in started
+import shutil as _sh2, subprocess as _sp2
+from applytwin import agents as _ag2
+_ow2, _os2, _op2 = _sh2.which, _ag2.status, _sp2.Popen
+_ag2.status = lambda n, fresh=False: {"name": n, "label": n, "installed": True, "signed_in": n == 'claude'}
+_r1 = api.connect_agent('claude')
+_sh2.which = lambda n, *a, **k: None   # neither codex nor npm on this machine
+_ag2.status = lambda n, fresh=False: {"name": n, "label": n, "installed": False, "signed_in": False}
+api.connect_agent('codex')
+for _ in range(50):
+    if (api._connecting.get('codex') or {}).get('step') == 'failed':
+        break
+    time.sleep(0.05)
+_r2 = api._connecting.get('codex') or {}
+api._connecting.pop('codex', None)
+_started = []
+_sh2.which = lambda n, *a, **k: '/usr/local/bin/' + n
+_sp2.Popen = lambda cmd, **k: _started.append(cmd) or type('P', (), {'poll': lambda self: None, 'pid': 0})()
+api.connect_agent('codex')
+for _ in range(50):
+    if _started:
+        break
+    time.sleep(0.05)
+_sh2.which, _ag2.status, _sp2.Popen = _ow2, _os2, _op2
+api._connecting.pop('codex', None)
+res.append(ok(_r1.get('signed_in') and _r2.get('step') == 'failed' and 'Node.js' in (_r2.get('error') or '')
+              and _started and _started[0][-1] == 'login', f'agents install and sign in from the app ({_r2.get("error", "")[:40]}; {_started})'))
 # real form questions that used to get the wrong answer
 _pb = _an.default_bank({'name': 'Maya Chen', 'location': 'Austin, TX', 'grad_month': 'May', 'grad_year': '2028', 'major': 'Computer Science',
                         'work_authorized_us': True, 'needs_sponsorship': True, 'government_employee': False, 'willing_to_relocate': True})

@@ -125,7 +125,7 @@ def doctor():
             add(a['name'], False, f"{a['label']} installed", 'not found on PATH', INSTALL[a['name']], optional=True)
         else:
             add(a['name'], a['signed_in'], f"{a['label']} signed in", a['version'] + (f" · {a['how']}" if a['how'] else ''),
-                '' if a['signed_in'] else f"Run: {LOGIN[a['name']]}", optional=True)
+                '' if a['signed_in'] else 'Press Sign in on the Autopilot page', optional=True)
     add('agent', any(a['signed_in'] for a in ag), 'At least one agent ready', 'Claude Code or Codex, on your own subscription',
         'Install and sign in to Claude Code or Codex (any paid plan works, no API key)')
     add('npx', bool(shutil.which('npx')), 'Node.js (for the browser)', shutil.which('npx') or 'npx not found', 'Install Node.js from nodejs.org')

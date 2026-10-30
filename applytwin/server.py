@@ -76,6 +76,7 @@ POST = {
     r'/api/finish': lambda m, qs, b: api.finish_jobs(b.get('job_ids') or [], bool(b.get('submit'))),
     r'/api/open-twin': lambda m, qs, b: api.open_in_twin_browser(b['url']),
     r'/api/history': lambda m, qs, b: api.import_history(text=b.get('text', '')),
+    r'/api/agents/(claude|codex)/connect': lambda m, qs, b: api.connect_agent(m.group(1)),
     r'/api/history/email': lambda m, qs, b: api.start_run(b.get('agent') or api.store.profile()['apply'].get('agent') or 'claude', 1,
                                                           prompt=api.email_history_prompt()),
     r'/api/auth': lambda m, qs, b: cloud.set_session(b['access_token'], b['refresh_token'], b.get('expires_in', 3600)),

@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { toast } from 'sonner'
 import { ArrowLeft, Check, Copy, FileText, Loader2 } from 'lucide-react'
+import { AgentConnect } from '../components/AgentConnect'
 import { api } from '../lib/api'
 import { useApp } from '../App'
 import { Sky } from '../components/Sky'
@@ -41,7 +42,8 @@ export default function Welcome() {
   const picked = (s.season || '').split(',').map(x => x.trim()).filter(Boolean)
   const intern = ['internship', 'co-op'].includes(s.kind)
   const groupLeft = g => missing((qs || []).filter(q => q.group === g), p).length
-  useEffect(() => { api('/api/agents').then(setAgents).catch(() => setAgents({})) }, [])
+  const loadAgents = useCallback(() => api('/api/agents').then(setAgents).catch(() => setAgents(a => a || {})), [])
+  useEffect(() => { loadAgents() }, [loadAgents])
 
   const save = () => api('/api/profile', p)
   const upload = async body => {
@@ -214,8 +216,7 @@ export default function Welcome() {
               <div className="flex items-center justify-between"><span className="text-[17px] font-semibold text-white">{l}</span>{sel && <Check className="size-5 text-signal" />}</div>
               <div className="mt-1 text-[13px]" style={{ color: !st ? '#98a2c3' : st.signed_in ? '#30d158' : '#ff9f0a' }}>
                 {!st ? 'Checking…' : !st.installed ? 'Not installed' : st.signed_in ? 'Signed in, ready' : 'Installed, signed out'}</div>
-              {st && !st.signed_in && <div className="mt-3 text-[12.5px] text-muted">{st.installed ? <>In a terminal run <code className="text-white">{cmd}</code> {extra}</>
-                : <>Install: <code className="text-white">npm i -g {k === 'claude' ? '@anthropic-ai/claude-code' : '@openai/codex'}</code></>}</div>}
+              <AgentConnect name={k} st={st} onChange={loadAgents} />
             </button>)
         })}
       </div>

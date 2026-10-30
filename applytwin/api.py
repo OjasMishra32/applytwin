@@ -720,7 +720,77 @@ def doctor():
 
 
 def agent_status():
-    return {n: agents.status(n) for n in agents.NAMES}
+    return {n: {**agents.status(n, fresh=bool(_connecting.get(n))), "connecting": _connect_view(n)} for n in agents.NAMES}
+
+
+_connecting = {}   # name -> {"step": "installing" | "signing_in" | "failed", "at", "error", "proc"}
+LOGIN_CMD = {'claude': ['auth', 'login', '--claudeai'], 'codex': ['login']}
+NPM_PKG = {'claude': '@anthropic-ai/claude-code', 'codex': '@openai/codex'}
+
+
+def _connect_view(name):
+    c = _connecting.get(name)
+    if not c:
+        return None
+    if c['step'] == 'signing_in' and agents.status(name, fresh=True)['signed_in']:
+        _connecting.pop(name, None)   # done: the browser sign-in finished
+        return None
+    if time.time() - c['at'] > 900 and c['step'] != 'failed':   # nobody finished in 15 minutes: stop waiting
+        _kill_connect(c)
+        _connecting.pop(name, None)
+        return None
+    return {k: c.get(k) for k in ('step', 'error', 'at')}
+
+
+def _kill_connect(c):
+    p = c.get('proc')
+    if p and p.poll() is None:
+        try:
+            store.kill_tree(p)
+        except Exception:
+            pass
+
+
+def connect_agent(name):
+    """Get Claude Code or Codex ready without a terminal: install it if it's missing (npm), then start its sign-in, which
+    opens the browser on Claude's or ChatGPT's own login page. The app notices the moment it's done."""
+    import shutil
+    import subprocess
+    if name not in agents.NAMES:
+        raise ValueError('unknown agent')
+    if agents.status(name, fresh=True)['signed_in']:
+        return {"ok": True, "signed_in": True}
+    old = _connecting.get(name)
+    if old and old['step'] in ('installing', 'signing_in') and time.time() - old['at'] < 900:
+        return {"ok": True, "connecting": _connect_view(name)}
+    if old:
+        _kill_connect(old)
+    c = {"step": "installing", "at": time.time(), "error": None, "proc": None}
+    _connecting[name] = c
+
+    def work():
+        log = open(store.path(f'connect-{name}.log'), 'w', encoding='utf-8')
+        try:
+            if not shutil.which(name):
+                npm = shutil.which('npm')
+                if not npm:
+                    c.update(step='failed', error="Node.js isn't installed, so it can't be installed for you. Get it from nodejs.org, "
+                                                  "then press this again.")
+                    return
+                r = subprocess.run([npm, 'install', '-g', NPM_PKG[name]], stdout=log, stderr=subprocess.STDOUT, timeout=600, **store.NOWIN)
+                agents._cache.pop(name, None)
+                if r.returncode != 0 or not shutil.which(name):
+                    c.update(step='failed', error=f"Installing {agents.NAMES[name]} didn't finish. Run: npm install -g {NPM_PKG[name]}")
+                    return
+            c.update(step='signing_in', at=time.time())
+            c['proc'] = subprocess.Popen([shutil.which(name), *LOGIN_CMD[name]], stdin=subprocess.DEVNULL, stdout=log,
+                                         stderr=subprocess.STDOUT, cwd=store.HOME, **store.NOWIN)
+        except Exception as e:
+            c.update(step='failed', error=str(e)[:200])
+        finally:
+            log.close()
+    threading.Thread(target=work, daemon=True).start()
+    return {"ok": True, "connecting": _connect_view(name)}
 
 
 def finish_prompt(job_ids, submit=False):
@@ -960,7 +1030,7 @@ def _start_run(agent, n, model, prompt, restarts):
                            f"(Settings shows how), sign in once, then try again.")
     st = agents.status(agent, fresh=True)
     if not st['signed_in']:
-        raise RuntimeError(f"{st['label']} is signed out. Run `{agents.LOGIN[agent]}` in a terminal, then press Launch again.")
+        raise RuntimeError(f"{st['label']} is signed out. Press Sign in on the Autopilot page, finish in your browser, then press Start again.")
     from . import cloud
     if not (cloud.status()['signed_in'] or os.environ.get('APPLYTWIN_SKIP_SIGNIN') or os.environ.get('CI')):
         raise RuntimeError('Sign in first: open ApplyTwin (type applytwin in a terminal) and continue with Google.')
@@ -1089,7 +1159,7 @@ def _watch_run_body(proc, agent, logf, n, model, prompt=None, restarts=0, run_id
         if fb:
             return start_run(agent, n, model=fb, prompt=prompt, restarts=restarts + 1)
     if any(e in tail for e in AUTH_ERRORS):
-        fix = 'run `claude` in a terminal and type /login' if agent == 'claude' else 'run `codex login` in a terminal'
+        fix = 'press Sign in on the Autopilot page'
         notify(f'Sign in to {name}', f'Your {name} login expired: {fix}, then press Launch again.', kind='signin')
     elif proc.returncode and not _run.get('stopped'):
         notify(f'{name} stopped early', f'Exit code {proc.returncode}. The last lines are in the Autopilot log.', kind='error')

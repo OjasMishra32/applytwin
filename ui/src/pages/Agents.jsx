@@ -9,6 +9,7 @@ import { Avatar, Segmented, burst, spring } from '../components/ui'
 import { REPO_URL } from '../lib/star'
 import { atsName } from '../lib/utils'
 import { ItemActions } from '../components/ItemActions'
+import { AgentConnect } from '../components/AgentConnect'
 
 const clock = s => { s = Math.max(0, Math.round(s)); return s >= 60 ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` : `${s}s` }
 
@@ -145,9 +146,9 @@ export default function Agents() {
                 </div>
               </div>
               <div className="min-h-[18px] text-[12.5px]" style={{ color: !st || st.signed_in ? 'var(--color-muted)' : ORANGE }}>
-                {!st ? '' : !st.installed ? `${label} isn't installed` : st.signed_in ? `Signed in · runs on your ${label} plan, no API key`
-                  : `Signed out. Run ${agent === 'claude' ? '`claude` then /login' : '`codex login`'}`}
+                {!st ? '' : st.signed_in ? `Signed in · runs on your ${label} plan, no API key` : !st.installed ? `${label} isn't installed yet` : `${label} is signed out`}
               </div>
+              <AgentConnect name={agent} st={st} compact onChange={() => api('/api/agents').then(setAgents).catch(() => {})} />
               <motion.button whileTap={{ scale: 0.96 }} transition={spring} onClick={running ? stop : start} disabled={!running && st && !st.signed_in}
                 className="mt-1 h-11 w-full rounded-full px-10 text-[15px] font-semibold text-white transition-colors disabled:cursor-default disabled:opacity-40 sm:w-auto"
                 style={{ background: running ? 'rgb(255 255 255 / .1)' : BLUE }}>
