@@ -5,7 +5,9 @@
 set -euo pipefail
 
 BASE="${APPLYTWIN_URL:-https://apply.twinly.tech}"
-SRC="${APPLYTWIN_SRC:-https://codeload.github.com/OjasMishra32/applytwin/tar.gz/refs/heads/main}"   # the open-source repo
+REPO="OjasMishra32/applytwin"   # the open-source repo
+SHA="$(curl -fsSL "https://api.github.com/repos/$REPO/commits/main" 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin)["sha"])' 2>/dev/null || true)"
+SRC="${APPLYTWIN_SRC:-https://codeload.github.com/$REPO/tar.gz/${SHA:-refs/heads/main}}"
 DIR="${APPLYTWIN_DIR:-$HOME/.applytwin-app}"
 b() { printf '\033[1m%s\033[0m\n' "$*"; }
 ok() { printf '\033[32m✓\033[0m %s\n' "$*"; }
@@ -33,6 +35,7 @@ top="$(find "$tmp/x" -mindepth 1 -maxdepth 1 -type d | head -1)"
 [ -f "$top/bin/applytwin" ] || die "The download looks incomplete. Try again in a minute."
 rm -rf "$DIR.old"; [ -d "$DIR" ] && mv "$DIR" "$DIR.old"
 mv "$top" "$DIR" && rm -rf "$DIR.old"
+[ -n "$SHA" ] && echo "$SHA" > "$DIR/INSTALLED"   # lets the app update itself from here on
 chmod +x "$DIR/bin/applytwin"
 ok "ApplyTwin $(cat "$DIR/VERSION" 2>/dev/null || echo '') in $DIR"
 python3 -m pip install --quiet --user pypdf >/dev/null 2>&1 || true   # optional: lets the ATS check read PDFs

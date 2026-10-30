@@ -29,20 +29,28 @@ import threading
 _disc_lock = threading.Lock()
 UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36'
 
-COMMUNITY_LISTS = [
-    'https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json',
-    'https://raw.githubusercontent.com/SimplifyJobs/Summer2026-Internships/dev/.github/scripts/listings.json',
-    'https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json',
-    'https://raw.githubusercontent.com/vanshb03/Summer2027-Internships/dev/.github/scripts/listings.json',
-    'https://raw.githubusercontent.com/vanshb03/New-Grad-2027/dev/.github/scripts/listings.json',
-]
-TABLE_LISTS = [   # trackers published as README tables (markdown or HTML)
-    'https://raw.githubusercontent.com/speedyapply/2027-SWE-College-Jobs/main/README.md',
-    'https://raw.githubusercontent.com/speedyapply/2027-AI-College-Jobs/main/README.md',
-    'https://raw.githubusercontent.com/northwesternfintech/2027QuantInternships/main/README.md',
-    'https://raw.githubusercontent.com/zapplyjobs/New-Grad-Jobs/main/README.md',
-    'https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/README-Off-Season.md',
-]
+def _cycles():
+    """Recruiting cycles to read, computed from today's date so the lists roll over by themselves every year:
+    from August, next summer's lists are live (in Oct 2026 that's Summer 2027 and 2028); before that, this summer's."""
+    t = time.gmtime()
+    first = t.tm_year + (1 if t.tm_mon >= 8 else 0)
+    return [first, first + 1]
+
+
+def _lists():
+    """Every tracker for the current cycles. Lists that don't exist yet (next year's) just return 404 and are skipped."""
+    gh = 'https://raw.githubusercontent.com/'
+    js = [gh + 'SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json']
+    md = []
+    for y in _cycles():
+        js += [gh + f'SimplifyJobs/Summer{y}-Internships/dev/.github/scripts/listings.json',
+               gh + f'vanshb03/Summer{y}-Internships/dev/.github/scripts/listings.json',
+               gh + f'vanshb03/New-Grad-{y}/dev/.github/scripts/listings.json']
+        md += [gh + f'speedyapply/{y}-SWE-College-Jobs/main/README.md', gh + f'speedyapply/{y}-AI-College-Jobs/main/README.md',
+               gh + f'northwesternfintech/{y}QuantInternships/main/README.md',
+               gh + f'SimplifyJobs/Summer{y}-Internships/dev/README-Off-Season.md']
+    md.append(gh + 'zapplyjobs/New-Grad-Jobs/main/README.md')
+    return js, md
 
 
 def get(url, data=None, timeout=20):
@@ -174,7 +182,7 @@ def workday(spec, search='intern'):
 
 def community():
     out, seen = [], set()
-    for url in COMMUNITY_LISTS:
+    for url in _lists()[0]:
         try:
             items = get(url, timeout=40)
         except Exception:
@@ -462,7 +470,7 @@ def scan(sources=None, on_progress=None, workers=32):
     if 'community' in sources:
         tasks.append(('community', community, ()))
     if 'tables' in sources:
-        tasks += [(f'tracker:{u.split("/")[3]}/{u.split("/")[4]}', lambda u=u: table_list(u), ()) for u in TABLE_LISTS]
+        tasks += [(f'tracker:{u.split("/")[3]}/{u.split("/")[4]}', lambda u=u: table_list(u), ()) for u in _lists()[1]]
     if 'themuse' in sources:
         tasks.append(('themuse', lambda k=kind: list(themuse(k)), ()))
     if 'remote' in sources and kind != 'internship':
@@ -487,7 +495,7 @@ def scan(sources=None, on_progress=None, workers=32):
     now = time.time()
     boards = {'greenhouse': greenhouse, 'lever': lever, 'ashby': ashby, 'workday': workday, 'smartrecruiters': smartrecruiters_company,
               'workable': workable, 'recruitee': recruitee}
-    with ThreadPoolExecutor(workers) as ex, store.db() as con:
+    with ThreadPoolExecutor(workers) as ex:
         futs = {ex.submit(fn, *a): name for name, fn, a in tasks}
         while futs:
             done, _ = wait(futs, return_when=FIRST_COMPLETED)
@@ -509,7 +517,8 @@ def scan(sources=None, on_progress=None, workers=32):
                             futs[ex.submit(lambda fn=boards[ats_name], t=t: list(fn(t)))] = f'{ats_name}:{t}'
                             stats['sources'] += 1
                             stats['discovered'] = stats.get('discovered', 0) + 1
-                _ingest(con, jobs, prof, vault_terms, stats, now)
+                with store.db() as con:   # short transaction per board, so the app can keep writing while a scan runs
+                    _ingest(con, jobs, prof, vault_terms, stats, now)
                 if on_progress:
                     on_progress(dict(stats))
     return stats

@@ -93,6 +93,7 @@ def scan(sources_list=None, background=False):
         _scan.update(running=True, started=time.time(), stats={})
         try:
             _scan['stats'] = sources.scan(sources_list, on_progress=lambda s: _scan.update(stats=s))
+            store.save('last_scan.json', {"at": time.time(), "stats": _scan['stats']})
         finally:
             _scan.update(running=False, finished=time.time())
     if background:
@@ -103,7 +104,20 @@ def scan(sources_list=None, background=False):
 
 
 def scan_status():
-    return dict(_scan)
+    return {**_scan, "last": store.load('last_scan.json', {}).get('at')}
+
+
+def scan_if_stale(hours=12):
+    """Keep the job list fresh without anyone pressing Scan: rescan in the background when the last one is old."""
+    last = store.load('last_scan.json', {}).get('at', 0)
+    if time.time() - last > hours * 3600 and (store.resume().get('experience') or store.resume().get('projects')):
+        return scan(background=True)
+    return {"running": False, "fresh": True}
+
+
+def update_status():
+    from . import update
+    return update.check()
 
 
 def list_jobs(query='', status='new', min_fit=None, limit=100, ats_filter=None, order='fit'):
@@ -399,7 +413,7 @@ def queue(n=50):
         per[c] = per.get(c, 0) + 1
         j['dream'] = any(d in c for d in dream)
         out.append(j)
-    out.sort(key=lambda j: (not j['dream'], -j['fit']))
+    out.sort(key=lambda j: (not j['dream'], j.get('source') != 'manual', -j['fit']))   # dream companies, then jobs you added, then fit
     left = max(0, p['apply'].get('daily_limit', 40) - store.applied_count_today())
     return {"total": len(out), "dream": sum(j['dream'] for j in out), "remaining_today": left, "jobs": out[:int(n)]}
 

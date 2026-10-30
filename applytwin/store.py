@@ -27,13 +27,13 @@ DEFAULT_PROFILE = {
     "school": "", "degree": "Bachelor of Science", "major": "", "minor": "", "gpa": "",
     "grad_month": "May", "grad_year": "", "start_year": "", "class_standing": "",
     "work_authorized_us": True, "needs_sponsorship": False, "citizenship": "",
-    "willing_to_relocate": True, "earliest_start": "May 2027",
+    "willing_to_relocate": True, "earliest_start": "",
     "eeo": {"gender": "Decline to self-identify", "race": "Decline to self-identify",
             "hispanic": "Decline to self-identify", "veteran": "I am not a protected veteran",
             "disability": "I do not want to answer", "pronouns": ""},
     "search": {
         "kind": "internship",                       # internship | new-grad | full-time
-        "season": "Summer 2027",
+        "season": "",
         "roles": ["software engineer", "machine learning", "data science", "quant"],
         "include": [], "exclude": ["phd", "mba", "master", "senior", "staff", "principal", "manager"],
         "locations": ["United States", "Remote"],
@@ -88,8 +88,21 @@ def save(name, obj):
     return obj
 
 
+def next_summer():
+    """The internship cycle students are recruiting for right now (from August on, it's next summer)."""
+    t = time.gmtime()
+    return t.tm_year + (1 if t.tm_mon >= 8 else 0)
+
+
 def profile():
-    return load('profile.json', DEFAULT_PROFILE)
+    p = load('profile.json', DEFAULT_PROFILE)
+    # defaults that depend on today's date, so a new install is never stuck on a past cycle
+    p.setdefault('search', {})
+    if not p['search'].get('season'):
+        p['search']['season'] = f'Summer {next_summer()}'
+    if not p.get('earliest_start'):
+        p['earliest_start'] = f'May {next_summer()}'
+    return p
 
 
 def resume():

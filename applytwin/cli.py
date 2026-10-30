@@ -14,6 +14,7 @@
   applytwin queue            show your apply queue (dream companies first)
   applytwin import-history tracker.csv   mark jobs you already applied to elsewhere
   applytwin run [--agent claude|codex] [--n 25]   let your agent work through the queue
+  applytwin update           update to the latest version (installed copies also update themselves on start)
   applytwin doctor           check your setup (no API keys needed: it runs on your Claude / Codex plan)
 """
 import json
@@ -64,6 +65,15 @@ def main():
         f = sys.argv[2]
         r = api.import_resume(os.path.basename(f), base64.b64encode(open(f, 'rb').read()).decode())
         print(r['message'])
+    elif cmd == 'update':
+        from . import update
+        st = update.check()
+        if not st['managed']:
+            print('This is a git checkout: run git pull.')
+        elif not st['available']:
+            print(f"Already up to date ({st['current'] or 'unknown'}).")
+        else:
+            print('Updated to', update.apply()['sha'])
     elif cmd == 'doctor':
         d = api.doctor()
         for i in d['items']:

@@ -1,5 +1,7 @@
 """Local web app: http://localhost:4747 . Standard library only, binds to 127.0.0.1."""
 import json
+import threading
+import sys
 import mimetypes
 import os
 import re
@@ -37,6 +39,7 @@ GET = {
     r'/api/queue': lambda m, qs, b: api.queue(int(_q(qs, 'n', 50))),
     r'/api/run': lambda m, qs, b: api.run_status(),
     r'/api/doctor': lambda m, qs, b: api.doctor(),
+    r'/api/update': lambda m, qs, b: api.update_status(),
     r'/api/agents': lambda m, qs, b: api.agent_status(),
     r'/api/auth': lambda m, qs, b: cloud.status(),
     r'/api/inbox': lambda m, qs, b: {"items": api.inbox(), "pending": api.pending_jobs()},
@@ -127,8 +130,24 @@ class H(BaseHTTPRequestHandler):
             self._send(404, {"error": "not found"})
 
 
+def _self_update():
+    """Installed copies update themselves on start (git checkouts never do); turn off with apply.auto_update = false."""
+    from . import update
+    if update.is_checkout() or store.profile().get('apply', {}).get('auto_update') is False:
+        return
+    st = update.check()
+    if st['available']:
+        print(f"Updating ApplyTwin ({st['current'] or 'new'} -> {st['latest']})...")
+        try:
+            if update.apply().get('updated'):
+                os.execv(sys.executable, [sys.executable] + sys.argv)   # restart on the new code
+        except Exception as e:
+            print(f'Update skipped: {e}')
+
+
 def serve(port=4747, open_browser=True):
     import urllib.request
+    _self_update()
     srv = None
     for p in range(port, port + 20):
         try:
@@ -149,6 +168,7 @@ def serve(port=4747, open_browser=True):
         raise SystemExit(f'Ports {port}-{port + 19} are all busy. Free one, or run: applytwin app --port 5050')
     port = srv.server_address[1]
     url = f'http://localhost:{port}'
+    threading.Thread(target=lambda: api.scan_if_stale(), daemon=True).start()   # fresh jobs every day, no button needed
     print(f'ApplyTwin is running at {url}  (data in {store.HOME})')
     if open_browser:
         import webbrowser
