@@ -88,8 +88,11 @@ export default function Dashboard() {
 
   const shown = useMemo(() => (apps || []).filter(a => (filter === 'all' || a.status === filter) &&
     (!q || `${a.company} ${a.title}`.toLowerCase().includes(q.toLowerCase()))), [apps, filter, q])
-  const count = s => (apps || []).filter(a => a.status === s).length
-  const week = (apps || []).filter(a => a.status === 'Applied' && Date.now() - new Date(a.created_at) < 7 * 864e5).length
+  // roles you applied to before ApplyTwin (imported from your tracker) are your history, not applications your twin sent
+  const past = a => a.notes === 'From your history'
+  const count = s => (apps || []).filter(a => a.status === s && !past(a)).length
+  const history = (apps || []).filter(past).length
+  const week = (apps || []).filter(a => a.status === 'Applied' && !past(a) && Date.now() - new Date(a.created_at) < 7 * 864e5).length
   const p = account?.profile || {}
   const first = (p.name || session?.user?.user_metadata?.full_name || '').split(' ')[0]
 
@@ -123,10 +126,11 @@ export default function Dashboard() {
               {first ? `Hi, ${first}.` : 'Your applications'}</motion.h1>
             {apps && apps.length > 0 && <>
               <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.08 }} className="mt-2 text-[22px] font-medium tracking-[-0.02em] text-white/85">
-                <span className="text-white">{count('Applied').toLocaleString()}</span> applications sent{count('Needs User') ? <>, <span style={{ color: ORANGE }}>{count('Needs User')} waiting on you</span></> : ''}.</motion.p>
+                <span className="text-white">{count('Applied').toLocaleString()}</span> {count('Applied') === 1 ? 'application' : 'applications'} sent by your twin{count('Needs User') ? <>, <span style={{ color: ORANGE }}>{count('Needs User')} waiting on you</span></> : ''}.</motion.p>
               <p className="mt-1 text-[13.5px] text-white/50">{account?.updated_at ? `Last synced ${new Date(account.updated_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : ''}</p>
               <section className="mt-7 grid grid-cols-2 gap-3 md:grid-cols-4">
-                {[['Applied', count('Applied'), GREEN], ['Waiting on you', count('Needs User'), ORANGE], ['This week', week, BLUE], ['Skipped', count('Skipped'), '#7d869f']].map(([l, v, c], i) => (
+                {[['Sent by your twin', count('Applied'), GREEN], ['Waiting on you', count('Needs User'), ORANGE], ['Sent this week', week, BLUE],
+                  history ? ['Applied before ApplyTwin', history, '#7d869f'] : ['Skipped', count('Skipped'), '#7d869f']].map(([l, v, c], i) => (
                   <motion.div key={l} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ ...spring, delay: 0.1 + i * 0.05 }}
                     className="rounded-[20px] bg-[#111526]/90 px-5 py-4 ring-1 ring-white/[.06] backdrop-blur">
                     <div className="text-[34px] font-semibold leading-none tracking-[-0.04em] text-white tabular-nums">{v.toLocaleString()}</div>

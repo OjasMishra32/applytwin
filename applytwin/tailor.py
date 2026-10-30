@@ -21,6 +21,8 @@ from . import ats
 GUIDE = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'docs', 'RESUME_GUIDE.md'), encoding='utf-8').read() \
     if os.path.exists(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'docs', 'RESUME_GUIDE.md')) else ''
 ENTRY_SECS = ('experience', 'projects', 'leadership', 'volunteering')
+# raise when how a plan becomes a page gets meaningfully better: saved resumes from older versions are rebuilt from their plan
+PIPELINE = 2
 
 
 def slug(s):
@@ -945,7 +947,7 @@ def tailor(v, job, jd, mode='auto', plan=None, style=None, out_dir=None):
                     plan, res, rep = plan2, res2, rep2
         except Exception:
             pass
-    if mode == 'api' and rep['rewrites']:
+    if mode in ('api', 'agent') and rep['rewrites']:   # Autopilot's own plans get the same honesty check
         audit(res, rep)
     out_dir = out_dir or store.path('resumes', job.get('id', 'general'))
     name = (re.sub(r'[^\w]+', '_', res['basics'].get('name', 'Resume') or '', flags=re.UNICODE).strip('_') or 'Resume') + '_Resume.pdf'
@@ -976,7 +978,8 @@ def tailor(v, job, jd, mode='auto', plan=None, style=None, out_dir=None):
     before = ats.report(v, jd)
     after = ats.report(res, jd, r['pages'], txt)
     r.pop('resume', None)
-    json.dump({"plan": plan, "resume": res, "report": rep, "render": r, "mode": mode, "style": style, "field": ctx['field']},
+    json.dump({"plan": plan, "resume": res, "report": rep, "render": r, "mode": mode, "style": style, "field": ctx['field'],
+               "pipeline": PIPELINE},
               open(os.path.join(out_dir, 'tailor.json'), 'w', encoding='utf-8'), indent=1, ensure_ascii=False)
     return {"pdf": pdf, "tex": pdf[:-4] + '.tex', "pages": r['pages'], "dropped": r['dropped'], "mode": mode, "style": style,
             "coverage_vault": before.get('coverage'), "coverage": after.get('coverage'), "score": after['score'],

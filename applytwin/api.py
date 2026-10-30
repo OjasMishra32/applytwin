@@ -308,9 +308,38 @@ def on_start():
     """After the app (re)starts: unfinished claims from a run that died go to Needs you, and work you queued during a run
     still happens."""
     release_claims(older_than=3 * 3600)
+    try:
+        refresh_resumes()
+    except Exception:
+        pass
     time.sleep(20)
     if not (_run['proc'] and _run['proc'].poll() is None):
         _next_followup()
+
+
+def refresh_resumes():
+    """Resumes built by an older, weaker pipeline for jobs not yet submitted are rebuilt from their saved plan with the
+    current one (no AI call), so Needs you and the previews never hand out a page we've since fixed. Submitted ones stay
+    exactly as sent."""
+    root = store.path('resumes')
+    sent = {r['job_id'] for r in store.rows("select job_id from applications where status='Applied'")}
+    n = 0
+    for jid in os.listdir(root) if os.path.isdir(root) else []:
+        f = os.path.join(root, jid, 'tailor.json')
+        if jid in sent or jid in ('master', 'general', '_') or not os.path.isfile(f):
+            continue
+        try:
+            d = json.load(open(f, encoding='utf-8'))
+            if d.get('pipeline', 0) >= tailor.PIPELINE or not d.get('plan'):
+                continue
+            j = get_job(jid)
+            if not j:
+                continue
+            tailor.tailor(get_vault(), j, j.get('description', ''), plan=d['plan'], style=d.get('style'), out_dir=os.path.dirname(f))
+            n += 1
+        except Exception:
+            continue
+    return n
 
 
 def release_claims(since=0.0, older_than=None, who=None):
