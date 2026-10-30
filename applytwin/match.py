@@ -234,6 +234,11 @@ def fit(job, prof, vault_terms=None):
     company = job.get('company') or ''
     if any(same_company(c, company) for c in s.get('companies_skip', [])):
         return 0, 'company on skip list'
+    # graduate-only programs ("Intern, MS, Software Engineering", "PhD Intern") for an undergrad
+    undergrad = not re.search(r'master|mba|ph\.?d|doctor|graduate', f"{prof.get('degree', '')} {prof.get('class_standing', '')}", re.I)
+    if undergrad and re.search(r"\b(M\.?S\.?|Masters?|Master's|Ph\.?D\.?|MBA)\b(?!\s*(Excel|Office|Word|Teams))", title) and \
+            not re.search(r"\b(B\.?S\.?|B\.?A\.?|Bachelor'?s?|undergrad\w*)\b", title, re.I):
+        return 0, 'graduate students only'
     intern_title = bool(re.search(r'\b(intern|internship|co-?op)\b', t))
     for x in s.get('exclude', []):
         x = (x or '').lower().strip()
