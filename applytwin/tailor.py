@@ -544,7 +544,7 @@ def apply(v, plan, jd=''):
         lst = []
         for c in chosen:
             cid = c['id'] if isinstance(c, dict) else c
-            e = byid.get(cid)
+            e = byid.get(_near_id(cid, byid))
             if not e:
                 continue
             e2 = {k: e[k] for k in e if k != 'bullets'}
@@ -562,7 +562,7 @@ def apply(v, plan, jd=''):
                     near, score = _closest(obl, text)
                     if near is not None and (not 0 <= k < len(obl) or score > len(_words(text) & _words(obl[k])) / (len(_words(text) | _words(obl[k])) or 1)):
                         k = near
-                if m and m.group(1) != e['id'] and not text:
+                if m and _near_id(m.group(1), {e['id']}) != e['id'] and not text:
                     continue   # a bare reference to another entry's bullet: skip it rather than mislabel
                 if not 0 <= k < len(obl):
                     continue
@@ -602,7 +602,8 @@ def apply(v, plan, jd=''):
     if out.get('leadership'):
         out['leadership'] = [e for e in out['leadership'] if e.get('id') not in moved]   # never listed twice
     rid = {p.get('id'): p for p in v.get('research', [])}
-    out['research'] = [rid[i] for i in plan.get('research', []) if i in rid] if 'research' in plan else v.get('research', [])
+    out['research'] = ([rid[_near_id(i, rid)] for i in plan.get('research', []) if _near_id(i, rid) in rid]
+                       if 'research' in plan else v.get('research', []))
     aw = v.get('awards', [])
     out['awards'] = _pick_awards(aw, plan['awards']) if 'awards' in plan else aw
     out['awards'] = _not_repeated(out['awards'], out)
@@ -677,6 +678,16 @@ def trim_worth(res, kws, jd):
             for i, b in enumerate(e.get('bullets', [])):
                 rank.setdefault(b, i)
     return lambda b: strength(b, kws) + 0.35 * sum(jdw.get(w, 0) for w in set(re.findall(r'[a-z][a-z0-9+#./-]{2,}', ats.plain(b).lower()))) - 1.0 * rank.get(b, 0)
+
+
+def _near_id(cid, ids):
+    """The id the plan meant: models misspell the made-up ids now and then ('utaustinodinin' for 'utaustinodenin'), which
+    silently dropped someone's best entry. Exact first, then the one clearly closest."""
+    import difflib
+    if not isinstance(cid, str) or cid in ids:
+        return cid
+    m = difflib.get_close_matches(cid, [i for i in ids if isinstance(i, str)], n=1, cutoff=0.8)
+    return m[0] if m else cid
 
 
 def _same_fact(a, b):

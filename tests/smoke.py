@@ -164,6 +164,13 @@ _v9 = {"basics": {"name": "T"}, "experience": [{"id": "bb", "org": "Best Buy", "
 _res9, _ = _tl.apply(_v9, {"experience": [{"id": "rj"}, {"id": "bb"}]})
 res.append(ok([e['id'] for e in _res9['experience']] == ['rj', 'bb'] and not _res9.get('leadership'),
               'a design-team role can lead Experience without appearing twice'))
+# a misspelled entry id from the model still finds the entry (it used to silently drop someone's best role)
+_v10 = {"basics": {"name": "T"}, "experience": [{"org": "UT Austin Oden Institute", "title": "RA", "dates": "2025",
+        "bullets": ["Scaled a C++/MPI solver to 2,048 cores at 83% efficiency.", "Ported kernels to CUDA, 9x faster."]}]}
+_id10 = _tl.ensure_ids(json.loads(json.dumps(_v10)))['experience'][0]['id']
+_typo = _id10[:-3] + ('x' if _id10[-3] != 'x' else 'y') + _id10[-2:]
+_res10, _ = _tl.apply(_v10, {"experience": [{"id": _typo, "bullets": [f"{_typo}.0", f"{_typo}.1"]}]})
+res.append(ok(len(_res10['experience']) == 1 and len(_res10['experience'][0]['bullets']) == 2, f'misspelled plan ids still match ({_typo} -> {_id10})'))
 # real form questions that used to get the wrong answer
 _pb = _an.default_bank({'name': 'Maya Chen', 'location': 'Austin, TX', 'grad_month': 'May', 'grad_year': '2028', 'major': 'Computer Science',
                         'work_authorized_us': True, 'needs_sponsorship': True, 'government_employee': False, 'willing_to_relocate': True})
