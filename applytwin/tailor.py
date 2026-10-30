@@ -146,7 +146,7 @@ WEAK = re.compile(r'^\W*(help(ed|s|ing)?|assist(ed|s|ing)?|attend(ed|s)?|partici
 def weak(b):
     """Filler a recruiter skips: a chore or vague verb, or a short line with no number ('Graded homework.', 'Made the slides.')."""
     t = ats.plain(b)
-    return bool(WEAK.search(t) or (len(t) < 48 and not re.search(r'\d', t)) or
+    return bool(WEAK.search(t) or (len(t) < 55 and not re.search(r'\d', t)) or
                 re.match(r'^\W*(grad(ed|es|ing)|read papers|sold|ran (philanthropy|events?)|made the)\b', t, re.I))
 
 
@@ -740,8 +740,9 @@ def _fill_page(v, res, jd, style, probe, k=1.0):
             e2 = {k: x[k] for k in x if k != 'bullets'}
             e2['bullets'] = [b for b in x['bullets'] if not weak(b)][:2] or x['bullets'][:1]
             res.setdefault(sec, []).append(e2)
-            if sec not in res.get('order', []):
-                res.setdefault('order', []).append(sec)
+            if sec not in res.get('order', []):   # a new section goes with the others, before skills/awards close the page
+                o = res.setdefault('order', [])
+                o.insert(next((i for i, s in enumerate(o) if s in ('skills', 'certifications', 'awards')), len(o)), sec)
             undo = lambda: res[sec].pop()
         if not render.fits(res, style, k, probe):
             undo()
