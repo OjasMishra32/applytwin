@@ -114,7 +114,7 @@ STYLE_CSS = {
       --lh:1.32;--mt:.55in;--mx:.65in;--gap:11pt;--egap:6pt;--muted:#666} h1{font-weight:650;letter-spacing:-.01em}
       .contact{color:#555} h2{text-transform:uppercase;letter-spacing:.12em;color:#666;font-weight:600;
       border-bottom:1px solid #ddd;padding-bottom:3pt} .org{font-weight:600}""",
-    'compact': """:root{--font:Charter,"Bitstream Charter","Source Serif 4","Source Serif Pro",Cambria,"Times New Roman",serif;--fs:9.8pt;--name:20pt;
+    'compact': """:root{--font:Charter,"Bitstream Charter","Source Serif 4","Source Serif Pro","Palatino Linotype","Book Antiqua","Times New Roman",serif;--fs:9.8pt;--name:20pt;
       --hs:11pt;--lh:1.18;--mt:.4in;--mx:.45in;--gap:6.5pt;--egap:3pt;--muted:#333} header{text-align:center}
       h1{font-weight:700} h2{font-weight:700;margin-bottom:2pt}""",
     'accent': """:root{--font:Lato,Carlito,"Avenir Next",Helvetica,Arial,sans-serif;--fs:9.8pt;--name:26pt;--hs:11pt;--lh:1.26;--mt:.5in;
