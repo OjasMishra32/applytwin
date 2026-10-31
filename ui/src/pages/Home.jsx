@@ -22,12 +22,11 @@ export default function Home() {
 
   return (
     <Page>
-      <div className="mx-auto max-w-[980px]">
+      <div>
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <div className="text-[13px] font-semibold uppercase tracking-[0.04em] text-faint">{today}</div>
-            <h1 className="mt-1 text-[34px] font-bold leading-[1.1] tracking-[-0.025em] text-white">{greet}{first ? `, ${first}` : ''}</h1>
-            <p className="mt-1 text-[15px] text-muted">{(stats.matched || 0).toLocaleString()} open roles fit you right now.</p>
+            <h1 className="text-[28px] font-bold leading-[1.15] tracking-[-0.02em] text-white">{greet}{first ? `, ${first}` : ''}</h1>
+            <p className="mt-1.5 text-[15px] text-muted">{today}</p>
           </div>
           <div className="flex gap-2">
             <Button variant="white" onClick={startScan} loading={scanning}>{scanning ? 'Scanning' : 'Find new jobs'}</Button>
@@ -35,17 +34,18 @@ export default function Home() {
           </div>
         </div>
 
-        <Reveal><div className="mt-8 grid grid-cols-2 gap-3 md:grid-cols-4">
-          {[['Fit you now', stats.matched ?? 0], ['Applied today', stats.applied_today ?? 0], ['This week', stats.applied_7d ?? 0], ['Left today', next ? (next.remaining_today ?? 0) : null]].map(([l, v]) => (
-            <div key={l} className="card px-5 py-4">
-              <div className="text-[28px] font-semibold leading-none tracking-[-0.03em] text-white tabular-nums">{v == null ? <span className="text-faint">–</span> : Number(v).toLocaleString()}</div>
-              <div className="mt-2 text-[13px] text-muted">{l}</div></div>))}
-        </div></Reveal>
+        {/* one summary panel with hairline dividers, not a row of separate tiles */}
+        <div className="card mt-8 grid grid-cols-2 md:grid-cols-4">
+          {[['Fit you now', stats.matched ?? 0], ['Applied today', stats.applied_today ?? 0], ['This week', stats.applied_7d ?? 0], ['Left today', next ? (next.remaining_today ?? 0) : null]].map(([l, v], i) => (
+            <div key={l} className={'px-5 py-4 ' + (i % 2 ? 'border-l border-line ' : '') + (i > 1 ? 'border-t border-line md:border-t-0 ' : '') + (i === 2 ? 'md:border-l' : '')}>
+              <div className="text-[13px] text-muted">{l}</div>
+              <div className="mt-1 text-[22px] font-semibold leading-tight tracking-[-0.02em] text-white tabular-nums">{v == null ? <span className="text-faint">0</span> : Number(v).toLocaleString()}</div></div>))}
+        </div>
 
         {todo.length > 0 && (
           <Reveal><section className="mt-8">
             <div className="mb-2 flex items-baseline justify-between px-1">
-              <h2 className="text-[20px] font-semibold tracking-[-0.02em] text-white">Finish setting up</h2>
+              <h2 className="text-[17px] font-semibold tracking-[-0.01em] text-white">Finish setting up</h2>
               <span className="text-[13px] text-muted">{setup.length - todo.length} of {setup.length} done</span>
             </div>
             <div className="card divide-y divide-white/[.06] overflow-hidden">
@@ -61,8 +61,8 @@ export default function Home() {
           </section></Reveal>)}
 
         <Reveal delay={0.05}><section className="mt-8">
-          <div className="mb-2 flex items-end justify-between px-1"><h2 className="text-[20px] font-semibold tracking-[-0.02em] text-white">Up next</h2>
-            <button onClick={() => go('jobs')} className="flex items-center text-[14px] text-signal-ink hover:underline">See all<ChevronRight className="size-4" /></button></div>
+          <div className="mb-2 flex items-end justify-between px-1"><h2 className="text-[17px] font-semibold tracking-[-0.01em] text-white">Up next</h2>
+            <button onClick={() => go('jobs')} className="text-[13px] text-signal-ink hover:underline">See all</button></div>
           <Stagger className="card overflow-hidden py-1">
             <GlideList id="next" rows={(next?.jobs || []).map(j => ({ key: j.id, onClick: () => go('jobs', j.id), content: <>
               <Avatar name={j.company} />
@@ -70,13 +70,14 @@ export default function Home() {
                 <div className="truncate text-[13px] text-muted">{j.company} · {j.location || 'Remote or multiple'} · {ago(j.found_at)} ago</div></div>
               <Fit v={j.fit} /><ChevronRight className="size-4 text-faint" /></> }))} />
             {!next && <div className="space-y-px p-2">{[0, 1, 2].map(i => <div key={i} className="skel h-[56px]" />)}</div>}
-            {next && !next.jobs.length && <div className="px-6 py-14 text-center text-[15px] text-muted">No matches yet. Press <b className="font-semibold text-white">Find new jobs</b> to scan every career page.</div>}
+            {next && !next.jobs.length && <div className="px-6 py-12 text-center"><div className="text-[15px] font-medium text-white">No matches yet</div>
+              <div className="mt-1 text-[13px] text-muted">Find new jobs reads every career page and scores each role against you.</div></div>}
           </Stagger>
         </section></Reveal>
 
         {fresh.length > 0 && (
           <Reveal><section className="mt-8">
-            <div className="mb-2 px-1"><h2 className="text-[20px] font-semibold tracking-[-0.02em] text-white">Just posted</h2></div>
+            <div className="mb-2 px-1"><h2 className="text-[17px] font-semibold tracking-[-0.01em] text-white">Just posted</h2></div>
             <div className="card divide-y divide-white/[.06] overflow-hidden">
               {fresh.map(j => (
                 <button key={j.id} onClick={() => go('jobs', j.id)} className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-white/[.03]">

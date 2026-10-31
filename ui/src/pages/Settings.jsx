@@ -13,15 +13,15 @@ export function Chips({ value = [], onChange, placeholder, suggestions = [], lar
   const shown = suggestions.filter(s => !value.includes(s) && (!t || s.includes(t.toLowerCase()))).slice(0, t ? 8 : 12)
   return (
     <div>
-      <div className={'flex flex-wrap items-center gap-1.5 bg-mist ' + (large ? 'rounded-[18px] px-3 py-2.5 backdrop-blur ' : 'rounded-[14px] px-2 py-1.5 ') + 'focus-within:bg-white/[.08] focus-within:ring-2 focus-within:ring-signal'}>
-        {value.map(v => <span key={v} className={'inline-flex items-center gap-1 rounded-full bg-signal/15 pl-3 pr-1.5 font-medium text-[#9cc8ff] ' + (large ? 'py-1.5 text-[15px]' : 'py-1 text-[13px]')}>{v}
-          <button onClick={() => onChange(value.filter(x => x !== v))} className="grid size-4 place-items-center rounded-full hover:bg-signal/20"><X className="size-3" /></button></span>)}
+      <div className={'flex flex-wrap items-center gap-1.5 bg-mist ' + (large ? 'rounded-[12px] px-2.5 py-2 ' : 'rounded-[10px] px-2 py-1.5 ') + 'focus-within:bg-white/[.08] focus-within:ring-2 focus-within:ring-signal'}>
+        {value.map(v => <span key={v} className={'inline-flex items-center gap-1 rounded-[6px] bg-white/[.1] pl-2.5 pr-1 text-white ' + (large ? 'py-1 text-[15px]' : 'py-0.5 text-[13px]')}>{v}
+          <button onClick={() => onChange(value.filter(x => x !== v))} aria-label={`Remove ${v}`} className="grid size-4 place-items-center rounded-[4px] text-white/60 hover:bg-white/[.12] hover:text-white"><X className="size-3" /></button></span>)}
         <input value={t} onChange={e => setT(e.target.value)} placeholder={value.length ? '' : placeholder} onKeyDown={e => {
           if ((e.key === 'Enter' || e.key === ',') && t.trim()) { e.preventDefault(); addv(t) } if (e.key === 'Backspace' && !t && value.length) onChange(value.slice(0, -1)) }}
           className={'min-w-[140px] flex-1 bg-transparent px-1.5 text-white outline-none placeholder:text-faint ' + (large ? 'h-9 text-[16px]' : 'h-8 text-[14px]')} />
       </div>
       {shown.length > 0 && <div className="mt-2 flex flex-wrap gap-1.5">{shown.map(s =>
-        <button key={s} onClick={() => addv(s)} className={'rounded-full bg-white/[.06] text-white/70 transition hover:bg-signal/15 hover:text-white ' + (large ? 'px-3.5 py-1.5 text-[14px]' : 'px-3 py-1 text-[12.5px]')}>+ {s}</button>)}</div>}
+        <button key={s} onClick={() => addv(s)} className={'rounded-[6px] text-signal-ink transition-colors hover:bg-white/[.06] ' + (large ? 'px-2.5 py-1 text-[14px]' : 'px-2 py-0.5 text-[12.5px]')}>{s}</button>)}</div>}
     </div>
   )
 }
@@ -39,7 +39,7 @@ function Group({ title, children }) {
 // a switch or segmented control sits at its own size on the right; sliders and text fields (wide) get a fixed share of the row
 function Row({ label, hint, children, stack, wide }) {
   return (
-    <div className={`px-5 py-3 ${stack ? '' : 'flex min-h-[52px] flex-wrap items-center justify-between gap-x-6 gap-y-2 sm:flex-nowrap'}`}>
+    <div className={`px-4 py-3 ${stack ? '' : 'flex min-h-[52px] flex-wrap items-center justify-between gap-x-6 gap-y-2 sm:flex-nowrap'}`}>
       <div className={stack ? 'mb-2.5' : 'min-w-0 flex-1'}><div className="text-[15px] text-ink">{label}</div>{hint && <div className="mt-0.5 text-[12.5px] leading-snug text-muted">{hint}</div>}</div>
       <div className={stack ? '' : wide ? 'w-full shrink-0 sm:w-[44%]' : 'shrink-0'}>{children}</div>
     </div>
@@ -68,11 +68,12 @@ export default function Settings() {
   const Sel = (k, opts) => <select className="uline" value={p.eeo[k]} onChange={e => se(k, e.target.value)}>{opts.map(o => <option key={o}>{o}</option>)}</select>
   return (
     <div className="relative"><Page>
+      <div className="max-w-[820px]">
       <Title sub="Who you are, what you want, and how far your twin may go on its own." right={<><span className="text-[13px] text-muted">{dirty ? 'Unsaved changes' : ''}</span><Button variant={dirty ? 'ink' : 'white'} onClick={save} loading={saving} disabled={!dirty}>{dirty ? 'Save' : 'Saved'}</Button></>}>
         Settings</Title>
-      <div className="mx-auto max-w-[860px]">
-        {left.length > 0 && <div className="mb-8 rounded-[12px] bg-[#ff9f0a]/10 px-4 py-3 text-[14px] text-[#ffc56b] ring-1 ring-[#ff9f0a]/25">
-          {left.length} application answer{left.length === 1 ? '' : 's'} missing (marked below). Until you answer, your twin asks you instead of guessing.</div>}
+      <div>
+        {left.length > 0 && <div className="card mb-8 px-4 py-3 text-[14px] text-muted">
+          <span className="font-medium text-warn">{left.length} application answer{left.length === 1 ? '' : 's'} missing.</span> They're marked below. Until you answer, your twin asks you instead of guessing.</div>}
         <Group title="Your twin's permissions">
           <Row label="Submit applications on its own" hint="Off: it fills everything and stops so you can press Submit."><div className="flex justify-end"><Switch checked={a.auto_submit} onChange={v => sa('auto_submit', v)} /></div></Row>
           <Row label="Read verification codes from my email" hint="When a site emails you a code, your agent finds it in your inbox and types it. Off: you get a notification instead."><div className="flex justify-end"><Switch checked={a.email_codes === 'agent'} onChange={v => sa('email_codes', v ? 'agent' : 'notify')} /></div></Row>
@@ -93,7 +94,7 @@ export default function Settings() {
           <Row label="Skip titles with" stack><Chips value={s.exclude} onChange={v => ss('exclude', v)} placeholder="senior, phd…" /></Row>
           <Row wide label={`Show jobs with fit ${s.min_fit}+`}><Slider value={s.min_fit} min={0} max={95} onChange={v => ss('min_fit', v)} /></Row>
         </Group>
-        <div className="mb-1.5 px-4 text-[13px] font-medium text-muted">Your application answers, used on every form</div>
+        <div className="mb-1.5 px-4 text-[13px] font-medium text-muted">Application answers, used on every form</div>
         <div className="mb-8"><ProfileQuestions qs={qs} p={p} setP={setP} showMissing /></div>
         <Group title="ApplyTwin">
           <Row label="Update automatically" hint="Installs each tested version on start and every hour, never mid-run."><div className="flex justify-end"><Switch checked={a.auto_update !== false} onChange={v => sa('auto_update', v)} /></div></Row>
@@ -101,7 +102,9 @@ export default function Settings() {
           <Row label="Count my install" hint="Sends a random ID, your OS and the ApplyTwin version once a day, so we know how many people use it. Never your name, resume or applications."><div className="flex justify-end"><Switch checked={a.telemetry !== false} onChange={v => sa('telemetry', v)} /></div></Row>
         </Group>
       </div>
+      </div>
     </Page></div>
+
   )
 }
 

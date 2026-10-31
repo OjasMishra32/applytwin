@@ -27,13 +27,13 @@ export function HelpChat() {
   return (
     <>
       <button onClick={() => setOpen(o => !o)} aria-label="Help"
-        className="fixed bottom-[88px] right-4 z-50 flex h-11 items-center gap-2 rounded-full bg-[#2c2c2e] px-4 text-[13.5px] font-medium text-white shadow-lg ring-1 ring-white/10 hover:bg-[#3a3a3c] md:bottom-6 md:right-6">
-        {open ? <X className="size-4" /> : <LifeBuoy className="size-4" />}{open ? 'Close' : 'Help'}
+        className="fixed bottom-[76px] right-4 z-50 flex size-10 items-center justify-center gap-2 rounded-full bg-[#2c2c2e] text-[13px] font-medium text-white shadow-lg ring-1 ring-white/10 transition-colors hover:bg-[#3a3a3c] md:bottom-6 md:right-6 md:h-9 md:w-auto md:px-3.5">
+        {open ? <X className="size-4" /> : <LifeBuoy className="size-4" />}<span className="hidden md:inline">{open ? 'Close' : 'Help'}</span>
       </button>
       <AnimatePresence>{open && (
         <motion.div initial={{ opacity: 0, y: 12, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 12, scale: 0.98 }}
           transition={{ type: 'spring', stiffness: 380, damping: 32 }}
-          className="fixed bottom-[144px] right-4 z-50 flex max-h-[min(560px,70vh)] w-[min(400px,calc(100vw-32px))] flex-col overflow-hidden rounded-[20px] bg-[#1c1c1e] shadow-2xl ring-1 ring-white/10 md:bottom-20 md:right-6">
+          className="fixed bottom-[128px] right-4 z-50 flex max-h-[min(560px,70vh)] w-[min(400px,calc(100vw-32px))] flex-col overflow-hidden rounded-[14px] bg-[#232325] shadow-2xl ring-1 ring-white/10 md:bottom-[72px] md:right-6">
           <div className="border-b border-white/[.08] px-5 py-4">
             <div className="text-[15px] font-semibold text-white">Help</div>
             <div className="mt-0.5 text-[12.5px] text-muted">Say what's wrong or what to change. Your twin checks your setup and fixes it.</div>

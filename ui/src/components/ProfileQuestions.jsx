@@ -21,17 +21,17 @@ export function ProfileQuestions({ qs, p, setP, groups, showMissing, filled = []
     <div className="space-y-7">
       {names.map(g => (
         <section key={g}>
-          {!large && <div className="mb-2 px-1 text-[13px] text-muted">{g}{g.startsWith('Voluntary') && ' · you can decline any of these'}</div>}
-          <div className={'divide-y divide-white/[.06] overflow-hidden ring-1 ring-white/[.08] ' + (large ? 'rounded-[20px] bg-white/[.06] backdrop-blur' : 'rounded-[16px] bg-white/[.035]')}>
+          {!large && <div className="mb-1.5 px-4 text-[13px] font-medium text-muted">{g}{g.startsWith('Voluntary') && ' · you can decline any of these'}</div>}
+          <div className="card divide-y divide-white/[.06] overflow-hidden">
             {qs.filter(q => q.group === g).map(q => {
               const v = getv(p, q.key)
               const blank = [undefined, null, ''].includes(v)
               return (
-                <div key={q.key} className={'flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-6 ' + (large ? 'px-5 py-3.5' : 'min-h-[52px] px-4 py-2.5')}>
-                  <div className={'flex min-w-0 flex-1 flex-wrap items-center gap-x-2 text-white ' + (large ? 'text-[16px]' : 'text-[14.5px]')}>
+                <div key={q.key} className={'flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-6 ' + (large ? 'px-5 py-3' : 'min-h-[52px] px-4 py-2.5')}>
+                  <div className={'flex min-w-0 flex-1 flex-wrap items-center gap-x-2 text-white ' + (large ? 'text-[15px]' : 'text-[14.5px]')}>
                     <span>{q.label}</span>{q.optional && <span className="text-[12px] text-faint">optional</span>}
-                    {showMissing && blank && !q.optional && <span className="text-[12px] text-[#ff9f0a]">Needed</span>}
-                    {filled.includes(q.key) && !blank && <span className="text-[12px] text-[#64d2ff]">filled in for you</span>}
+                    {showMissing && blank && !q.optional && <span className="text-[12px] text-warn">Needed</span>}
+                    {filled.includes(q.key) && !blank && <span className="text-[12px] text-faint">filled in for you</span>}
                   </div>
                   <div className="w-full shrink-0 sm:w-[46%]">
                     {q.kind === 'yesno' ? <YesNo value={v} onChange={x => setP(setv(p, q.key, x))} />
@@ -57,7 +57,8 @@ function YesNo({ value, onChange }) {
     <div className="inline-flex rounded-[10px] bg-white/[.06] p-[2px]">
       {[[true, 'Yes'], [false, 'No']].map(([v, l]) => (
         <button key={l} type="button" onClick={() => onChange(v)}
-          className={'h-8 rounded-[8px] px-5 text-[13.5px] transition ' + (value === v ? 'bg-white font-semibold text-[#1d1d1f]' : 'text-white/75 hover:text-white')}>{l}</button>))}
+          className={'h-8 rounded-[8px] px-5 text-[13.5px] transition-colors ' + (value === v ? 'bg-white/[.16] font-semibold text-white shadow-[0_1px_3px_rgb(0_0_0/.3)]' : 'text-white/70 hover:text-white')}>{l}</button>))}
+
     </div>
   )
 }

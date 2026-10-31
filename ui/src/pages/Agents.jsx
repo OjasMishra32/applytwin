@@ -5,7 +5,7 @@ import { Check, ChevronDown, ChevronRight, CircleSlash, Copy, Hand, Minus, Plus,
 import { api } from '../lib/api'
 import { parseRun } from '../lib/runlog'
 import { useApp, Page } from '../App'
-import { Avatar, Segmented, burst, spring } from '../components/ui'
+import { Avatar, Segmented, spring } from '../components/ui'
 import { REPO_URL } from '../lib/star'
 import { atsName } from '../lib/utils'
 import { ItemActions } from '../components/ItemActions'
@@ -37,7 +37,7 @@ function ResumeLine({ p }) {
 /* Autopilot, Apple-style: one quiet hero that says what your twin is doing, grouped lists for everything else. */
 
 const SIZES = [5, 10, 25, 50, 100, 250]
-const BLUE = '#0a84ff', GREEN = '#30d158', ORANGE = '#ff9f0a', RED = '#ff453a'
+const BLUE = '#0a84ff', GREEN = '#30d158', ORANGE = '#ff9f0a'
 const safeGet = k => { try { return localStorage.getItem(k) } catch { return null } }
 const safeSet = (k, v) => { try { localStorage.setItem(k, v) } catch {} }
 
@@ -110,27 +110,25 @@ export default function Agents() {
 
   return (
     <Page>
-      <div className="mx-auto max-w-[1080px]">
-        <h1 className="text-[34px] font-bold leading-[1.1] tracking-[-0.025em] text-white">Autopilot</h1>
+      <div>
+        <h1 className="text-[28px] font-bold leading-[1.15] tracking-[-0.02em] text-white">Autopilot</h1>
         <p className="mt-1.5 max-w-xl text-[15px] leading-snug text-muted">Your twin applies to your queue in its own Chrome window, one job at a time, with a resume written for each.</p>
 
-        <section className="mt-8 rounded-[18px] bg-[#1c1c1e] p-6 ring-1 ring-white/[.06] sm:p-7">
+        <section className="card mt-8 p-6 sm:p-7">
           <div className="flex flex-wrap items-start justify-between gap-8">
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2 text-[13px] font-medium" style={{ color: running ? GREEN : 'var(--color-muted)' }}>
-                {running ? `${label} is applying` : 'Ready'}
-              </div>
-              <div className="relative mt-2 h-[44px] overflow-hidden">
+              <div className="text-[13px] font-medium text-muted">{running ? `${label} is applying` : 'Ready'}</div>
+              <div className="relative mt-1.5 h-[38px] overflow-hidden">
                 {headline ? <AnimatePresence mode="popLayout" initial={false}>
-                  <motion.div key={headline} initial={{ y: 24, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -24, opacity: 0 }} transition={spring}
-                    className="truncate text-[34px] font-semibold leading-[44px] tracking-[-0.025em] text-white">{headline}</motion.div>
-                </AnimatePresence> : <div className="skel mt-1.5 h-8 w-64" />}
+                  <motion.div key={headline} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}
+                    className="truncate text-[28px] font-semibold leading-[38px] tracking-[-0.02em] text-white">{headline}</motion.div>
+                </AnimatePresence> : <div className="skel mt-1.5 h-7 w-56" />}
               </div>
               <div className="mt-1 min-h-[22px] text-[15px] text-muted">{subline}</div>
               {running && now?.resume && <ResumeLine p={now.resume} />}
               {running && <div className="mt-2 text-[13px] text-faint">Watch it live in the Chrome window your twin opened. Don't close that window; it's the twin's.</div>}
               {running && (
-                <div className="mt-6 h-[5px] max-w-[460px] overflow-hidden rounded-full bg-white/[.08]">
+                <div className="mt-6 h-1 max-w-[460px] overflow-hidden rounded-full bg-white/[.08]">
                   <motion.div className="h-full rounded-full" style={{ background: BLUE }} initial={{ width: 0 }}
                     animate={{ width: `${Math.max(3, (session.length / Math.max(1, total)) * 100)}%` }} transition={{ type: 'spring', stiffness: 120, damping: 24 }} />
                 </div>)}
@@ -150,13 +148,13 @@ export default function Agents() {
               </div>
               <AgentConnect name={agent} st={st} compact onChange={() => api('/api/agents').then(setAgents).catch(() => {})} />
               <motion.button whileTap={{ scale: 0.96 }} transition={spring} onClick={running ? stop : start} disabled={!running && st && !st.signed_in}
-                className="mt-1 h-11 w-full rounded-full px-10 text-[15px] font-semibold text-white transition-colors disabled:cursor-default disabled:opacity-40 sm:w-auto"
+                className="mt-1 h-10 w-full rounded-full px-10 text-[15px] font-semibold text-white transition-colors disabled:cursor-default disabled:opacity-40 sm:w-auto"
                 style={{ background: running ? 'rgb(255 255 255 / .1)' : BLUE }}>
                 {running ? 'Stop' : 'Start'}
               </motion.button>
               <div className="text-[12.5px] text-faint">{profile.apply?.auto_submit ? 'Submits on its own.' : 'Stops at the review screen so you press submit.'}</div>
-              {gaps.length > 0 && <button onClick={() => go('settings')} className="text-left text-[12.5px] text-[#ff9f0a] hover:underline sm:text-right">
-                {gaps.length} application answer{gaps.length === 1 ? '' : 's'} missing. Add them so it never stops to ask</button>}
+              {gaps.length > 0 && <button onClick={() => go('settings')} className="text-left text-[12.5px] text-signal-ink hover:underline sm:text-right">
+                Answer {gaps.length} more question{gaps.length === 1 ? '' : 's'} so it never stops to ask</button>}
             </div>
           </div>
         </section>
@@ -176,7 +174,7 @@ export default function Agents() {
               <div className="max-h-[520px] overflow-y-auto [&>*+*]:border-t [&>*+*]:border-white/[.06]">
                 {(q?.jobs || []).slice(0, 40).map(j => (
                   <Row key={j.id} onClick={() => go('jobs', j.id)} left={<Avatar name={j.company} size={32} />} title={j.title} sub={`${j.company} · ${atsName(j.ats)}`}
-                    right={<span className="flex items-center gap-2">{j.dream && <Star className="size-3.5" style={{ color: ORANGE, fill: ORANGE }} />}
+                    right={<span className="flex items-center gap-2">{j.dream && <Star className="size-3.5 fill-current text-muted" aria-label="Dream company" />}
                       <span className="w-9 text-right text-[13px] tabular-nums text-muted">{Math.round(j.fit)}%</span>
                       <ChevronRight className="size-4 text-white/25" /></span>} />))}
                 {!q && <div className="space-y-px p-2">{[0, 1, 2, 3].map(i => <div key={i} className="skel h-[48px]" />)}</div>}
@@ -186,7 +184,7 @@ export default function Agents() {
           </div>
 
           <div className="min-w-0 space-y-8">
-            <Group title="Needs you" detail={needs ? <span className="rounded-full px-2 py-0.5 text-[12px] font-semibold text-white" style={{ background: RED }}>{needs}</span> : null}
+            <Group title="Needs you" detail={needs ? String(needs) : ''}
               footer="Answers you give here are saved, so your twin never asks the same thing twice.">
               <AnimatePresence initial={false}>
                 {inbox.items.map(i => <NeedsYou key={'i' + i.id} item={i} onDone={refresh} />)}
@@ -198,7 +196,7 @@ export default function Agents() {
                     <div className="mt-2 pl-[46px]"><ItemActions item={{ ...p, id: 'p' + p.job_id }} onDone={refresh} /></div>
                   </div>))}
               </AnimatePresence>
-              {!needs && <div className="flex items-center gap-2 px-4 py-4 text-[14px] text-muted"><Check className="size-4" style={{ color: GREEN }} />Nothing right now.</div>}
+              {!needs && <div className="px-4 py-4 text-[14px] text-muted">Nothing right now.</div>}
             </Group>
 
             <Group title="Or use it from your terminal" footer="It never types passwords, solves CAPTCHAs, creates accounts or invents a fact.">
@@ -212,7 +210,7 @@ export default function Agents() {
                   <ChevronDown className={'size-3.5 transition-transform ' + (raw ? 'rotate-180' : '')} />Technical log</button>
                 <AnimatePresence initial={false}>{raw && (
                   <motion.pre initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
-                    className="mt-2 max-h-[260px] overflow-auto whitespace-pre-wrap rounded-[16px] bg-black/40 p-4 font-mono text-[11px] leading-relaxed text-white/60">{live.clean}</motion.pre>)}
+                    className="mt-2 max-h-[260px] overflow-auto whitespace-pre-wrap rounded-[12px] bg-black/40 p-4 font-mono text-[11px] leading-relaxed text-white/60">{live.clean}</motion.pre>)}
                 </AnimatePresence>
               </div>)}
           </div>
@@ -226,11 +224,11 @@ function Group({ title, detail, action, footer, children }) {
   return (
     <section>
       <div className="mb-2 flex items-center justify-between px-1">
-        <div className="flex items-center gap-2"><h2 className="text-[20px] font-semibold tracking-[-0.02em] text-white">{title}</h2>
+        <div className="flex items-baseline gap-2"><h2 className="text-[17px] font-semibold tracking-[-0.01em] text-white">{title}</h2>
           {typeof detail === 'string' ? <span className="text-[13px] text-faint">{detail}</span> : detail}</div>
         {action}
       </div>
-      <div className="overflow-hidden rounded-[18px] bg-[#1c1c1e] ring-1 ring-white/[.06] [&>*+*]:border-t [&>*+*]:border-white/[.06]">{children}</div>
+      <div className="card overflow-hidden [&>*+*]:border-t [&>*+*]:border-white/[.06]">{children}</div>
       {footer && <p className="mt-2 px-1 text-[12.5px] leading-relaxed text-faint">{footer}</p>}
     </section>
   )
@@ -249,10 +247,10 @@ function Row({ left, title, sub, right, onClick, href }) {
   )
 }
 
-const STATUS = { Applied: [GREEN, Check, 'Applied'], 'Needs User': [ORANGE, Hand, 'Needs you'], Skipped: ['#7d869f', CircleSlash, 'Skipped'] }
+const STATUS = { Applied: ['var(--color-muted)', Check, 'Applied'], 'Needs User': [ORANGE, Hand, 'Needs you'], Skipped: ['var(--color-faint)', CircleSlash, 'Skipped'] }
 
 function ResultRow({ a, onClick }) {
-  const [color, Icon, text] = STATUS[a.status] || ['#98a2c3', Check, a.status]
+  const [color, Icon, text] = STATUS[a.status] || ['var(--color-muted)', Check, a.status]
   return (
     <motion.div layout initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} transition={{ type: 'spring', stiffness: 300, damping: 30 }}>
       <Row onClick={onClick} left={<Avatar name={a.company} size={32} />} title={`${a.company}  ·  ${a.title}`} sub={a.notes}
@@ -283,7 +281,6 @@ function NeedsYou({ item, onDone }) {
     try {
       if (question && text.trim()) await api('/api/answer', { question, answer: text.trim() })
       await api(`/api/inbox/${item.id}/resolve`, {})
-      if (e?.clientX) burst(e.clientX, e.clientY)
       toast.success(question && text.trim() ? 'Saved to your answers' : 'Done', { description: question && text.trim() ? 'Used here and on every similar question.' : undefined })
       onDone()
     } catch (err) { toast.error(err.message) } finally { setBusy(false) }
@@ -301,7 +298,7 @@ function NeedsYou({ item, onDone }) {
       <AnimatePresence initial={false}>{open && (
         <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
           <textarea autoFocus value={text} onChange={e => setText(e.target.value)} rows={4} placeholder="Your answer, in your words."
-            className="mt-3 w-full resize-none rounded-[12px] bg-black/30 px-3.5 py-3 text-[14px] text-white outline-none ring-1 ring-white/10 placeholder:text-faint focus:ring-2 focus:ring-[#0a84ff]" />
+            className="mt-3 w-full resize-none rounded-[10px] bg-white/[.05] px-3.5 py-3 text-[14px] text-white outline-none placeholder:text-faint focus:ring-2 focus:ring-signal" />
           <div className="mt-2 flex justify-end gap-2">
             <button onClick={finish} disabled={busy} className="h-8 rounded-full px-4 text-[13px] text-muted hover:text-white">Skip question</button>
             <motion.button whileTap={{ scale: 0.96 }} onClick={finish} disabled={busy || !text.trim()}
@@ -319,16 +316,17 @@ function StarAsk({ count }) {
   if (gone || count < 1) return null   // right after the first round of applications
   const done = () => { safeSet('at:starAsk', 'done'); setGone(true) }
   return (
-    <motion.section initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={spring}
-      className="mt-5 flex flex-wrap items-center gap-4 rounded-[18px] bg-[#1c1c1e] px-5 py-4 ring-1 ring-white/[.06]">
-      <span className="text-[22px] text-[#ffd60a]">★</span>
+    <section className="card mt-4 flex flex-wrap items-center gap-x-4 gap-y-3 px-5 py-4">
       <div className="min-w-0 flex-1 basis-[220px]">
-        <div className="text-[15px] font-semibold text-white">Your twin has handled {count} applications. Like it?</div>
-        <div className="text-[13px] text-muted">ApplyTwin is free. A star on GitHub helps other students find it.</div>
+        <div className="text-[14px] font-medium text-white">Your twin has handled {count} applications</div>
+        <div className="mt-0.5 text-[13px] text-muted">ApplyTwin is free. A star on GitHub helps other students find it.</div>
       </div>
-      <a href={REPO_URL} target="_blank" rel="noreferrer" onClick={done}
-        className="inline-flex h-9 items-center gap-1.5 rounded-full bg-white px-4 text-[13.5px] font-semibold text-[#1d1d1f] hover:bg-white/90"><span className="text-[#f5a524]">★</span>Star on GitHub</a>
-      <button onClick={done} className="text-[13px] text-muted hover:text-white">Not now</button>
-    </motion.section>
+      <div className="flex items-center gap-3">
+        <button onClick={done} className="text-[13px] text-muted hover:text-white">Not now</button>
+        <a href={REPO_URL} target="_blank" rel="noreferrer" onClick={done}
+          className="inline-flex h-8 items-center gap-1.5 rounded-full bg-white/[.08] px-3.5 text-[13px] font-medium text-white transition-colors hover:bg-white/[.13]"><Star className="size-3.5" />Star on GitHub</a>
+      </div>
+    </section>
+
   )
 }
