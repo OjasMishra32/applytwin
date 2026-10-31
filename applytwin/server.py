@@ -9,7 +9,7 @@ import traceback
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import api, cloud, store
+from . import api, cloud, regions, store
 
 WEB = os.path.join(store.APP, 'web')
 LOCAL = ('localhost', '127.0.0.1', '[::1]')
@@ -55,6 +55,7 @@ GET = {
     r'/api/doctor': lambda m, qs, b: api.doctor(),
     r'/api/version': lambda m, qs, b: version(),
     r'/api/questions': lambda m, qs, b: api.profile_questions(),
+    r'/api/regions': lambda m, qs, b: regions.choices(),
     r'/api/update': lambda m, qs, b: api.update_status(),
     r'/api/agents': lambda m, qs, b: api.agent_status(),
     r'/api/auth': lambda m, qs, b: cloud.status(),

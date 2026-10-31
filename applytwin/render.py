@@ -158,7 +158,7 @@ def build_html(r, style='classic', k=1.0, titles=None):
         if sec == 'education':
             for e in data:
                 deg = degree_line(e)
-                extra = '; '.join(x for x in (e.get('minor') and 'Minor in ' + e['minor'], e.get('gpa') and 'GPA: ' + e['gpa']) if x)
+                extra = '; '.join(x for x in (e.get('minor') and 'Minor in ' + e['minor'], e.get('gpa') and (e.get('gpa_label') or 'GPA') + ': ' + e['gpa']) if x)
                 body.append(f'<div class="entry"><div class="row"><span class="org">{html.escape(e.get("school", ""))}</span>'
                             f'<span>{html.escape(e.get("location", ""))}</span></div><div class="row"><span class="role">{html.escape(deg)}'
                             f'{("; " + html.escape(extra)) if extra else ""}</span><span class="meta">{html.escape(dates(e))}</span></div>')
@@ -203,7 +203,8 @@ def build_html(r, style='classic', k=1.0, titles=None):
         elif sec in ('awards', 'certifications'):
             body.append('<ul>' + ''.join(f'<li>{md(a if isinstance(a, str) else a.get("title", ""))}</li>' for a in data) + '</ul>')
         out.append(f'<section>{_heading(titles.get(sec, sec.title()), style)}{"".join(body)}</section>')
-    css = BASE_CSS + STYLE_CSS[style]
+    from .regions import paper_css
+    css = BASE_CSS + STYLE_CSS[style] + paper_css(r.get('paper'))   # A4 outside the US and Canada; Letter otherwise
     return (f'<!doctype html><html><head><meta charset="utf-8"><title>{html.escape(b.get("name", "Resume"))}</title>'
             f'<style>{css}</style><style>:root{{--k:{k}}}</style></head><body><div class="page">'
             + ''.join(head) + ''.join(out) + '</div></body></html>')

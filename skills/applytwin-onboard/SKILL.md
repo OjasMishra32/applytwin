@@ -43,6 +43,11 @@ Then ask ONE batched question for what files can't tell you:
 - Work authorization in the US? Will they need sponsorship now or later? Citizenship (only if they want
   government/defense roles)?
 - What they want: internship / new grad / full-time; season (e.g. "Summer 2027"); roles; locations; remote ok?
+- Outside the US (Europe, India...)? Set `search.countries` / `search.cities`, `work_auth` per country
+  (`{"GB": "sponsorship", "EU": "citizen", "IN": "citizen"}`; values citizen | authorized | sponsorship), optional
+  `search.programs` (internship, placement, working_student, graduate_scheme, campus), and what those forms ask:
+  `nationality`, `notice_period`, `expected_salary_local`, `languages`; for India `current_ctc`, `expected_ctc`, `cgpa`,
+  `marks_10th`, `marks_12th`. Only what the user tells you; leave the rest blank.
 - Dream companies (priority) and companies to never apply to (skip).
 - Agent permissions: may ApplyTwin submit on its own (`apply.auto_submit`), or stop at the review screen? Daily
   limit? Max applications per company?

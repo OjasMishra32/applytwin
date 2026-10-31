@@ -7,6 +7,7 @@
   workday          {tenant}.{wdN}.myworkdayjobs.com/wday/cxs/{tenant}/{site}/jobs  (POST)
   workable         apply.workable.com/api/v3/accounts/{account}/jobs  (POST)
   recruitee        {company}.recruitee.com/api/offers
+  amazon, microsoft  amazon.jobs and Microsoft Careers search APIs, for the countries the user picked (UK, India, Germany...)
   community lists  GitHub trackers: SimplifyJobs, vanshb03 (listings.json); SpeedyApply, Northwestern FinTech quant,
                    Zapply, Simplify off-season (README tables)
   open APIs        The Muse (every field), RemoteOK, Remotive, Himalayas, Jobicy, Arbeitnow, Hacker News "Who is hiring"
@@ -119,7 +120,10 @@ def greenhouse(token):
 
 def lever(company):
     company, _, label = company.partition('|')
-    for j in get(f'https://api.lever.co/v0/postings/{company}?mode=json'):
+    host = 'api.lever.co'
+    if company.startswith('eu:'):   # boards hosted on Lever's EU instance (jobs.eu.lever.co)
+        company, host = company[3:], 'api.eu.lever.co'
+    for j in get(f'https://{host}/v0/postings/{company}?mode=json'):
         cat = j.get('categories') or {}
         desc = (j.get('descriptionPlain') or '') + '\n' + '\n'.join(
             f"{l.get('text', '')}\n{strip_html(l.get('content', ''))}" for l in j.get('lists', []))
@@ -157,7 +161,18 @@ def smartrecruiters_feed(keywords=('intern', 'internship', 'co-op', 'new grad', 
 def smartrecruiters_company(company):
     company = company.partition('|')[0]
     d = get(f'https://api.smartrecruiters.com/v1/companies/{company}/postings?limit=100')
-    for j in d.get('content', []):
+    posts = d.get('content', [])
+    if (d.get('totalFound') or 0) > 100:   # a big employer (Bosch: 5,000 openings): search it for this user's kind of role
+        seen = {j['id'] for j in posts}
+        for term in [t for t in _workday_search() if t]:
+            for off in range(0, 500, 100):
+                more = get(f'https://api.smartrecruiters.com/v1/companies/{company}/postings?' +
+                           urllib.parse.urlencode({'limit': 100, 'offset': off, 'q': term})).get('content', [])
+                posts += [j for j in more if j['id'] not in seen]
+                seen |= {j['id'] for j in more}
+                if len(more) < 100:
+                    break
+    for j in posts:
         loc = j.get('location') or {}
         yield job('smartrecruiters', j['id'], (j.get('company') or {}).get('name', company), j.get('name'),
                   loc.get('fullLocation') or loc.get('city', ''),
@@ -411,11 +426,78 @@ def recruitee(company):
                   j.get('careers_apply_url') or j.get('careers_url'), (j.get('published_at') or '')[:10], strip_html(j.get('description', '')))
 
 
+# ------------------------------------------------------------------ big employers' own job search (international)
+
+def _intl_terms():
+    kind = (store.profile().get('search') or {}).get('kind') or 'internship'
+    return {'internship': ['intern'], 'co-op': ['intern'], 'new-grad': ['graduate', 'university'], 'full-time': ['software']}.get(kind, ['intern'])
+
+
+def amazon_jobs(country, terms=None):
+    """amazon.jobs search for one country (ISO code, e.g. 'GB', 'IN', 'DE')."""
+    from . import regions
+    iso3 = regions.C.get(country, ('', [], ''))[2]
+    if not iso3:
+        return
+    seen = set()
+    for term in terms or _intl_terms():
+        for off in range(0, 500, 100):
+            d = get('https://www.amazon.jobs/en/search.json?' + urllib.parse.urlencode(
+                {'base_query': term, 'normalized_country_code[]': iso3, 'result_limit': 100, 'offset': off, 'sort': 'recent'}), timeout=30)
+            jobs = d.get('jobs') or []
+            for j in jobs:
+                if j.get('id') in seen:
+                    continue
+                seen.add(j.get('id'))
+                url = 'https://www.amazon.jobs' + (j.get('job_path') or '')
+                desc = '\n'.join(strip_html(j.get(k) or '') for k in ('description', 'basic_qualifications', 'preferred_qualifications'))
+                posted = ''
+                try:
+                    posted = time.strftime('%Y-%m-%d', time.strptime(j.get('posted_date') or '', '%B %d, %Y'))
+                except ValueError:
+                    pass
+                yield job('amazon', j.get('id'), j.get('company_name') or 'Amazon', j.get('title'), j.get('normalized_location') or j.get('location'),
+                          url, j.get('url_next_step') or url, posted, desc, ats='amazon')
+            if len(jobs) < 100:
+                break
+
+
+def microsoft_jobs(country, terms=None):
+    """Microsoft Careers search for one country (ISO code)."""
+    from . import regions
+    name = regions.NAMES.get(country)
+    if not name:
+        return
+    seen = set()
+    for term in terms or _intl_terms():
+        for start in range(0, 200, 10):
+            try:
+                d = (get('https://apply.careers.microsoft.com/api/pcsx/search?' + urllib.parse.urlencode(
+                    {'domain': 'microsoft.com', 'query': term, 'location': name, 'start': start}), timeout=30).get('data') or {})
+            except Exception as e:
+                if start and getattr(e, 'code', None) == 429:   # rate limited mid-way: keep what came back
+                    return
+                raise
+            time.sleep(0.4)
+            posts = d.get('positions') or []
+            for p in posts:
+                if p.get('id') in seen or (p.get('standardizedLocations') and country not in p['standardizedLocations']
+                                           and not any(name.lower() in (l or '').lower() for l in p.get('locations') or [])):
+                    continue
+                seen.add(p.get('id'))
+                url = f"https://apply.careers.microsoft.com/careers/job/{p['id']}"
+                yield job('microsoft', p['id'], 'Microsoft', p.get('name'), '; '.join(p.get('locations') or [])[:200], url, url,
+                          time.strftime('%Y-%m-%d', time.gmtime(p.get('postedTs') or 0)) if p.get('postedTs') else '', '', ats='eightfold')
+            if len(posts) < 10:
+                break
+
+
 # ------------------------------------------------------------------ discovery: trackers point at whole boards
 
 BOARD_PATTERNS = [
     ('greenhouse', re.compile(r'(?:boards|job-boards)(?:\.eu)?\.greenhouse\.io/(?:embed/job_app\?for=)?([\w-]+)')),
     ('lever', re.compile(r'jobs\.lever\.co/([\w.-]+)/')),
+    ('lever-eu', re.compile(r'jobs\.eu\.lever\.co/([\w.-]+)/')),
     ('ashby', re.compile(r'jobs\.ashbyhq\.com/([\w.%-]+)/')),
     ('workday', re.compile(r'https?://([\w-]+\.wd\d+)\.myworkdayjobs\.com/(?:[a-z]{2}-[A-Z]{2}/)?([\w-]+)/')),
     ('smartrecruiters', re.compile(r'(?:jobs|careers)\.smartrecruiters\.com/([\w-]+)/')),
@@ -433,6 +515,8 @@ def discover(jobs):
                 m = pat.search(url)
                 if m:
                     token = '/'.join(m.groups()) if ats == 'workday' else urllib.parse.unquote(m.group(1))
+                    if ats == 'lever-eu':
+                        ats, token = 'lever', 'eu:' + token
                     if token.lower() not in ('embed', 'jobs', 'j', 'careers'):
                         co = clean_company(j.get('company') or '').replace('|', ' ').strip()
                         found.setdefault(ats, {}).setdefault(token, co)
@@ -478,7 +562,7 @@ def scan(sources=None, on_progress=None, workers=32):
     """Run every enabled source in parallel, score each job against the profile, upsert into applytwin.db."""
     from . import match
     sources = sources or ['community', 'tables', 'themuse', 'remote', 'hackernews', 'smartrecruiters', 'greenhouse', 'lever',
-                          'ashby', 'workday', 'workable', 'recruitee']
+                          'ashby', 'workday', 'workable', 'recruitee', 'amazon', 'microsoft']
     comp = store.companies()
     tasks = []
     kind = store.profile()['search'].get('kind', 'internship')
@@ -502,6 +586,12 @@ def scan(sources=None, on_progress=None, workers=32):
                     ('workable', workable), ('recruitee', recruitee)):
         if src in sources:
             tasks += [(f'{src}:{c}', lambda fn=fn, c=c: list(fn(c)), ()) for c in comp.get(src, [])]
+    from . import regions
+    for cc in sorted(regions.targets(store.profile())[0])[:12]:   # countries picked in Settings: Amazon and Microsoft there
+        if 'amazon' in sources:
+            tasks.append((f'amazon jobs {cc}', lambda cc=cc: list(amazon_jobs(cc)), ()))
+        if 'microsoft' in sources:
+            tasks.append((f'microsoft jobs {cc}', lambda cc=cc: list(microsoft_jobs(cc)), ()))
     prof = store.profile()
     from . import ats, tailor
     vt = ats.resume_text(store.resume())
@@ -548,6 +638,8 @@ def _retire(con, name, jobs):
     if not token or not jobs or ats not in ('greenhouse', 'lever', 'ashby', 'workday', 'smartrecruiters', 'workable', 'recruitee'):
         return
     token = token.split('|')[0]
+    if token.startswith('eu:'):
+        token = token[3:]
     seen = [j['id'] for j in jobs]
     ph = ','.join('?' * len(seen))
     # this exact board only ("ame" must not close "frame" or "epicgames"): its token is a whole path segment of the URL
@@ -610,6 +702,10 @@ def fetch_description(j):
             m = re.search(r'(?:boards|job-boards)\.greenhouse\.io/([^/?#]+)/jobs/(\d+)', url)
             d = get(f'https://boards-api.greenhouse.io/v1/boards/{m.group(1)}/jobs/{m.group(2)}')
             text = strip_html(d.get('content', ''))
+        elif re.search(r'apply\.careers\.microsoft\.com/careers/job/(\d+)', url):
+            pid = re.search(r'/careers/job/(\d+)', url).group(1)
+            d = get(f'https://apply.careers.microsoft.com/api/pcsx/position_details?position_id={pid}&domain=microsoft.com&hl=en')
+            text = strip_html((d.get('data') or {}).get('jobDescription', ''))
         elif 'myworkdayjobs.com' in url:
             m = re.match(r'https://([^/]+)/(?:[a-z]{2}-[A-Z]{2}/)?([^/]+)(/job/.+)', url)
             host, site, ext = m.groups()

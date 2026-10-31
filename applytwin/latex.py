@@ -104,7 +104,7 @@ def build_tex(r, k=1.0):
                 from .render import degree_line
                 deg = degree_line(e)
                 if e.get('gpa'):
-                    deg += f"; GPA: {e['gpa']}"
+                    deg += f"; {e.get('gpa_label') or 'GPA'}: {e['gpa']}"
                 body.append(r'\resumeSubheading{%s}{%s}{%s}{%s}' % (esc(e.get('school')), esc(e.get('location')), esc(deg), dates(e)))
                 extra = [x for x in (e.get('honors') or []) + ([('Coursework: ' + ', '.join(e['coursework']))] if e.get('coursework') else [])]
                 if extra:
@@ -146,6 +146,8 @@ def build_tex(r, k=1.0):
     # \small and the headings are relative to the class size, so shrink by changing the class size (11pt -> 10pt), and at
     # the last step also tighten the space between items
     pre = PREAMBLE if k >= 0.99 else PREAMBLE.replace('[letterpaper,11pt]', '[letterpaper,10pt]')
+    if str(r.get('paper') or '').upper() == 'A4':   # outside the US and Canada (regions.conventions)
+        pre = pre.replace('letterpaper', 'a4paper')
     if k < 0.93:
         pre += '\n\\setlist{itemsep=-1pt}\n'
     return pre + '\n\\begin{document}\n' + '\n'.join(body) + '\n\\end{document}\n'

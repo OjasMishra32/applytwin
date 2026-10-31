@@ -872,5 +872,8 @@ _fl = _tp.pattern_flags({'experience': [{'bullets': ['Worked on the backend for 
 res.append(ok(any('weak opener' in f for f in _fl) and not any('Built' in f for f in _fl) and 'ASSET MANAGEMENT' in _tp.prompt(api.get_vault(), {'title': 'Equity Research Summer Associate', 'company': 'Wellington Management'}, 'stocks', {}),
               'recruiter-norms check flags filler openers; the plan prompt carries the posting\'s profile'))
 
+# international: location parsing, regions, work rights, answers, CV conventions, A4 (kept in its own file)
+exec(compile(open(os.path.join(ROOT, 'tests', 'smoke_intl.py'), encoding='utf-8').read(), 'smoke_intl.py', 'exec'))
+
 print(f'\n{sum(res)}/{len(res)} passed')
 sys.exit(0 if all(res) else 1)

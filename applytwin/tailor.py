@@ -1468,7 +1468,9 @@ def _tailor(v, job, jd, mode, plan, style, out_dir, track):
         audit(res, rep)
     track.stage('fit')
     out_dir = out_dir or store.path('resumes', job.get('id', 'general'))
-    name = (re.sub(r'[^\w]+', '_', res['basics'].get('name', 'Resume') or '', flags=re.UNICODE).strip('_') or 'Resume') + '_Resume.pdf'
+    from . import regions
+    regions.apply_conventions(res, job)   # the job's country: A4 + "CV" outside the US/Canada, CGPA label in India (layout only)
+    name = (re.sub(r'[^\w]+', '_', res['basics'].get('name', 'Resume') or '', flags=re.UNICODE).strip('_') or 'Resume') + f'_{regions.file_label(job)}.pdf'
     pdf = os.path.join(out_dir, name)
     kws = ats.keywords(jd)
     worth = trim_worth(res, kws, jd)
