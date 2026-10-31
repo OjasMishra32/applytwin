@@ -53,8 +53,7 @@
  "not_shipped": {
   "product_design": "no product/design posting in the eval set yet, so not shipped until measured",
   "defense": "round 2: with the U.S. citizenship line the profile won 42-6, but the line alone (plain prompt) won 25-7 and the profile without the line lost 10-22, so only the line shipped",
-  "hardware_electrical_board": "round 3: a board/electrical variant of hardware_eng lost (Apple 1-7, SpaceX 1-6, Rocket Lab 3-5; Anduril 7-1), so electrical, avionics and hardware-engineering titles keep their earlier routing",
-  "hardware_validation": "round 3: a test/validation variant lost 0-8 (Intel post-silicon, Rivian electrical validation), so validation and test titles keep robotics/hardware or their field's profile"
+  "hardware_validation": "round 3: a test/validation variant lost 0-8; round 4 rebuilt it (validation identity first, design-team roles in experience, no invented follow-ups) and it still went 40-54 over 6 rounds (revised version 22-26, GM 6-18), so validation and test titles keep robotics/hardware or their field profile"
  },
  "top_firm_vs_rest_students": {
   "students_top_firm": {
@@ -165,6 +164,7 @@
   "asset_mgmt_markets",
   "quant_trading",
   "quant_research_dev",
+  "hardware_board",
   "defense",
   "hardware_eng",
   "startup",
@@ -230,6 +230,10 @@
   "hardware_eng": {
    "title": "\\b(asic|fpga|rtl|vlsi|soc|dv|cpu|gpu)\\b|design verification|verification (eng|intern)|hardware verification|silicon|\\bchip|digital design|logic design|physical design|semiconductor|analog|mixed[- ]signal|circuit design|embedded|firmware",
    "unless_title": "mechanical|mechatronic|structur|manufactur|propulsion|\\bdata\\b|machine learning|\\bml\\b|^(?!.*(embedded|firmware)).*software|^(?!.*design verification).*(validation|\\btest\\b)"
+  },
+  "hardware_board": {
+   "title": "electrical|hardware (eng|intern|design|co-?op)|avionics|\\bpcb\\b|power electronics|circuit card|board design",
+   "unless_title": "mechanical|mechatronic|structur|manufactur|propulsion|\\bdata\\b|machine learning|\\bml\\b|embedded|firmware|\\b(asic|fpga|rtl|vlsi|dv)\\b|design verification|verification eng|software|developer|validation|\\btest\\b|post-silicon|bring-?up"
   }
  },
  "by_field": {
@@ -2833,6 +2837,73 @@
       "Characterized"
      ]
     }
+   ],
+   "shipped": true
+  },
+  "hardware_board": {
+   "label": "electrical / board hardware",
+   "basis": "conventions synthesized from public hardware recruiting guides (university ECE career centers, firm career pages and postings for electrical, avionics, power electronics and validation internships) and the round-3 blind review's judges' reasons; bullet norms from the robotics/hardware profile's public student resumes",
+   "lead_with": "the boards and circuits the candidate designed, brought up or tested: what the board does (power distribution, motor control, battery monitoring, sensor interface, flight computer), the EDA tool (Altium, KiCad), the bench instruments used and a measured spec (efficiency, current, temperature range, first-spin bring-up). Paid hardware internships lead, newest first",
+   "order": [
+    "education",
+    "experience",
+    "projects",
+    "skills"
+   ],
+   "skills": "labeled lines, hardware first: Hardware Design (Altium, KiCad, LTspice); Lab & Test (oscilloscope, logic analyzer, thermal chamber, LabVIEW, PyVISA); Embedded (C, MCUs, SPI/I2C/CAN); Programming (Python, MATLAB). Only items the vault has. An HDL/FPGA line goes last, or goes when the page is tight and the posting doesn't ask for it",
+   "conventions": [
+    "Every hardware bullet names what the work ran on and with: the board or part (STM32G4, MSP430, a 16-cell monitor IC), the tool (Altium, KiCad, LTspice, LabVIEW) and the instrument (oscilloscope, power analyzer, thermal chamber), exactly as the vault lists them for that entry. A hardware interviewer asks about every tool on the page: never add one the vault does not list.",
+    "Specs are the numbers hardware readers trust (efficiency, current, voltage, ripple, temperature range, layer count, sample rate, channel count, test time, test count, yield). Keep each exactly, with the qualifier that bounds it: at rated load, first spin, cold-flow, simulated, in the thermal chamber.",
+    "A titled role on a hardware design team or lab (Electrical Lead, Avionics Subteam Lead) that delivered boards, harnesses or flight electronics is hardware experience: put it under experience (use its leadership id) with its 2-3 strongest measured bullets, so it never reads thin. Never leave it in a bottom Leadership section while weaker material sits above it. Experience stays in reverse-chronological order (ongoing roles first, then by end date).",
+    "Keep the lab and test evidence these postings ask for: DAQ code, test stands, hardware-in-the-loop runs, thermal or environmental tests, bring-up checklists, test counts. A lab or research role with hands-on hardware outranks a non-hardware bullet from a better-known internship.",
+    "A project that matches a named preferred qualification (CubeSat, motor controller, Formula SAE, rover, rocket avionics) stays on the page with its spec.",
+    "On a board-level page, digital design and verification lines (RTL, UVM, FPGA accelerators) are the first to go when space is tight, unless the posting asks for FPGA or digital work.",
+    "Fill the page with measured evidence: keep each kept role's test and analysis specifics (HIL runs, case counts, test campaigns, conditions) instead of shortening bullets, and mirror the posting's own words (bring-up, test procedures, against requirements, qualification) on work the vault shows. Name the actual thing (the evaluation board, flight computer, harness); never bolt the word 'hardware' onto a bullet about simulation or software.",
+    "Ongoing work stays in present tense and keeps its status; a test type or result is never upgraded (cold-flow is not hot-fire, simulated is not flown, a class project is not production). Cut trainings (ITAR, safety), retail or service jobs, outreach and club roles whose lines are vague ('Coordinated volunteers', 'Helped organize events') whenever hardware material is left out."
+   ],
+   "avoid": [
+    "software-only framing for a hardware role",
+    "a tool or skills list with nothing built",
+    "'familiar with' or 'exposure to' lines",
+    "trainings or meetings attended as bullets",
+    "a one-line outreach or club section closing the page",
+    "an HDL/UVM skills line ahead of the hardware-design and lab lines"
+   ],
+   "exemplars": [
+    "Designed a 6-layer 24V power distribution board in Altium with eFuse protection; passed bring-up on first spin and held ripple under 20 mV at 8 A.",
+    "Root-caused 2% I2C packet loss to a missing pull-up with a logic analyzer; respun the board and logged zero errors over 72 hours.",
+    "Wrote LabVIEW DAQ code for 16 thermocouples at 1 kHz on the engine test stand and ran 9 static tests with it."
+   ],
+   "norms": {
+    "bullet_chars": [
+     95,
+     170
+    ],
+    "max_chars": 215,
+    "bullets_per_role": "2-4",
+    "bullets_per_project": "1-3",
+    "bullets_total": "14-20",
+    "quantified_min": 0.5
+   },
+   "verbs": [
+    "Designed",
+    "Brought up",
+    "Built",
+    "Laid out",
+    "Characterized",
+    "Tested",
+    "Validated",
+    "Debugged",
+    "Root-caused",
+    "Automated",
+    "Wrote",
+    "Integrated",
+    "Reduced",
+    "Measured"
+   ],
+   "checks": [
+    "tense",
+    "tools"
    ],
    "shipped": true
   }

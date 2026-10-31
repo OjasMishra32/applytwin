@@ -3,7 +3,8 @@
 `applytwin/resume_patterns.json` holds aggregate norms for each kind of target role. Shipped profiles: big-tech SWE, quant
 trading, asset management/markets, robotics/hardware, startups/founding engineer, data and general software (round 1), and
 investment banking, ML/AI research and quant research/dev (round 2), and hardware engineering for embedded/firmware and
-chip design/verification titles (round 3). The defense-tech and product/design profiles are in
+chip design/verification titles (round 3), and electrical/board hardware for electrical, avionics and power-electronics
+titles (round 4). The defense-tech and product/design profiles are in
 the file with `"shipped": false`: built but not used, because they have not won a blind review (see "Measured effect").
 Postings of those kinds keep the plain prompt. `APPLYTWIN_TRY_PROFILES=all` (or a comma list of ids) switches unshipped
 profiles on for an eval run. The tailor uses the file in two places:
@@ -166,7 +167,8 @@ scores were 7.23 and 7.17.
     mark that down. `main` behaves the same way.
   - A first version of this branch also re-sorted roles the filler added for every finance posting, which put the role
     first more often. Now only banking does that.
-  - This is an open item: an ongoing minor role outranking the main internship.
+  - Fixed in round 4 (see "Round 4"): an ongoing campus role is now placed by its start date in finance's newest-first
+    order, so it no longer sits above the internship.
 
 ### Round 3: hardware
 
@@ -194,8 +196,8 @@ What weakened hardware pages on `main`, from the absolute grader's defects and t
 | chip design / verification (ASIC, FPGA, RTL, DV, VLSI, silicon, analog) | 4 | 41-7 | 7.71 to 8.10 (n=24) | shipped |
 | embedded / firmware (rounds 1-2 ran an earlier wording) | 4 | 23-7 | 7.50 to 7.59 (n=16) | shipped |
 | final configuration only (rounds 3-4, both variants) | 2 | 30-8, sign test p < 0.001 | chip 7.75 to 8.17 | |
-| electrical / board (Apple, SpaceX, Rocket Lab, Anduril) | 2 | 12-19 | | not shipped |
-| test / validation (Intel, Rivian) | 1 | 0-8 | | not shipped |
+| electrical / board (Apple, SpaceX, Rocket Lab, Anduril) | 2 | 12-19 | | rebuilt and shipped in round 4 |
+| test / validation (Intel, Rivian) | 1 | 0-8 | | still not shipped after round 4 |
 
 - By posting, all rounds: Qualcomm 16-0, AMD 13-3, NVIDIA 12-4, humanoid robotics 13-2, Tesla 10-5.
 - The electrical/board variant lost on Apple (1-7), SpaceX (1-6) and Rocket Lab (3-5) and won on Anduril (7-1). Judges
@@ -218,3 +220,74 @@ What weakened hardware pages on `main`, from the absolute grader's defects and t
 research and applied ML, 2 rounds: 27-29 (n=56), absolute 7.59 and 7.59. None of these pages triggered a changed code path
 (no tool-guard rejection, no filler entry skipped, no training line), so per-posting splits (banking 6-2, big-tech 2-6) are
 generation noise.
+
+### Round 4: electrical/board hardware, test/validation, and finance ordering
+
+Why round 3's electrical/board and test/validation variants lost, from the judges' reasons:
+- **Design-team roles were demoted.** Both variants inherited the embedded/chip rule that a design-team role stays under
+  Leadership. On board-level postings, judges wanted a titled role that delivered boards ("Electrical Lead", "Avionics
+  Subteam Lead") in Experience, and marked pages down for leaving it at the bottom (Apple went 0-4 on this alone in one
+  round).
+- **Lab evidence was traded away.** The SpaceX pages dropped a lab role with LabVIEW DAQ code and a CubeSat project (both
+  named in the posting) for GN&C analysis lines. Rocket Lab pages came out thinner (HIL runs and the 2,000-case Monte Carlo
+  were dropped). Some pages bolted "hardware" onto simulation bullets, and UVM/accelerator lines stayed on Apple's
+  board-level page.
+- **Validation lost to pages that were already good.** The baseline (software or robotics/hardware profile) already
+  led with test automation. The variant added a PCB/club block and a TA entry in place of test bullets. Judges also rewarded
+  baseline rewrites that added outcomes the vault doesn't state ("driving a bug report to the design team").
+- **An outreach section ending in "Coordinated volunteers."** closed several avionics pages in both arms. When a plan writes
+  no "leadership" key (it often moves the one strong club role into experience), the vault's whole leadership section was
+  printed as-is, filler lines included.
+
+Eval: the six round-3 postings plus four new ones written after the variant and never read for its design (Lucid power
+electronics, Blue Origin avionics, GM electrical validation, Marvell post-silicon validation). The same harness as rounds
+2-3, with `main` as old. Win counts are judgments, and each pair is judged twice, so the sign test is optimistic.
+
+| change | rounds | blind wins new-old | absolute, old to new | decision |
+|---|---|---|---|---|
+| electrical/board profile, first version | 3 | 42-29 (p = 0.15) | 7.15 to 7.28 | revised |
+| electrical/board profile, revised | 3 | 53-19 (p < 0.001) | 7.15 to 7.18 | shipped |
+| test/validation variant, both versions | 6 | 40-54 (revised alone 22-26) | 7.03 to 7.14 | not shipped |
+| finance: ongoing campus role by start date | 3 | 34-14 (p = 0.006) | 7.23 to 7.46 | shipped |
+| same, order-only (same page, only the order differs) | | 56-0 (28 pages) | | |
+
+- **Electrical/board, revised, by posting:** Apple 12-0, Rocket Lab 11-1, Blue Origin 10-2 (new posting), Lucid 8-4 (new),
+  Anduril 8-4, SpaceX 4-8. On SpaceX, some generations dropped the NASA internship or the CubeSat project. Pairs where the
+  new page hit no leadership-section change went 47-19, so the profile carries the result.
+- **What the electrical/board profile says:**
+  - A titled design-team role that delivered hardware goes under Experience with 2-3 measured bullets, in reverse
+    chronological order.
+  - Keep lab and test evidence (DAQ, test stands, HIL, thermal tests, bring-up), and keep projects that match a named
+    preferred qualification.
+  - Digital/UVM lines are the first to go on a board-level page.
+  - Never bolt on the word "hardware"; mirror the posting's words only on work the vault shows.
+  - Skills lead with hardware design and lab lines.
+- **Routing:** electrical, avionics, power-electronics, PCB and "hardware engineering" titles get it, ahead of defense and
+  big-tech firm routing (the citizenship line still applies). Embedded, firmware, chip, validation, test, mechanical and
+  software titles keep their earlier profiles.
+- **Validation, by posting:** GM 6-18, Rivian 9-15, Intel 13-11, Marvell 12-10. The revision put validation identity first,
+  put design-team roles in experience, and allowed a new result (bug filed, fix, errata) only when the vault states it.
+  It still didn't beat pages that were already test-first, so validation and test titles keep robotics/hardware or their
+  field's profile.
+- **Finance ordering:** a still-ongoing part-time campus role (research or teaching assistant, tutor, peer advisor) is
+  placed by its start date. It never sits above an internship that ended after it began. Internships, analyst roles and
+  real jobs keep strict newest-first order, and so does Leadership.
+  - By posting: Wellington 7-5, Moelis (banking, same student) 10-2, T. Rowe Price 10-2, BlackRock 7-5.
+  - The order-only test re-rendered 28 finished pages that carried the role, in `main`'s order and the new order. Judges
+    preferred the new order every time.
+  - Goldman (6-6) and Google (8-4) ran in the same rounds and never hit the changed code path.
+
+**General fixes** shipped alongside:
+- A section the plan left out entirely loses its filler lines, and any club entry with only filler lines. During the eval
+  this version also dropped the entries the plan's "cut" list named. That went 13-7 on hardware pairs it touched but lost
+  one startup pair (a strong hackathon-infrastructure role was cut), so the shipped version doesn't apply "cut" there.
+- A skills heading the plan invented is kept when the vault label would read as another heading printed twice ("GN&C"
+  beside "GN&C & Modeling"; 1 page in 1,271 across all eval outputs).
+
+**Regression check** (`main` against the final branch, except that during the run, a section the plan left out also honored
+"cut") on big-tech SWE, quant trading, startup, banking (Evercore, Goldman), ML research, applied ML, chip design/verification
+(NVIDIA, Qualcomm), embedded (Tesla, Figure) and Wellington, 2 rounds: 50-45 (n=95), absolute 7.73 old vs 7.67 new.
+- Only 2 of 48 new pages hit a changed code path: one Wellington page reordered, and one startup page whose cut leadership
+  section lost both judgments (that behavior was then removed).
+- Every other split is generation noise on identical code: quant trading 0-8, Goldman 2-6, Wellington 2-6, Evercore 7-1,
+  Qualcomm 8-0, Figure 8-0, NVIDIA 1-6.
