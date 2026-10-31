@@ -52,7 +52,9 @@
  },
  "not_shipped": {
   "product_design": "no product/design posting in the eval set yet, so not shipped until measured",
-  "defense": "round 2: with the U.S. citizenship line the profile won 42-6, but the line alone (plain prompt) won 25-7 and the profile without the line lost 10-22, so only the line shipped"
+  "defense": "round 2: with the U.S. citizenship line the profile won 42-6, but the line alone (plain prompt) won 25-7 and the profile without the line lost 10-22, so only the line shipped",
+  "hardware_electrical_board": "round 3: a board/electrical variant of hardware_eng lost (Apple 1-7, SpaceX 1-6, Rocket Lab 3-5; Anduril 7-1), so electrical, avionics and hardware-engineering titles keep their earlier routing",
+  "hardware_validation": "round 3: a test/validation variant lost 0-8 (Intel post-silicon, Rivian electrical validation), so validation and test titles keep robotics/hardware or their field's profile"
  },
  "top_firm_vs_rest_students": {
   "students_top_firm": {
@@ -164,6 +166,7 @@
   "quant_trading",
   "quant_research_dev",
   "defense",
+  "hardware_eng",
   "startup",
   "ml_research",
   "applied_ml",
@@ -223,6 +226,10 @@
   },
   "applied_ml": {
    "title": "machine learning|\\bml\\b|\\bai\\b|research scien|applied scien|deep learning|computer vision|\\bnlp\\b|\\bllm|research engineer|perception|reinforcement"
+  },
+  "hardware_eng": {
+   "title": "\\b(asic|fpga|rtl|vlsi|soc|dv|cpu|gpu)\\b|design verification|verification (eng|intern)|hardware verification|silicon|\\bchip|digital design|logic design|physical design|semiconductor|analog|mixed[- ]signal|circuit design|embedded|firmware",
+   "unless_title": "mechanical|mechatronic|structur|manufactur|propulsion|\\bdata\\b|machine learning|\\bml\\b|^(?!.*(embedded|firmware)).*software|^(?!.*design verification).*(validation|\\btest\\b)"
   }
  },
  "by_field": {
@@ -2714,6 +2721,120 @@
      "deal": 0.15
     }
    }
+  },
+  "hardware_eng": {
+   "label": "embedded / firmware",
+   "basis": "conventions synthesized from public hardware recruiting guides (university ECE career centers, firm career pages and postings for embedded, firmware, ASIC and verification internships); bullet norms from the robotics/hardware profile's public student resumes",
+   "lead_with": "firmware on named hardware: the MCU or SoC (STM32, AURIX, nRF52, C2000), the RTOS or stack (FreeRTOS, Zephyr, AUTOSAR), the bus or peripheral (CAN, SPI, I2C, DMA, interrupts) and a measured real-time result (latency, loop rate, sleep current, memory), plus board bring-up and debug with an oscilloscope or logic analyzer",
+   "order": [
+    "education",
+    "experience",
+    "projects",
+    "skills"
+   ],
+   "skills": "Languages (C, C++, Python); Embedded (MCUs, RTOS, buses and protocols); Hardware & Lab (oscilloscope, logic analyzer, KiCad/Altium, HIL); Tools (Git, CANoe, debuggers), only as the vault has them",
+   "conventions": [
+    "Every hardware bullet names what the work ran on and with: the part or platform (STM32G4, Zynq, AURIX), the tool (Altium, Vivado, VCS, LabVIEW) and the instrument (oscilloscope, logic analyzer, power analyzer), exactly as the vault lists them for that entry. A hardware interviewer asks about every tool on the page: never add one the vault does not list.",
+    "Specs are the numbers hardware readers trust (clock or loop rate, efficiency, power or current, latency, coverage, area, yield, test time, temperature range, layer count). Keep each exactly, with the qualifier that bounds it: at equal clock, academic library, at rated load, cold-flow, first prototype, first spin.",
+    "Ongoing work stays in present tense ('Designing ...') and keeps its status; a test type, process or result is never upgraded (cold-flow is not hot-fire, fabricated is not machined, a class project is not production).",
+    "Within each entry the bullet that proves the posting's #1 requirement comes first, then its biggest measured result.",
+    "A titled design-team hardware role (rover, rocketry, Formula SAE, robotics) moves into Experience only when the posting asks for that kind of team or fewer than two relevant internships are kept; otherwise it stays under Leadership with its best measured bullets, and relevant internships stay in date order.",
+    "Relevant coursework (4-6 courses) in the posting's domain goes on the education block; generic or unrelated classes go first.",
+    "A software or data internship stays when it is a real role, framed by what it did for hardware (test automation, firmware tooling, validation data); its web-UI or dashboard-only lines are the first to go.",
+    "Cut trainings (ISO 26262, ITAR, safety), retail or service jobs, club memberships and weekend apps whenever hardware material is left out."
+   ],
+   "avoid": [
+    "software-only framing for a hardware role",
+    "a tool or skills list with nothing built",
+    "'familiar with' or 'exposure to' lines",
+    "trainings or meetings attended as bullets",
+    "a skills line that points at a different job (web frameworks, BI tools) when the page is tight"
+   ],
+   "exemplars": [
+    "Wrote an interrupt-driven CAN driver in C for an STM32F4 under FreeRTOS, cutting worst-case message latency from 8 ms to 1.5 ms.",
+    "Brought up a custom nRF52 board, traced a brown-out reset to LDO dropout with an oscilloscope, and cut sleep current to 6 µA.",
+    "Closed a 20 kHz current loop for a BLDC driver on a C2000 MCU; tuned PI gains on a dyno to hold torque ripple under 3%."
+   ],
+   "norms": {
+    "bullet_chars": [
+     95,
+     170
+    ],
+    "max_chars": 215,
+    "bullets_per_role": "2-4",
+    "bullets_per_project": "1-3",
+    "bullets_total": "14-20",
+    "quantified_min": 0.5
+   },
+   "verbs": [
+    "Designed",
+    "Brought up",
+    "Built",
+    "Implemented",
+    "Wrote",
+    "Validated",
+    "Characterized",
+    "Debugged",
+    "Root-caused",
+    "Automated",
+    "Integrated",
+    "Tested",
+    "Reduced",
+    "Optimized"
+   ],
+   "checks": [
+    "tense",
+    "tools"
+   ],
+   "variants": [
+    {
+     "when_title": "\\b(asic|fpga|rtl|vlsi|soc|dv|cpu|gpu)\\b|design verification|verification (eng|intern)|hardware verification|silicon|\\bchip|digital design|logic design|physical design|semiconductor|analog|mixed[- ]signal|circuit design",
+     "label": "chip design / verification",
+     "lead_with": "the RTL or verification work: the block (cache, pipeline, bus bridge, accelerator), the HDL and methodology (SystemVerilog, Verilog, UVM, SVA, cocotb), the simulator or EDA flow (VCS, Xcelium, Questa, Vivado, Genus) and a measured result (coverage closed, bugs found before tape-out, frequency met, area, CPI, speedup). A design (RTL) posting leads with design work (micro-architecture, synthesis, timing); a verification posting leads with testbench, coverage and bugs found",
+     "skills": "labeled lines by domain, e.g. HDL & Verification (SystemVerilog, Verilog, UVM, SVA); EDA Tools (VCS, Verdi, Genus, Vivado); Programming & Scripting (Python, C/C++, TCL); Architecture & Protocols (RISC-V, AXI/AHB) when the vault has them. Web frameworks and lab-bench lines go when the page is tight",
+     "conventions": [
+      "Every hardware bullet names what the work ran on and with: the part or platform (STM32G4, Zynq, AURIX), the tool (Altium, Vivado, VCS, LabVIEW) and the instrument (oscilloscope, logic analyzer, power analyzer), exactly as the vault lists them for that entry. A hardware interviewer asks about every tool on the page: never add one the vault does not list.",
+      "Specs are the numbers hardware readers trust (clock or loop rate, efficiency, power or current, latency, coverage, area, yield, test time, temperature range, layer count). Keep each exactly, with the qualifier that bounds it: at equal clock, academic library, at rated load, cold-flow, first prototype, first spin.",
+      "Verification bullets read stimulus > checking > result: what was built (agents, sequences, scoreboard, assertions, coverage model), against what (spec, protocol, reference model) and what it found or closed.",
+      "Design bullets read micro-architecture > implementation > PPA: the structure (MSHRs, forwarding, systolic array), the flow (synthesis, STA, FPGA) and the frequency, area or throughput.",
+      "RTL and FPGA projects are real evidence: keep pipeline depth, clock achieved, CPI or throughput, the test suite passed and the FPGA family.",
+      "Ongoing work stays in present tense ('Designing ...') and keeps its status; a test type, process or result is never upgraded (cold-flow is not hot-fire, fabricated is not machined, a class project is not production).",
+      "Cut trainings (ISO 26262, ITAR, safety), retail or service jobs, club memberships and weekend apps whenever hardware material is left out.",
+      "A software or data internship stays when it is a real role, framed by what it did for hardware (test automation, firmware tooling, validation data); its web-UI or dashboard-only lines are the first to go.",
+      "Coursework: digital design, computer architecture, VLSI and verification first."
+     ],
+     "avoid": [
+      "software-only framing for a hardware role",
+      "a tool or skills list with nothing built",
+      "'familiar with' or 'exposure to' lines",
+      "trainings or meetings attended as bullets",
+      "claiming tape-out, silicon or a foundry PDK the vault does not state",
+      "calling verification work design (or the reverse) beyond what the vault says"
+     ],
+     "exemplars": [
+      "Built a UVM agent and scoreboard for an AXI4-Lite register block; constrained-random tests closed functional coverage from 64% to 97% and found 2 RTL bugs.",
+      "Implemented a 4-way set-associative cache in SystemVerilog; synthesized in Design Compiler and met timing at 800 MHz with 12% less area than the baseline.",
+      "Automated a 500-seed nightly regression with a Python triage script that grouped failures by signature, cutting debug time per failure in half."
+     ],
+     "verbs": [
+      "Designed",
+      "Implemented",
+      "Verified",
+      "Built",
+      "Wrote",
+      "Synthesized",
+      "Closed",
+      "Debugged",
+      "Automated",
+      "Optimized",
+      "Developed",
+      "Integrated",
+      "Reduced",
+      "Characterized"
+     ]
+    }
+   ],
+   "shipped": true
   }
  }
 }

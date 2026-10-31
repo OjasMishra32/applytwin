@@ -2,7 +2,8 @@
 
 `applytwin/resume_patterns.json` holds aggregate norms for each kind of target role. Shipped profiles: big-tech SWE, quant
 trading, asset management/markets, robotics/hardware, startups/founding engineer, data and general software (round 1), and
-investment banking, ML/AI research and quant research/dev (round 2). The defense-tech and product/design profiles are in
+investment banking, ML/AI research and quant research/dev (round 2), and hardware engineering for embedded/firmware and
+chip design/verification titles (round 3). The defense-tech and product/design profiles are in
 the file with `"shipped": false`: built but not used, because they have not won a blind review (see "Measured effect").
 Postings of those kinds keep the plain prompt. `APPLYTWIN_TRY_PROFILES=all` (or a comma list of ids) switches unshipped
 profiles on for an eval run. The tailor uses the file in two places:
@@ -21,8 +22,8 @@ profiles on for an eval run. The tailor uses the file in two places:
    more flags (or the fact checker rejected something), the one existing revision call gets them too. The revised plan is kept
    only if it has no more fact-check rejections and fewer flags. The hard rules don't change: numbers, titles, employers,
    degrees and awards are locked, and the page is one page. Profile `checks` add detail flags: a present-tense verb on a
-   role that has ended, the same phrase in two bullets of one entry, a role cut to one bullet, and a bullet that restates a
-   paper the research section already lists.
+   role that has ended, the same phrase in two bullets of one entry, a role cut to one bullet, a bullet that restates a
+   paper the research section already lists, and (hardware) a role or project whose bullets name none of its listed tools.
 
 ## Where the data came from
 
@@ -166,3 +167,54 @@ scores were 7.23 and 7.17.
   - A first version of this branch also re-sorted roles the filler added for every finance posting, which put the role
     first more often. Now only banking does that.
   - This is an open item: an ongoing minor role outranking the main internship.
+
+### Round 3: hardware
+
+Eleven frozen hardware postings, written from the public shape of these programs: NVIDIA ASIC design verification, AMD
+design verification, Qualcomm ASIC/digital design, Apple electrical hardware, Intel post-silicon validation, Tesla vehicle
+firmware, Anduril electrical, a humanoid-robotics startup's embedded/electrical role, Rivian electrical test and validation,
+SpaceX avionics hardware, and Rocket Lab avionics (round 1). Four synthetic vaults (no real people): a computer-engineering
+student with board, FPGA and test internships, a digital-design/verification student, an EE embedded/power student, and the
+aerospace student from round 1. Same harness as round 2: two generations per arm per round, each old/new pair judged twice
+with the order swapped by a recruiter persona for that firm, plus the absolute grader. "Old" is `main`.
+
+What weakened hardware pages on `main`, from the absolute grader's defects and the judges' reasons:
+- **Routing.** "Hardware Engineering Intern" at Apple and "Firmware Engineer" at Tesla matched the big-tech SWE profile by
+  firm; "Design Verification Engineering Intern" fell to the *design* field (portfolio-first rules); an ASIC role got the
+  mechanical-leaning robotics profile ("SolidWorks motor mount" examples).
+- **Filler from the page-filler.** It padded short pages with a grocery-store job, a Discord bot and "Completed ISO 26262
+  awareness training" (trainings with a standard number in them escaped the filler rule).
+- **Wrong lead for the posting.** Verification-first pages for an RTL design role, ISO-training lines under the most
+  relevant employer, web-dashboard bullets kept on ASIC pages, the posting's tools (Verdi, PyVISA) only in skills.
+- **Qualifiers dropped or upgraded.** "at equal clock", "academic library", "Designing" (in progress) to "Designed",
+  cold-flow to hot-fire.
+
+| variant (titles) | rounds | blind wins new-old | absolute, old to new | decision |
+|---|---|---|---|---|
+| chip design / verification (ASIC, FPGA, RTL, DV, VLSI, silicon, analog) | 4 | 41-7 | 7.71 to 8.10 (n=24) | shipped |
+| embedded / firmware (rounds 1-2 ran an earlier wording) | 4 | 23-7 | 7.50 to 7.59 (n=16) | shipped |
+| final configuration only (rounds 3-4, both variants) | 2 | 30-8, sign test p < 0.001 | chip 7.75 to 8.17 | |
+| electrical / board (Apple, SpaceX, Rocket Lab, Anduril) | 2 | 12-19 | | not shipped |
+| test / validation (Intel, Rivian) | 1 | 0-8 | | not shipped |
+
+- By posting, all rounds: Qualcomm 16-0, AMD 13-3, NVIDIA 12-4, humanoid robotics 13-2, Tesla 10-5.
+- The electrical/board variant lost on Apple (1-7), SpaceX (1-6) and Rocket Lab (3-5) and won on Anduril (7-1). Judges
+  flipped on where a design-team lead role belongs from one round to the next. Those titles keep their earlier routing
+  (Apple hardware stays on the big-tech profile, avionics on robotics/hardware, defense firms on the plain prompt with the
+  citizenship line). Validation and test titles keep robotics/hardware or their field's profile. Routing Intel's
+  post-silicon title to the hardware field also lost (2-6), so "silicon" is not a hardware field word.
+- `hardware_eng` sits after `defense` in the detection order, so defense-firm postings behave as before.
+
+**General fixes** shipped alongside:
+- A rewrite can't name a hardware tool (HDL, simulator, EDA, lab instrument, bus, MCU family) that its own role or project
+  doesn't list, even when the posting asks for it. Spellings of one part family match ("STM32" for "STM32G4").
+- The page-filler never adds an entry whose lines are all filler, or a service job when the page already shows two roles.
+  "Completed ... training" lines, awareness/security/ethics trainings and "Filed paperwork" count as filler.
+- When the plan splits one vault skills line in two, the new line keeps its own heading instead of printing two lines under
+  the same heading.
+- "Design verification", VLSI, RTL, PCB, analog, mixed-signal, semiconductor and avionics titles are the hardware field.
+
+**Regression check** (`main` against this branch) on big-tech SWE, quant trading, startup, asset management, banking, ML
+research and applied ML, 2 rounds: 27-29 (n=56), absolute 7.59 and 7.59. None of these pages triggered a changed code path
+(no tool-guard rejection, no filler entry skipped, no training line), so per-posting splits (banking 6-2, big-tech 2-6) are
+generation noise.

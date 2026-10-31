@@ -939,6 +939,41 @@ _tp._status_line(_rx, 'Must be a U.S. person.')
 res.append(ok(_rc['basics'].get('status') == 'U.S. Citizen' and 'status' not in _rn['basics'] and 'status' not in _rx['basics']
               and 'U.S. Citizen' in render.build_html({'basics': {'name': 'A', 'status': 'U.S. Citizen'}}),
               'citizenship line only when the posting screens on it and the profile states it'))
+# hardware postings: chip-design/verification and embedded/firmware titles get the hardware profile (variant by title), even
+# at Tesla/NVIDIA; test/validation and mechanical titles keep robotics/hardware; a software title at Apple stays big-tech SWE
+from applytwin import learn
+_hw = [(lambda r: (r[0], (r[1] or {}).get('label')))(_tp.pattern_profile({'company': c, 'title': t}, '', learn.field_for({'title': t})))
+       for c, t in [('NVIDIA', 'ASIC Design Verification Intern'), ('AMD', 'Design Verification Engineering Intern/Co-op'),
+                    ('Figure AI', 'Embedded / Electrical Engineering Intern, Humanoid Robotics'), ('Tesla', 'Internship, Firmware Engineer, Vehicle Firmware'),
+                    ('Rivian', 'Electrical Test & Validation Engineering Intern'), ('Ford', 'Mechanical Engineering Intern'),
+                    ('Apple', 'Software Engineering Intern')]]
+res.append(ok(_hw == [('hardware_eng', 'chip design / verification'), ('hardware_eng', 'chip design / verification'),
+                      ('hardware_eng', 'embedded / firmware'), ('hardware_eng', 'embedded / firmware'),
+                      ('robotics_hardware', 'robotics / hardware'), ('robotics_hardware', 'robotics / hardware'),
+                      ('bigtech_swe', 'big-tech software engineering')] and learn.field_for({'title': 'Design Verification Intern'}) == 'hardware',
+              f'hardware postings -> hardware profile and variant ({_hw})'))
+# a rewrite can't add a hardware tool its role never lists (an interviewer tests every one); spellings of one part family match
+_o = 'Built a UVM environment for an AHB-to-APB bridge; closed coverage from 71% to 98%.'
+_w1 = _tp.check_rewrite(_o, 'Built a UVM environment for an AXI bridge in Xcelium, closing coverage from 71% to 98%.', '', '', _o)
+_w2 = _tp.check_rewrite('Closed a 10 kHz torque loop on an STM32G4 under FreeRTOS.', 'Closed a 10 kHz FOC torque loop on an STM32 MCU under FreeRTOS.', '', '')
+_tf = _tp._profile_flags({'experience': [{'org': 'Lab', 'tech': ['Altium Designer', 'TI C2000'], 'bullets': ['Designed a 1 kW power stage reaching 98% efficiency.']},
+                                         {'org': 'Ford', 'tech': ['C', 'AUTOSAR'], 'bullets': ['Wrote C drivers for a battery ECU.']}]}, ['tools'])
+res.append(ok(_w1 and 'axi' in _w1 and 'xcelium' in _w1 and _w2 is None and len(_tf) == 1 and 'Lab' in _tf[0],
+              f'hardware fact guard: no invented tools ({_w1}); bullets that name none of their tools are flagged ({_tf})'))
+# filler never pads a page: trainings are weak lines, and a store job or an all-filler entry is not added to fill space
+_two = {'experience': [{'org': 'A'}, {'org': 'B'}]}
+res.append(ok(_tp.weak('Completed ISO 26262 awareness training.') and _tp.weak('Completed ITAR and security training for flight work.')
+              and _tp.weak('Filed paperwork and organized the document control room.')
+              and not _tp.weak('Completed a 5-axis CAM program that cut machining time 30% on 12 parts.')
+              and not _tp._can_pad({'org': 'H-E-B', 'title': 'Store Associate', 'bullets': ['Trained 3 new associates.']}, _two)
+              and not _tp._can_pad({'name': 'Discord Bot', 'bullets': ['Made a Discord bot that plays music.']}, _two)
+              and _tp._can_pad({'name': 'RISC-V CPU', 'bullets': ['Built a 5-stage RV32I pipeline on a Basys 3 FPGA at 100 MHz.']}, _two),
+              'page filler skips trainings, service jobs and all-filler entries'))
+_sk = _tp._pick_skills([{'label': 'Software & Lab', 'items': ['Python', 'Oscilloscopes']}, {'label': 'Embedded', 'items': ['C']}],
+                       [{'label': 'Software & Lab', 'items': ['Python']}, {'label': 'Lab & Test', 'items': ['Oscilloscopes']},
+                        {'label': 'Software & Lab', 'items': ['C']}])
+res.append(ok([s['label'] for s in _sk] == ['Software & Lab', 'Lab & Test'] and _sk[0]['items'] == ['Python', 'C'],
+              f'skills: a split vault line keeps its own heading, never two lines under one heading ({_sk})'))
 _h = render.build_html({'basics': {'name': 'A'}, 'order': ['education'], 'education': [
     {'school': 'Indiana University', 'degree': 'Bachelor of Science in Business, Finance and Accounting', 'minor': 'Economics', 'gpa': '3.89/4.00', 'honors': ["Dean's List"]}]})
 res.append(ok('<span class="nb">GPA: 3.89/4.00</span> · Dean' in _h, 'a long degree line moves the GPA (never split) to the honors line'))

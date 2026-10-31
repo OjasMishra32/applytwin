@@ -77,6 +77,19 @@ def _forms(w):
     return out
 
 
+HW_TOOL = re.compile(r'\b(?:system ?verilog|verilog|vhdl|uvm|sva|cocotb|verilator|vcs|xcelium|questa|modelsim|verdi|simvision|'
+                     r'vivado|quartus|vitis|genus|innovus|primetime|design compiler|virtuoso|spectre|h?spice|ltspice|altium|'
+                     r'kicad|allegro|orcad|jaspergold|axi4?|ahb|apb|pcie|ethercat|freertos|zephyr|autosar|labview|pyvisa|'
+                     r'dspace|canoe|oscilloscopes?|logic analy[sz]ers?|spectrum analy[sz]ers?|network analy[sz]ers?|'
+                     r'thermal chambers?|stm32\w*|zynq|artix-?7?|kintex|nrf52\w*|esp32|msp430|c2000|aurix)\b', re.I)
+
+
+def _hw_tools(t):
+    """Hardware tool names in a text, one spelling each ('STM32G4' and 'STM32' are one part family, 'oscilloscopes' one tool)."""
+    return {re.sub(r'^(stm32|nrf52|artix|axi)\w*|s$', r'\1', re.sub(r'analys', 'analyz', re.sub(r'[\s-]', '', m.group(0).lower())))
+            for m in HW_TOOL.finditer(t)}
+
+
 def check_rewrite(orig, new, vault_txt, jd, entry_txt=None):
     """Return None if the rewrite is allowed, else the reason it was rejected. Numbers are locked: every number must come from
     the same role/project (entry_txt) and keep its meaning; a scale claim can't grow. Wording, tools and outcomes can move."""
@@ -103,6 +116,11 @@ def check_rewrite(orig, new, vault_txt, jd, entry_txt=None):
     mags = {x.lower() for x in MAGNITUDE.findall(n)} - {x.lower() for x in MAGNITUDE.findall(scope)}
     if mags:
         return 'adds a scale claim not in this entry: ' + ', '.join(sorted(mags))
+    # hardware tools are facts an interviewer tests ("walk me through your UVM scoreboard"): one this role or project never
+    # lists can't appear in its bullet, even when the posting asks for it
+    tools = _hw_tools(n) - _hw_tools(scope)
+    if tools:
+        return 'adds a tool this entry does not list: ' + ', '.join(sorted(tools))
     # tools, methods and outcomes may be framed toward the posting (the user's call); numbers, scale and links may not.
     # Titles, employers, awards and team leadership are checked by the honesty read (audit), which understands context.
     for link in re.findall(r'\]\(([^)]+)\)', orig):
@@ -122,8 +140,9 @@ IMPACT = re.compile(r'\b(1st|2nd|3rd|first place|second place|winner|won|finalis
 WEAK = re.compile(r'^\W*(help(ed|s|ing)?|assist(ed|s|ing)?|attend(ed|s)?|participat(ed|es)|complet(ed|es) (training|onboarding)|'
                   r'responsible for|worked on|did|cleaned|created some|made some|was part of|took part|shadow(ed|s)|learn(ed|s|ing)|'
                   r'maintain(ed|s)? (shop|lab|the)|answer(ed|s|ing)? (\w+ )?questions|checked out|stock(ed|ing) shelves|cashier|present(ed|s) (my |our |a |the )?final|'
-                  r'organiz(ed|es) (events|socials)|supported (vehicle )?teardowns|gained|exposed to|familiariz)\b'
-                  r'|\b(ITAR|safety|compliance|onboarding|orientation) training\b|\bintern (events?|socials?)\b|'
+                  r'organiz(ed|es) (events|socials)|fil(ed|es|ing) paperwork|supported (vehicle )?teardowns|gained|exposed to|familiariz)\b'
+                  r'|\b(ITAR|safety|compliance|onboarding|orientation|awareness|security|ethics|harassment) training\b|'
+                  r'^\W*complet(ed|es|ing)\b.{0,60}\b(training|course|certificate|module)s?\W*$|\bintern (events?|socials?)\b|'
                   r'\bagile ceremonies\b|\bad[- ]hoc requests\b', re.I)
 
 
@@ -162,7 +181,7 @@ def _upgrade(bl, src, avoid, kws, least=1, taken=()):
 
 
 SERVICE = re.compile(r'\b(lifeguard|cashier|barista|waiter|waitress|hostess|busser|dishwasher|line cook|'
-                     r'sales associate|retail associate|crew member|camp counselor|caddie|delivery driver|valet|'
+                     r'sales associate|retail associate|store associate|crew member|camp counselor|caddie|delivery driver|valet|'
                      r'stocker|front desk|circulation desk|babysitter|nanny|dog walker)\b', re.I)
 OLD = re.compile(r'\b(high school|middle school|secondary school)\b', re.I)  # or set "high_school": true on a vault entry
 
@@ -357,9 +376,21 @@ def _role_ended(e):
     return bool(end.strip()) and not re.search(r'present|current|now|ongoing', end, re.I)
 
 
+_TOOL_FILLER = {'designer', 'instruments', 'instrument', 'basics', 'tools', 'board', 'boards', 'kit', 'suite', 'studio', 'the'}
+
+
+def _names_tool(tool, text):
+    """Does the text name this tech item ('Altium Designer' by 'Altium', 'TI C2000' by 'C2000', 'C' only as a word)?"""
+    ws = [w for w in re.findall(r'[A-Za-z0-9+#/.-]+', tool) if w.lower() not in _TOOL_FILLER]
+    ws = [w for w in ws if len(w) >= 3 or re.search(r'\d', w)] or ws
+    return any(re.search(r'(?<![\w+#])' + re.escape(w.strip('.')) + r'(?![\w+#])', text, 0 if len(w) <= 2 else re.I)
+               for w in ws if w.strip('.'))
+
+
 def _profile_flags(res, checks):
     """Detail checks a profile turns on (banking screens attention to detail): tense slips on finished roles, the same phrase
-    in two bullets of one entry, roles cut to a single bullet, and bullets that restate a paper already listed."""
+    in two bullets of one entry, roles cut to a single bullet, bullets that restate a paper already listed, and (hardware)
+    a role or project whose bullets name none of the tools or parts its vault entry lists."""
     out = []
     for sec in ENTRY_SECS:
         for e in res.get(sec, []):
@@ -379,6 +410,10 @@ def _profile_flags(res, checks):
                 rep = [' '.join(p) for p, ix in seen.items() if len(ix) > 1]
                 if rep:
                     out.append(f'"{rep[0]}" appears in two bullets of {name}: say it once')
+            if 'tools' in checks and sec in ('experience', 'projects') and bl and e.get('tech') and \
+                    not any(_names_tool(t, ' '.join(bl)) for t in e['tech'] if isinstance(t, str)):
+                out.append(f'no bullet of {name} names the tools or parts it used ({", ".join(e["tech"][:5])}): name the ones '
+                           'this work used, as the vault lists them')
             if 'thin_roles' in checks and sec == 'experience' and len(bl) == 1:
                 out.append(f'{name} shows a single bullet: give it a second true bullet from the vault, or cut the role for stronger material')
             if 'paper_repeat' in checks:
@@ -1034,6 +1069,13 @@ def _one_per_fact(bl):
     return out
 
 
+def _can_pad(e, res):
+    """May the page filler add this whole entry? Only with a real line in it, and a service job never pads a page that already
+    shows two roles (a store job and a weekend app added to fill ASIC pages read as filler in the blind review)."""
+    return bool(e.get('bullets')) and not OLD.search(json.dumps(e)) and not all(weak(b) for b in e['bullets']) and \
+        not (SERVICE.search(f"{e.get('title', '')} {e.get('org', '')}") and len(res.get('experience') or []) >= 2)
+
+
 def _fill_page(v, res, jd, style, probe, k=1.0):
     """A two-thirds-empty page reads as thin. While there's clear room, add the user's next strongest true bullets for
     this posting (from the same roles first, then roles/projects the plan left out), never past one page."""
@@ -1054,7 +1096,7 @@ def _fill_page(v, res, jd, style, probe, k=1.0):
                     continue
                 cands.append((pick(b), 'bullet', sec, e.get('id'), b))
         for e in v.get(sec, []):
-            if e['id'] not in shown and e.get('bullets') and not OLD.search(json.dumps(e)):
+            if e['id'] not in shown and _can_pad(e, res):
                 cands.append((max(pick(b) for b in e['bullets']) - 1, 'entry', sec, e['id'], e))
     shown_skills = {s.get('label') for s in res.get('skills', [])}
     for s in v.get('skills', []):   # a skills line trimmed to fit is one short line: often exactly what a gap needs
@@ -1286,6 +1328,12 @@ def _pick_skills(vault_skills, picks):
             next((vs['label'] for vs in vault_skills if items and items[0] in vs.get('items', [])), s.get('label'))
         if items:
             used.update(norm(i) for i in items)
+            same = next((o for o in out if norm(o['label']) == norm(lab)), None)
+            if same and s.get('label') and not any(norm(o['label']) == norm(s['label']) for o in out):
+                lab = s['label']   # the plan split one vault line in two ("Lab & Test" out of "Software & Lab"): its own heading
+            elif same:
+                same['items'] += items   # never two lines under one heading
+                continue
             out.append({"label": lab, "items": items})
     if sum(len(s['items']) for s in out) < 0.35 * len(allitems):   # a lost line, not a choice: add back the rest
         for vs in vault_skills:

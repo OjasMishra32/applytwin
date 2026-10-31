@@ -26,7 +26,7 @@ FIELD_RULES = {
     'data': {"match": r'data scien|data analy|analytics|business intelligence|data engineer',
              "template": "accent", "order": ["education", "experience", "projects", "skills", "research", "leadership", "awards"],
              "emphasize": "business questions answered, decisions changed, dataset size, SQL/Python/BI tools, experiments run"},
-    'hardware': {"match": r'hardware|electrical|embedded|firmware|fpga|asic|robot|mechatronic|controls|mechanical|aerospace|manufactur',
+    'hardware': {"match": r'hardware|electrical|embedded|firmware|fpga|asic|robot|mechatronic|controls|mechanical|aerospace|manufactur|avionics|\bvlsi\b|\brtl\b|design verification|semiconductor|\bpcb\b|analog|mixed.signal',
                  "template": "compact", "order": ["education", "experience", "projects", "skills", "research", "awards", "leadership"],
                  "emphasize": "what was built and tested, hardware platforms, measured results, tools (CAD, Altium, oscilloscopes, ROS), competitions"},
     'finance': {"match": r'investment bank|banking|private equity|asset management|wealth|equity research|capital markets|corporate finance|accounting|audit|'
