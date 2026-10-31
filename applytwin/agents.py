@@ -20,11 +20,31 @@ FALLBACK_MODEL = [False]   # set once Codex rejects the configured model, so lat
 _cache = {}
 
 
+def _usual_dirs():
+    """Where Claude Code, Codex and Node usually land. The app often starts from login with a short PATH (or the PATH from
+    the day it was installed), so an agent installed later, by the native installer, nvm, Volta or Homebrew, looked missing."""
+    import glob
+    h = os.path.expanduser('~')
+    d = [os.path.join(h, '.local', 'bin'), os.path.join(h, '.claude', 'local'), os.path.join(h, '.npm-global', 'bin'),
+         os.path.join(h, '.volta', 'bin'), os.path.join(h, '.bun', 'bin')]
+    if os.name == 'nt':
+        d += [os.path.join(os.environ.get('APPDATA', ''), 'npm'), os.path.join(os.environ.get('ProgramFiles', ''), 'nodejs')]
+    else:
+        d += ['/opt/homebrew/bin', '/usr/local/bin'] + sorted(glob.glob(os.path.join(h, '.nvm', 'versions', 'node', '*', 'bin')), reverse=True)
+    return [x for x in d if os.path.isdir(x)]
+
+
 def exe(name):
     p = shutil.which(name)
     if not p and os.name == 'nt':   # installed after the app started: look again with the PATH as it is now
         store.refresh_path()
         p = shutil.which(name)
+    if not p:
+        for d in _usual_dirs():
+            p = shutil.which(name, path=d)
+            if p:   # its folder joins the PATH, so `claude` finds the node next to it (npm installs are node scripts)
+                os.environ['PATH'] = d + os.pathsep + os.environ.get('PATH', '')
+                break
     return p
 
 

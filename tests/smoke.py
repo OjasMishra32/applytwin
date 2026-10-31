@@ -1153,5 +1153,24 @@ res.append(ok('applytwin_needs_you' in _mcp.BY and 'waiting_on_you' in _mcp.BY['
 # international: location parsing, regions, work rights, answers, CV conventions, A4 (kept in its own file)
 exec(compile(open(os.path.join(ROOT, 'tests', 'smoke_intl.py'), encoding='utf-8').read(), 'smoke_intl.py', 'exec'))
 
+# an agent installed where the app's login-time PATH doesn't reach (native installer, nvm, Homebrew) is still found
+from applytwin import agents as _ag
+_th = _tf.mkdtemp()
+os.makedirs(os.path.join(_th, '.local', 'bin'))
+_fa = os.path.join(_th, '.local', 'bin', 'atfakeagent' + ('.cmd' if os.name == 'nt' else ''))
+open(_fa, 'w').write('@echo off\r\n' if os.name == 'nt' else '#!/bin/sh\n')
+os.chmod(_fa, 0o755)
+_env = {k: os.environ.get(k) for k in ('HOME', 'USERPROFILE', 'PATH')}
+os.environ.update(HOME=_th, USERPROFILE=_th, PATH=os.pathsep.join(p for p in (os.environ.get('SystemRoot'), '/usr/bin', '/bin') if p))
+try:
+    _found = _ag.exe('atfakeagent')
+finally:
+    for _k, _v in _env.items():
+        if _v is None:
+            os.environ.pop(_k, None)
+        else:
+            os.environ[_k] = _v
+res.append(ok(bool(_found) and os.path.dirname(_found) == os.path.dirname(_fa), f'agents found in ~/.local/bin with a short PATH ({_found})'))
+
 print(f'\n{sum(res)}/{len(res)} passed')
 sys.exit(0 if all(res) else 1)

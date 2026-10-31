@@ -1174,6 +1174,12 @@ def connect_agent(name):
     def work():
         log = open(store.path(f'connect-{name}.log'), 'w', encoding='utf-8')
         try:
+            if not agents.exe(name) and name == 'claude' and not agents.exe('npm'):
+                # no Node.js: Claude Code's own installer needs none (it puts claude in ~/.local/bin, which exe() looks in)
+                cmd = (['powershell', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', 'irm https://claude.ai/install.ps1 | iex']
+                       if os.name == 'nt' else ['bash', '-c', 'curl -fsSL https://claude.ai/install.sh | bash'])
+                subprocess.run(cmd, stdout=log, stderr=subprocess.STDOUT, timeout=600, **store.NOWIN)
+                agents._cache.pop(name, None)
             if not agents.exe(name):
                 npm = agents.exe('npm')
                 if not npm:
