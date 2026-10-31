@@ -411,6 +411,103 @@ Data Intern, Jan 2025 – May 2025
 _orgs = [e.get('org') for e in _imp2['experience']]
 res.append(ok(_epic == 'new' and _st['errors'] == 0 and _bom and _share and _coop and _orgs[:2] == ['Stripe', 'Acme'],
               f'review regressions stay fixed (board {_epic}, rescan errors {_st["errors"]}, bom {_bom}, share {_share}, co-op {_coop}, import {_orgs})'))
+# graduation windows in postings, compared with the user's grad date (a window phrased any way students see it)
+_gw = [('Candidates graduating Dec 2027 - Aug 2028.', '2028', 'May', True), ('Candidates graduating Dec 2027 - Aug 2028.', '2029', 'May', False),
+       ('Candidates graduating Dec 2027-Aug 2028', '2027', 'May', False),
+       ('Expected graduation between December 2027 and June 2028', '2027', 'December', True),
+       ('Must have an expected graduation date of Fall 2027 or Spring 2028', '2028', 'Dec', False),
+       ('graduation date between 12/2027 and 08/2028', '2028', '5', True), ('graduation date between 12/2027 and 08/2028', '2028', '09', False),
+       ('You must graduate by May 2028', '2028', 'Aug', True), ('You must graduate by May 2028', '2029', 'May', False),
+       ('Students graduating in 2028 or later', '2027', 'May', False), ('Students graduating in 2028 or later', '2030', 'May', True),
+       ('Open to the Class of 2028', '2029', 'May', False), ('Open to the Class of 2028', '2027', 'Dec', True),
+       ('Enrolled in a degree program during the 2027-2028 academic year', '2030', 'May', None),
+       ('Python, SQL and a love of data.', '2028', 'May', None), ('Candidates graduating Dec 2027 - Aug 2028.', '', '', None)]
+_gbad = [(t, y, mo, _m._grad_ok(t, y, mo)) for t, y, mo, want in _gw if _m._grad_ok(t, y, mo)[0] is not want]
+_P2 = {'grad_year': '2029', 'grad_month': 'May', 'search': {'kind': 'internship', 'roles': [], 'exclude': []}}
+_gj = {'title': 'Software Engineer Intern', 'company': 'X', 'description': 'Open to students graduating Dec 2027 - Aug 2028.'}
+_ko = _m.knockouts(_gj, _P2)
+_gf = _m.fit(_gj, _P2)
+res.append(ok(not _gbad and _ko == ['Graduation window Dec 2027 - Aug 2028; you graduate May 2029'] and _gf[0] == 5 and 'May 2029' in _gf[1]
+              and _m.knockouts({**_gj, 'description': 'Python.'}, _P2) == [],
+              f'graduation windows are read and give an exact Skipped reason {_gbad or ""}'))
+# statuses agents write every which way all land on the canonical ones, and a reason in the status moves to the notes
+_ns = {('needs-user', ''): ('Needs User', ''), ('Skipped - grad window', ''): ('Skipped', 'grad window'),
+       ('Ready to submit', ''): ('Needs User', 'ready to submit'), ('submitted', 'ok'): ('Applied', 'ok'),
+       ('Not eligible (grad window)', ''): ('Skipped', 'Not eligible (grad window)'), ('Failed to submit', ''): ('Failed', 'Failed to submit'),
+       ('Duplicate - already applied', ''): ('Skipped', 'Duplicate - already applied'), ('Online Assessment', ''): ('OA', 'Online Assessment'),
+       ('Needs User', 'hCaptcha'): ('Needs User', 'hCaptcha'), ('Interview', ''): ('Interview', ''), ('Withdrawn', ''): ('Withdrawn', '')}
+_nbad = {k: store.normalize_status(*k) for k, want in _ns.items() if store.normalize_status(*k) != want}
+res.append(ok(not _nbad, f'log_application statuses are normalized {_nbad or ""}'))
+# claims: parallel agents can't overrun the daily limit or a company cap, a run can re-claim its own job, a dead
+# session's claim stops hiding its job, unknown ids are refused, and two sessions never finish one application at once
+p0 = store.profile()
+store.execute("delete from applications"); store.execute("delete from claims")
+api.update_profile({**p0, 'apply': {**p0['apply'], 'daily_limit': 2, 'per_company_cap': 1}})
+for _jid, _co, _t in (('c1', 'Alpha', 'Software Intern'), ('c2', 'Beta', 'Data Intern'), ('c3', 'Gamma', 'ML Intern'), ('c4', 'Alpha', 'Platform Intern')):
+    store.execute("insert or replace into jobs(id,source,company,title,url,apply_url,ats,found_at,fit,status) values(?,?,?,?,?,?,?,?,?,'new')",
+                  (_jid, 't', _co, _t, 'https://x/' + _jid, 'https://x/' + _jid, 'lever', 0, 95))
+_c1 = api.claim('c1', who='run-a')['claimed']
+_cap = api.claim('c4', who='run-b')['claimed'] is False          # Alpha's one slot is held by an unlogged claim
+_c2 = api.claim('c2', who='run-b')['claimed']
+_lim = api.claim('c3', who='run-c')['claimed'] is False          # 2 in progress = today's limit of 2
+_again = api.claim('c1', who='run-a')['claimed'] and api.claim('c1', who='agent')['claimed'] is False
+_unknown = api.claim('nope')['claimed'] is False
+store.execute("update claims set at=? where job_id='c2'", (time.time() - store.CLAIM_TTL - 60,))   # run-b died hours ago
+_nj = api.next_jobs(5)
+_stale = store.latest_status('c2')['status'] == 'Needs User' and _nj['remaining_today'] == 1
+_fin1 = api.claim('c2', who='run-d')['claimed']
+_fin2 = api.claim('c2', who='run-e')['claimed'] is False          # run-d is finishing it
+res.append(ok(_c1 and _cap and _c2 and _lim and _again and _unknown and _stale and _fin1 and _fin2,
+              f'claims hold under parallel agents ({_c1}, {_cap}, {_c2}, {_lim}, {_again}, {_unknown}, {_stale}, {_fin1}, {_fin2})'))
+# duplicates: a submitted application is never turned back into "not applied" by an agent, get_job warns about the same
+# role at the same company, the same posting id under another listing is already done, and filled-then-skipped stops counting
+api.log_application('c1', 'Applied', 'submitted', agent=True)
+_down = api.log_application('c1', 'Skipped', 'duplicate', agent=True)
+_kept = _down.get('ok') is False and store.latest_status('c1')['status'] == 'Applied'
+store.execute("insert or replace into jobs(id,source,company,title,url,apply_url,ats,found_at,fit,status) values(?,?,?,?,?,?,?,?,?,'new')",
+              ('c5', 'simplify', 'Alpha Inc.', 'Software Intern - Summer 2027', 'https://x/c5', 'https://x/c5', 'lever', 0, 95))
+_orig = api.get_job
+api.get_job = lambda jid, with_description=True: store.rows('select * from jobs where id=?', (jid,))[0]   # no network
+try:
+    _dup = api.job_for_agent('c5')['already_applied']
+    _self = api.job_for_agent('c1')['already_applied']
+finally:
+    api.get_job = _orig
+store.execute("insert or replace into jobs(id,source,company,title,url,apply_url,ats,found_at,fit,status) values(?,?,?,?,?,?,?,?,?,'new')",
+              ('g7', 'greenhouse', 'Delta', 'Backend Intern', 'https://boards.greenhouse.io/delta/jobs/7001234', '', 'greenhouse', 0, 95))
+api.log_application('g7', 'Applied')
+_xl = api.already_done({'company': 'Delta', 'title': 'Software Engineering Intern (Backend)', 'url': 'https://simplify.jobs/x',
+                        'apply_url': 'https://job-boards.greenhouse.io/embed/job_app?for=delta&token=7001234'})
+_other = api.already_done({'company': 'Omega', 'title': 'Analyst', 'url': '', 'apply_url': 'https://job-boards.greenhouse.io/embed/job_app?for=omega&token=7001234'})
+store.execute("delete from applications")
+api.log_application('c3', 'Needs User', 'Filled; ready to submit')
+_n1 = store.applied_count_today()
+api.log_application('c3', 'Skipped', 'user decided not to')
+_n0 = store.applied_count_today()
+api.log_application('c4', 'Needs User', 'sign-in needed'); api.log_application('c4', 'Rejected')
+_pend = not any(r['job_id'] == 'c4' for r in api.pending_jobs())
+api.update_profile(p0)
+res.append(ok(_kept and len(_dup) == 1 and _dup[0]['job_id'] == 'c1' and _self and _self[0]['status'] == 'Applied' and _xl and not _other
+              and (_n1, _n0) == (1, 0) and _pend,
+              f'no duplicate applications, honest counts ({_kept}, {_dup}, {bool(_self)}, {_xl}, {_other}, {_n1}/{_n0}, {_pend})'))
+# answers: "How did you hear" picks the closest truthful option, AI interview consent is Yes, facts only the user knows
+# (birth date, a recommender's name) are never filled from a near match
+_hb = _an.default_bank({'name': 'Maya Chen', 'ai_review_ok': None})
+_h1 = _an.match('How did you hear about us?', _hb, ['Select', 'LinkedIn', 'Indeed', 'Company Website', 'Employee Referral', 'Other'])['answer']
+_h2 = _an.match('How did you hear about this position?', _hb, ['Career Fair', 'Employee Referral', 'Job Board', 'Other'])['answer']
+_h3 = _an.match('How did you hear about this position?', _hb, ['Career Fair', 'Employee Referral'])
+_ai = _an.match('Do you consent to participate in an AI-powered video interview?', _hb, ['Yes', 'No'])['answer']
+_never = [_an.match(q, _hb)['answer'] for q in ('Date of Birth', 'Name of Recommender', 'Recommender email', 'Full name of your reference')]
+_ref = _an.match('Were you referred by an employee?', _hb, ['Yes', 'No'])['answer']
+res.append(ok(_h1 == 'Company Website' and _h2 == 'Job Board' and _h3['answer'] is None and not _h3['action'].startswith('ask') and _ai == 'Yes'
+              and _never == [None] * 4 and _ref == 'No' and _an.match('Full name', _hb)['answer'] == 'Maya Chen',
+              f'how-did-you-hear, AI interview consent and never-guess facts ({_h1}, {_h2}, {_ai}, {_never}, {_ref})'))
+# every ATS playbook carries today's lessons, and the name can't be used to read other files
+_pw, _pi, _po = api.playbook('workday'), api.playbook('icims'), api.playbook('oracle')
+res.append(ok('click' in _pw and 'read the button' in _pw.lower() and 'DataTransfer' in _pi and 'contentDocument' in _pi
+              and 'real key' in _po.lower() and all('already applied' in x and 'CAPTCHA' in x for x in (_pw, _pi, _po, api.playbook('lever')))
+              and api.playbook('../../README') == api.playbook('general'), 'ATS playbooks carry the dropdown, iframe, Oracle and duplicate rules'))
+
 from applytwin import telemetry as _tm
 res.append(ok(not _tm.enabled() and _tm.ping() is False and len(_tm.install_id()) == 36, 'install count is off in tests and uses only a random ID'))
 

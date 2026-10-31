@@ -11,3 +11,5 @@
   "flagged as possible spam" = STOP, log Needs User, and pause Ashby for this session.
 - Success text: "Thanks for applying", "Application submitted" or "Thank you for submitting".
 - "Maximum number of applications" = that company's cap; stop applying there.
+- Ashby rejects a second application to the same posting from the same email ("already applied"): log Skipped
+  "duplicate: already applied on Ashby", never retry with another email.

@@ -17,8 +17,11 @@ themselves on a careful day.
 ## For each job
 1. **Pick**: `applytwin_next_jobs(n)` (or the job the user named) -> `applytwin_claim(job_id)`. Skip if not claimed.
 2. **Read**: `applytwin_get_job(job_id)`. Check knockouts against the profile: graduation window, work
-   authorization/sponsorship, degree level, location, citizenship/clearance. If the user clearly doesn't
-   qualify, `applytwin_log_application(job_id, "Skipped", "<reason>")` and move on.
+   authorization/sponsorship, degree level, location, citizenship/clearance. The result's `knockouts` lists the ones
+   ApplyTwin found in the description (e.g. "Graduation window Dec 2027 - Aug 2028; you graduate May 2029"); read the
+   posting too, since windows are phrased many ways. If the user clearly doesn't qualify,
+   `applytwin_log_application(job_id, "Skipped", "<that exact reason>")` and move on. If `already_applied` is not
+   empty, this role was already submitted: log Skipped "duplicate: ..." and never submit it again.
 3. **Tailor** (if `apply.tailor_every_resume`):
    - `applytwin_tailor_apply(job_id)` with NO plan. A dedicated writer builds the resume (focused plan, honesty
      check, one-page fit); it started when you claimed the job, so do steps 4-5 first and call this when you reach the
@@ -32,7 +35,9 @@ themselves on a careful day.
    for all of them (batch across jobs when you can), then `applytwin_save_answer` each.
 5. **Fill**: open `apply_url`, `applytwin_playbook(<job.ats>)`, and fill every field. Upload the tailored PDF.
    Write every open-ended answer (required or optional) from the vault + posting, following the `how` rules from step 4.
-6. **Verify**: read back every field value; fix anything empty or wrong (selects especially).
+6. **Verify**: read back every field value; fix anything empty or wrong (selects especially: pick options by
+   clicking, never by keyboard on Workday, and check the shown text). Right before Submit, make sure the site doesn't
+   say "already applied" (Ashby, Workday and iCIMS reject duplicates): if it does, log Skipped "duplicate: ...".
 7. **Submit or hand off**:
    - `auto_submit` true: submit once, confirm the success page, `applytwin_log_application(job_id, "Applied",
      "<1-line note>", pdf)`.
@@ -44,7 +49,11 @@ themselves on a careful day.
      the last 15 minutes, read the code, type it. Never forward, store or show codes anywhere else.
    - otherwise: `applytwin_notify(title="Code needed for <company>", message="Check your email and type it in the open tab", url, job_id)`,
      log "Needs User", leave the tab open, and move on.
-9. **Only-the-user steps** (sign-in, password, account creation, CAPTCHA, arbitration, assessments, essays over ~250 words): `applytwin_notify(...)` with exactly what is needed and the URL, log "Needs User", keep the tab, continue.
+9. **Only-the-user steps** (sign-in, password, account creation, CAPTCHA, arbitration, assessments, essays over ~250 words,
+   a required fact the vault doesn't have such as a date of birth or a recommender's name): `applytwin_notify(...)` with
+   exactly what is needed and the URL, log "Needs User" with notes naming the exact blocker ("Workday sign-in required at
+   <url>", "hCaptcha on submit", "required: date of birth"), keep the tab, continue. Never type a password or solve a
+   CAPTCHA, and never fill such a fact with a guess or another answer.
 10. **Coming back**: at the end of the run (and whenever the user says they handled something) call `applytwin_pending_jobs`
    and finish each one that is now unblocked, then `applytwin_log_application(..., "Applied")`.
 

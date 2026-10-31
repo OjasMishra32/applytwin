@@ -355,13 +355,51 @@ STATUSES = {'applied': 'Applied', 'submitted': 'Applied', 'complete': 'Applied',
             'needs user': 'Needs User', 'needs_user': 'Needs User', 'needs you': 'Needs User', 'blocked': 'Needs User',
             'skipped': 'Skipped', 'skip': 'Skipped', 'failed': 'Failed', 'error': 'Failed', 'interview': 'Interview',
             'oa': 'OA', 'offer': 'Offer', 'rejected': 'Rejected'}
+# agents write statuses many ways ("needs-user", "Skipped - grad window", "Ready to submit", "Online assessment")
+STATUS_WORDS = [(r'\bneeds?\b|blocked|waiting|\bready\b|pending|manual', 'Needs User'),
+                (r'skip|ineligible|not eligible|duplicate|already applied|closed|no longer|not appl', 'Skipped'), (r'fail|error|crash', 'Failed'),
+                (r'reject|declin|not selected|not moving forward', 'Rejected'), (r'interview|phone screen|superday', 'Interview'),
+                (r'\boa\b|online assessment|assessment|hackerrank|codesignal', 'OA'), (r'offer', 'Offer'), (r'appl(y|ied)|submit', 'Applied')]
+OUTCOMES = ('Applied', 'Interview', 'OA', 'Offer', 'Rejected')   # it was submitted
+
+
+def normalize_status(status, notes=''):
+    """(canonical status, notes). A reason written into the status ("Skipped - grad window") moves into the notes."""
+    raw = (status or 'Applied').strip()
+    key = re.sub(r'[\s_-]+', ' ', raw.lower()).strip()
+    if key in STATUSES:
+        return STATUSES[key], notes
+    parts = re.split(r'\s*[:(–—,]\s*|\s+-\s+', raw, maxsplit=1)
+    head = re.sub(r'[\s_-]+', ' ', parts[0].lower()).strip()
+    st = STATUSES.get(head) or next((s for pat, s in STATUS_WORDS if re.search(pat, key)), raw[:40])
+    if head in STATUSES:
+        rest = parts[1].strip(' -:()–—,') if len(parts) > 1 else ''
+    else:   # the whole phrase is the reason ("Not eligible - grad window")
+        rest = raw if st != raw[:40] else ''
+    if st == 'Needs User' and re.search(r'\bready\b', key) and 'ready to submit' not in (notes or '').lower():
+        rest = 'ready to submit' + ('; ' + rest if rest and not re.search(r'\bready\b', rest.lower()) else '')
+    return st, '; '.join(x for x in (rest, notes) if x)
+
 
 # what counts toward the daily limit and per-company cap: submitted, plus filled and waiting only for your Submit click
-COUNTED = "(status='Applied' or (status='Needs User' and lower(coalesce(notes,'')) like '%ready to submit%'))"
+# (unless it was skipped or failed after that)
+COUNTED = ("(status='Applied' or (status='Needs User' and lower(coalesce(notes,'')) like '%ready to submit%' and not exists ("
+           "select 1 from applications later where later.job_id=applications.job_id and later.at>applications.at "
+           "and later.status in ('Skipped','Failed'))))")
 
 
-def log_application(job_id, status, notes='', resume_path=''):
-    status = STATUSES.get((status or '').strip().lower(), (status or 'Applied').strip())
+def latest_status(job_id):
+    return (rows('select status, notes, at from applications where job_id=? order by at desc, id desc limit 1', (job_id,)) or [None])[0]
+
+
+def log_application(job_id, status, notes='', resume_path='', agent=False):
+    status, notes = normalize_status(status, notes or '')
+    if agent and status in ('Needs User', 'Skipped', 'Failed'):
+        # an agent re-opening a submitted application (a refill, a duplicate posting) never turns it back into "not applied"
+        last = latest_status(job_id)
+        if last and last['status'] in OUTCOMES:
+            return {"ok": False, "status": last['status'], "note": f"Already {last['status']} on "
+                    f"{time.strftime('%Y-%m-%d', time.localtime(last['at']))}; kept. Never submit this one again."}
     j = (rows('select * from jobs where id=?', (job_id,)) or [{}])[0]
     execute('insert into applications(job_id,company,title,url,status,resume_path,notes,at) values(?,?,?,?,?,?,?,?)',
             (job_id, j.get('company', ''), j.get('title', ''), j.get('apply_url') or j.get('url', ''),
@@ -373,14 +411,32 @@ def log_application(job_id, status, notes='', resume_path=''):
     return {"ok": True, "job": j.get('title'), "company": j.get('company'), "status": status}
 
 
+CLAIM_TTL = 3 * 3600   # a claim nobody logged in this long belongs to a session that died
+
+
 def claim(job_id, who='agent'):
-    """Atomic claim so two parallel agents never apply to the same job."""
+    """Atomic claim so two parallel agents never apply to the same job. The same Autopilot run claiming again keeps it
+    (interactive sessions all claim as 'agent', so for them a second claim is refused)."""
     with _lock, db() as con:
         try:
             con.execute('insert into claims(job_id,who,at) values(?,?,?)', (job_id, who, time.time()))
             return True
         except sqlite3.IntegrityError:
+            if who and who != 'agent':
+                return con.execute('update claims set at=? where job_id=? and who=?', (time.time(), job_id, who)).rowcount > 0
             return False
+
+
+def live_claims(company=None):
+    """Claims still being worked on (not logged yet, not stale): they count toward today's limit and the company cap, so
+    parallel agents can't all pass the check at once."""
+    rs = rows('select c.job_id, j.company from claims c left join jobs j on j.id=c.job_id where c.at>? and not exists '
+              '(select 1 from applications a where a.job_id=c.job_id and a.at>=c.at)', (time.time() - CLAIM_TTL,))
+    if company is None:
+        return len(rs)
+    from .match import company_key
+    k = company_key(company)
+    return sum(1 for r in rs if company_key(r['company'] or '') == k)
 
 
 def applied_count_today():

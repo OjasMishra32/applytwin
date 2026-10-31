@@ -14,4 +14,11 @@
 - **Pinpoint** (*.pinpointhq.com): Rails form, JS setting works; consent checkbox via its label; conditional
   questions may appear after the first submit ("can't be blank"): answer and resubmit once.
 - **Gem** forms: long textareas grow while typing and can swallow the next field; fill, then verify each.
-- **Oracle HCM / Taleo / Eightfold / SuccessFactors / Avature**: account required -> hand to the user.
+- **Oracle HCM / Oracle Recruiting Cloud** (*.oraclecloud.com/hcmUI/CandidateExperience): sign-in is email + an
+  emailed one-time code (follow `email_codes`; never a password). **Autocomplete fields (school, location, degree,
+  country) only filter on REAL key events**: JS value-setting or a pasted value shows no suggestions and the field
+  stays invalid. Click the field, type the first few letters with real keystrokes (your browser tool's type/key
+  action, not a script), wait for the list, click the matching suggestion, then read the field back. Dropdowns:
+  click and pick by text, verify. Upload the resume first; it pre-fills experience you then check.
+- **Taleo / Eightfold / SuccessFactors / Avature**: account with a password required -> hand to the user (Needs User,
+  notes "<ATS> account sign-in required at <url>").

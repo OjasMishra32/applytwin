@@ -116,7 +116,7 @@ def answer_questions(questions, job_id=None, notify_user=True):
             out.append(ans.match(q, bank))
     profile_keys = {r['key'] for r in ans.default_bank(store.profile())}
     for r in out:
-        if notify_user and r.get('answer') is None and r.get('action') != 'write':   # open-ended ones the agent writes; never ask
+        if notify_user and r.get('answer') is None and (r.get('action') or '').startswith('ask'):   # open-ended ones the agent writes; never ask
             known = r.get('key') in profile_keys
             title = f"Add your answer: {r['question'][:300]}"
             if not store.rows('select 1 from inbox where title=? and resolved is null', (title,)):
@@ -213,6 +213,33 @@ def get_job(job_id, with_description=True):
     return j
 
 
+def job_for_agent(job_id):
+    """get_job for the agent: the posting plus what it must check before filling anything. knockouts are requirements the
+    full description states that rule the user out (the scan often scored the job before the description was fetched);
+    already_applied lists earlier applications to the same role or the same posting id at this company."""
+    j = get_job(job_id)
+    if not j:
+        return {"error": f"No job {job_id}. Use an id from applytwin_next_jobs, or applytwin_add_job(url)."}
+    j['knockouts'] = match.knockouts(j, store.profile())
+    if j['knockouts']:
+        j['knockouts_note'] = ("The posting rules the user out: applytwin_log_application(job_id, 'Skipped', '<the knockout above>') "
+                               "and move on. If the posting clearly says otherwise elsewhere, apply.")
+    key, ids = role_key(j['company'], j['title']), set(URL_ID.findall(f"{j.get('apply_url') or ''} {j.get('url') or ''}"))
+    seen = []
+    for a in store.rows("select job_id, company, title, url, status, at from applications where job_id!=? order by at desc", (job_id,)):
+        if a['status'] in ('Skipped', 'Failed') or not match.same_company(a['company'] or '', j['company']):
+            continue
+        if role_key(a['company'], a['title']) == key or ids & set(URL_ID.findall(a.get('url') or '')):
+            seen.append({"job_id": a['job_id'], "title": a['title'], "status": a['status'],
+                         "on": time.strftime('%Y-%m-%d', time.localtime(a['at']))})
+    j['already_applied'] = seen[:5]
+    last = store.latest_status(job_id)
+    if last and last['status'] in store.OUTCOMES:
+        j['already_applied'].insert(0, {"job_id": job_id, "title": j['title'], "status": last['status'],
+                                        "on": time.strftime('%Y-%m-%d', time.localtime(last['at']))})
+    return j
+
+
 def set_job_status(job_id, status):
     store.execute('update jobs set status=? where id=?', (status, job_id))
     return {"ok": True}
@@ -272,11 +299,14 @@ def company_cap(company, cap):
 def next_jobs(n=10):
     """The apply queue: best-fit unapplied jobs, respecting the daily limit and per-company caps."""
     p = store.profile()
-    left = max(0, p['apply'].get('daily_limit', 40) - store.applied_count_today())
+    release_claims(older_than=store.CLAIM_TTL)   # a session that died hours ago no longer hides its jobs (they go to Needs you)
+    left = max(0, p['apply'].get('daily_limit', 40) - store.applied_count_today() - store.live_claims())
     cap = p['apply'].get('per_company_cap', 3)
     out, per, done, ids = [], {}, done_roles(), done_url_ids()
     if left <= 0:
-        return {"remaining_today": 0, "jobs": [], "note": "Today's limit is reached. Stop here."}
+        return {"remaining_today": 0, "jobs": [], "note": "Today's limit is reached (counting applications in progress). Stop here."}
+    for r in store.rows('select j.company from claims c join jobs j on j.id=c.job_id where c.at>?', (time.time() - store.CLAIM_TTL,)):
+        per[match.company_key(r['company'] or '')] = per.get(match.company_key(r['company'] or ''), 0) + 1   # in progress counts too
     skip = p['search'].get('companies_skip', [])
     for j in list_jobs(status='new', limit=400):
         if already_done(j, done, ids) or any(match.same_company(s, j['company']) for s in skip):
@@ -332,38 +362,60 @@ def done_roles():
 
 
 def done_url_ids():
-    return {m for r in applied_elsewhere() for m in URL_ID.findall(r.get('url') or '')}
+    """Posting ids (Greenhouse/Lever/Ashby ids in URLs) already applied to: from your history (any company), and from
+    ApplyTwin's own applications as (company, id), so the same posting found under another listing is never applied twice."""
+    out = {m for r in applied_elsewhere() for m in URL_ID.findall(r.get('url') or '')}
+    for r in store.rows("select company, url from applications where status not in ('Skipped','Failed')"):
+        out |= {(match.company_key(r['company'] or ''), m) for m in URL_ID.findall(r.get('url') or '')}
+    return out
 
 
 def already_done(job, done=None, ids=None):
     if role_key(job['company'], job['title']) in (done if done is not None else done_roles()):
         return True
     ids = ids if ids is not None else done_url_ids()
-    return any(m in ids for m in URL_ID.findall(f"{job.get('apply_url') or ''} {job.get('url') or ''}"))
+    c = match.company_key(job.get('company') or '')
+    return any(m in ids or (c, m) in ids for m in URL_ID.findall(f"{job.get('apply_url') or ''} {job.get('url') or ''}"))
 
 
 def claim(job_id, who='agent'):
     """The one gate every application passes: never twice, never a skipped company, never past today's limit or a
     company's cap."""
     j = (store.rows('select id, company, title, status, url, apply_url from jobs where id=?', (job_id,)) or [None])[0]
-    if j and j['status'] in ('needs user', 'failed'):
-        return {"claimed": True, "reason": "Already in progress: continue this application."}
+    if not j:
+        return {"claimed": False, "reason": "No job with that id. Use an id from applytwin_next_jobs, or applytwin_add_job(url) first."}
+    if j['status'] in ('needs user', 'failed'):
+        last = store.latest_status(job_id)
+        if last and last['status'] in store.OUTCOMES:   # it was submitted after all (status columns can disagree)
+            return {"claimed": False, "reason": f"Already {last['status']}. Never submit it again. Skip it."}
+        # still take the claim, so two sessions never finish the same application at once
+        if not store.claim(job_id, who):
+            if store.rows('select 1 from claims where job_id=? and at>?', (job_id, time.time() - store.CLAIM_TTL)):
+                return {"claimed": False, "reason": "Another session is finishing this application right now. Skip it."}
+            store.execute('update claims set who=?, at=? where job_id=?', (who, time.time(), job_id))   # a dead session's claim
+        return {"claimed": True, "reason": "Already in progress: continue this application (check first that it wasn't submitted)."}
     if j and (j['status'] != 'new' or already_done(j)):
         return {"claimed": False, "reason": "You already applied to this role (or a listing of the same role). Skip it."}
     p = store.profile()
     if j and any(match.same_company(s, j['company']) for s in p['search'].get('companies_skip', [])):
         return {"claimed": False, "reason": "The user asked never to apply to this company. Skip it."}
-    if store.applied_count_today() >= p['apply'].get('daily_limit', 40):
-        return {"claimed": False, "reason": "Today's application limit is reached. Stop the run here."}
-    if j and store.company_count(j['company']) >= company_cap(j['company'], p['apply'].get('per_company_cap', 3)):
-        lim = _limits.get(match.company_key(j['company']), (0, None))[1]
-        return {"claimed": False, "reason": (f"{j['company']} takes only {lim} application(s) per candidate and that's used. Skip it."
-                                             if lim and lim < p['apply'].get('per_company_cap', 3) else
-                                             "The per-company cap for this company is reached. Skip it.")}
-    ok = store.claim(job_id, who)
+    if who and who != 'agent' and store.rows('select 1 from claims where job_id=? and who=?', (job_id, who)):
+        store.claim(job_id, who)   # this run's own claim: refresh it
+        return {"claimed": True, "reason": "You already claimed this one: continue it."}
+    limit, cap = p['apply'].get('daily_limit', 40), p['apply'].get('per_company_cap', 3)
+    # checks and claim under one lock shared by every process: parallel agents can't all pass the limit check at once
+    with store.file_lock('claims'):
+        if store.applied_count_today() + store.live_claims() >= limit:
+            return {"claimed": False, "reason": "Today's application limit is reached (counting applications in progress). Stop the run here."}
+        if j and store.company_count(j['company']) + store.live_claims(j['company']) >= company_cap(j['company'], cap):
+            lim = _limits.get(match.company_key(j['company']), (0, None))[1]
+            return {"claimed": False, "reason": (f"{j['company']} takes only {lim} application(s) per candidate and that's used. Skip it."
+                                                 if lim and lim < cap else
+                                                 "The per-company cap for this company is reached (counting applications in progress). Skip it.")}
+        ok = store.claim(job_id, who)
     if ok:
         pretailor(job_id)   # the resume is written while the agent opens and fills the application
-    return {"claimed": ok}
+    return {"claimed": ok} if ok else {"claimed": False, "reason": "Another session claimed it. Skip it."}
 
 
 _tailoring = {}   # job_id -> {"thread", "result", "error", "vault"}: dedicated resume builds running in the background
@@ -519,8 +571,13 @@ def release_claims(since=0.0, older_than=None, who=None):
                                                          'submitted; if not, press Refill or tell your twin to finish it.')
 
 
-def log_application(job_id, status='Applied', notes='', resume_path=''):
-    out = store.log_application(job_id, status, notes, resume_path)
+def log_application(job_id, status='Applied', notes='', resume_path='', agent=False):
+    out = store.log_application(job_id, status, notes, resume_path, agent=agent)
+    if not out.get('ok'):
+        return out
+    if agent and out['status'] in ('Needs User', 'Skipped', 'Failed') and not store.normalize_status(status, notes or '')[1].strip():
+        out['warning'] = ("Log it again with notes saying exactly why (e.g. 'Workday sign-in required at <url>', 'hCaptcha on submit', "
+                          "'graduation window Dec 2027 - Aug 2028; user graduates May 2029'), so the user knows what to do.")
     from . import cloud
     if cloud.status()['signed_in']:
         threading.Thread(target=lambda: cloud._safe(cloud.push_applications), daemon=True).start()
@@ -675,16 +732,31 @@ def suggest_template(job):
 
 
 PLAYBOOK_ALIAS = {'jobvite': 'others', 'workable': 'others', 'rippling': 'others', 'paylocity': 'others', 'pinpoint': 'others',
-                  'gem': 'others', 'oracle': 'others', 'taleo': 'others', 'eightfold': 'others', 'successfactors': 'others',
+                  'gem': 'others', 'oracle': 'others', 'oraclecloud': 'others', 'oraclehcm': 'others', 'taleo': 'others',
+                  'eightfold': 'others', 'successfactors': 'others', 'avature': 'others',
                   'community': 'general', 'manual': 'general', 'other': 'general'}
+
+# appended to every ATS playbook: agents often fetch only the one for the form in front of them
+ALWAYS = """
+## Every ATS
+- Pick dropdown options by clicking the exact option text, then read the selected value back. Typeaheads that ignore
+  script need real keystrokes; forms in same-origin iframes are reached via `iframe.contentDocument` (file inputs there:
+  upload to a top-level temporary input and copy it over with a DataTransfer).
+- Before Submit: `applytwin_get_job` showed no `already_applied` and the site doesn't say "already applied". Duplicate =
+  log Skipped "duplicate: <what you saw>".
+- Never type passwords, never solve CAPTCHAs, never type emailed codes unless `email_codes` is `agent`, never invent a fact
+  (birth date, a recommender's name): `applytwin_notify`, then log Needs User with the exact blocker and URL in notes.
+"""
 
 
 def playbook(ats_name):
-    name = (ats_name or 'general').lower()
-    f = os.path.join(APP, 'playbooks', f'{PLAYBOOK_ALIAS.get(name, name)}.md')
+    name = re.sub(r'[^a-z0-9]', '', (ats_name or 'general').lower()) or 'general'   # never a path
+    name = PLAYBOOK_ALIAS.get(name, name)
+    f = os.path.join(APP, 'playbooks', f'{name}.md')
     if not os.path.exists(f):
-        f = os.path.join(APP, 'playbooks', 'general.md')
-    return open(f, encoding='utf-8').read()
+        f, name = os.path.join(APP, 'playbooks', 'general.md'), 'general'
+    text = open(f, encoding='utf-8').read()
+    return text if name == 'general' else text.rstrip() + '\n' + ALWAYS
 
 
 def setup_status():
@@ -751,7 +823,7 @@ def queue(n=50, for_agent=False):
         j['dream'] = any(match.same_company(d, j['company']) for d in dream)
         out.append(j)
     out.sort(key=lambda j: (not j['dream'], j.get('source') != 'manual', -j['fit']))   # dream companies, then jobs you added, then fit
-    left = max(0, p['apply'].get('daily_limit', 40) - store.applied_count_today())
+    left = max(0, p['apply'].get('daily_limit', 40) - store.applied_count_today() - store.live_claims())
     return {"total": len(out), "dream": sum(j['dream'] for j in out), "remaining_today": left,
             "jobs": out[:min(int(n), left)] if for_agent else out[:int(n)]}
 
@@ -768,7 +840,10 @@ def run_prompt(n):
             "in my email (your email/Gmail tool, or my webmail tab in the browser) and enter it; otherwise call applytwin_notify and move on. "
             "For sign-ins, passwords, CAPTCHAs or anything only I can do: applytwin_notify, log Needs User, leave the tab open, and go straight to the next job. "
             "Never wait for me and never retry a blocked page more than twice: anything that is not moving in a few minutes gets logged Needs User and skipped. "
-            "At the end, check applytwin_pending_jobs and finish any I have unblocked. Judge class-year and start-date requirements by my standing DURING the internship (applytwin_get_profile class_standing: a sophomore now is a rising junior next summer); skip only when I am clearly ineligible, and when unsure, apply. Never invent facts. Give a 1-line update every 5 jobs.")
+            "At the end, check applytwin_pending_jobs and finish any I have unblocked. Judge class-year and start-date requirements by my standing DURING the internship (applytwin_get_profile class_standing: a sophomore now is a rising junior next summer); skip only when I am clearly ineligible, and when unsure, apply. "
+            "A graduation window in the posting (applytwin_get_job knockouts, or text like 'graduating Dec 2027 - Aug 2028') that my grad date is outside of IS clearly ineligible: log Skipped with that exact reason. "
+            "If applytwin_get_job shows already_applied, or the site says I already applied, log Skipped as a duplicate and never submit twice. "
+            "Never invent facts (no guessed birth dates or recommender names: log Needs User with the exact question). Give a 1-line update every 5 jobs.")
 
 
 def doctor():
@@ -1324,8 +1399,11 @@ def resolve(item_id):
 
 def pending_jobs():
     """Jobs your agent stopped on (Needs User) that are not finished yet: come back to these after the user acts."""
+    release_claims(older_than=store.CLAIM_TTL)
+    # anything logged after it (Applied, Skipped, Failed, or an outcome like Rejected the user recorded) means it's finished
     rows = store.rows("select a.job_id, a.company, a.title, a.url, a.notes, a.at from applications a where a.status='Needs User' and "
-                      "not exists (select 1 from applications b where b.job_id=a.job_id and b.at>a.at and b.status in ('Applied','Skipped','Failed')) "
+                      "not exists (select 1 from applications b where b.job_id=a.job_id and ((b.at>a.at and b.status!='Needs User') or "
+                      "b.status in ('Applied','Interview','OA','Offer','Rejected'))) "
                       "order by a.at desc")
     seen, out = set(), []
     for r in rows:
