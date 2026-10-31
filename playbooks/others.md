@@ -14,11 +14,14 @@
 - **Pinpoint** (*.pinpointhq.com): Rails form, JS setting works; consent checkbox via its label; conditional
   questions may appear after the first submit ("can't be blank"): answer and resubmit once.
 - **Gem** forms: long textareas grow while typing and can swallow the next field; fill, then verify each.
-- **Oracle HCM / Oracle Recruiting Cloud** (*.oraclecloud.com/hcmUI/CandidateExperience): sign-in is email + an
-  emailed one-time code (follow `email_codes`; never a password). **Autocomplete fields (school, location, degree,
-  country) only filter on REAL key events**: JS value-setting or a pasted value shows no suggestions and the field
-  stays invalid. Click the field, type the first few letters with real keystrokes (your browser tool's type/key
-  action, not a script), wait for the list, click the matching suggestion, then read the field back. Dropdowns:
-  click and pick by text, verify. Upload the resume first; it pre-fills experience you then check.
-- **Taleo / Eightfold / SuccessFactors / Avature**: account with a password required -> hand to the user (Needs User,
-  notes "<ATS> account sign-in required at <url>").
+- **Oracle HCM / Oracle Recruiting Cloud**: see `applytwin_playbook("oracle")` (email + emailed code; autocompletes
+  need real keystrokes).
+- **Taleo / Eightfold / SuccessFactors / Avature / Phenom**: first look for a no-account path on the posting ("Apply as
+  guest", "Apply without an account", "Quick apply", or an Avature form that only asks for contact details). Only if
+  every path needs an account with a password: leave the tab on the sign-in / create-account page, notes "account
+  required at <url>" (never create the account or type a password). Other jobs on that site wait for the user's
+  sign-in automatically; once they sign in, the tenant keeps them signed in for the rest.
+- **JazzHR** (*.applytojob.com): plain form; a visible reCAPTCHA checkbox sits above Submit. Fill everything, then
+  Needs User "reCAPTCHA on submit" with the tab open (never click the checkbox yourself).
+- **Paylocity work history**: it requires a full address for every past employer. Fill what the vault has; the rest is
+  a question only the user can answer ("required: street address for <employer>").

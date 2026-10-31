@@ -343,11 +343,40 @@ def level_gate(job, prof):
     return ''
 
 
+def location_gate(job, prof):
+    """A US-only role for someone who lives abroad and isn't authorized to work in the US (and either won't move, or the
+    role is remote, which still means 'from the US'). Real runs spent ~60 agent visits per such user writing this by hand."""
+    if prof.get('work_authorized_us') is not False:
+        return ''
+    loc = job.get('location') or ''
+    if place(prof.get('location') or '') != 'foreign' or place(loc) != 'us' or FOREIGN.search(loc) or CANADA.search(loc):
+        return ''
+    if re.search(r'\bremote\b', loc, re.I) or prof.get('willing_to_relocate') is False:
+        return f'US-only role ({loc.strip()[:60]}); you are based outside the US and not authorized to work in the US'
+    return ''
+
+
+def quick_knockouts(job, prof):
+    """The knockouts that need no description (title and location only): cheap enough to run over the whole queue, so the
+    agent is never handed a job it would only open to skip."""
+    out = []
+    why = level_gate({'title': job.get('title', ''), 'description': ''}, prof)
+    if why:
+        out.append(why[0].upper() + why[1:])
+    why = location_gate(job, prof)
+    if why:
+        out.append(why[0].upper() + why[1:])
+    return out
+
+
 def knockouts(job, prof):
     """Hard requirements in the full posting that rule the user out, each as a ready-to-log Skipped reason. Only clear cases:
     when unsure, the agent applies."""
     text = f"{job.get('title', '')}\n{job.get('description') or ''}"
     out = []
+    why = location_gate(job, prof)
+    if why:
+        out.append(why[0].upper() + why[1:])
     ok, note = _grad_ok(text, prof.get('grad_year'), prof.get('grad_month'))
     if ok is False:
         out.append(note[0].upper() + note[1:])

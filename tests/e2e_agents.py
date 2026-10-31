@@ -191,6 +191,34 @@ def main():
     got = open(os.path.join(os.environ['APPLYTWIN_HOME'], 'claude_stdin.txt'), encoding='utf-8').read()
     check('Find them in my email reaches the agent with the steps', 'thank you for applying' in got and 'applytwin_import_applied' in got)
 
+    # the agent's own browser failing, reported through the real MCP server process: the jobs go back to the queue, the
+    # second report tells the agent to stop, and the next Autopilot run starts with a clean slate
+    for jid in ('bf1', 'bf2'):
+        store.execute('insert or replace into jobs(id,source,company,title,url,apply_url,ats,found_at,fit,status) values(?,?,?,?,?,?,?,?,?,?)',
+                      (jid, 'test', 'Browserco ' + jid, 'Software Engineer Intern', f'https://jobs.lever.co/bc/{jid}',
+                       f'https://jobs.lever.co/bc/{jid}', 'lever', time.time(), 95, 'new'))
+    calls = [{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18"}}]
+    for i, jid in enumerate(('bf1', 'bf2')):
+        calls.append({"jsonrpc": "2.0", "id": 10 + i, "method": "tools/call", "params": {"name": "applytwin_claim", "arguments": {"job_id": jid}}})
+        calls.append({"jsonrpc": "2.0", "id": 20 + i, "method": "tools/call", "params": {"name": "applytwin_log_application", "arguments": {
+            "job_id": jid, "status": "Needs User", "notes": "Browser access blocked: browser host unavailable; Computer Use denied Google Chrome"}}})
+    calls.append({"jsonrpc": "2.0", "id": 30, "method": "tools/call", "params": {"name": "applytwin_next_jobs", "arguments": {"n": 5}}})
+    calls.append({"jsonrpc": "2.0", "id": 31, "method": "tools/call", "params": {"name": "applytwin_needs_you", "arguments": {}}})
+    mp = subprocess.run([sys.executable, os.path.join(ROOT, 'bin', 'applytwin'), 'mcp'], input='\n'.join(json.dumps(c) for c in calls) + '\n',
+                        capture_output=True, text=True, encoding='utf-8', env=os.environ, timeout=120)
+    out = {m['id']: json.loads(m['result']['content'][0]['text']) for m in (json.loads(x) for x in mp.stdout.splitlines() if x.strip())
+           if m.get('id') in (20, 21, 30, 31)}
+    check('MCP: a browser failure requeues the job; the second one stops the run',
+          out.get(20, {}).get('requeued') and not out[20].get('stop') and out.get(21, {}).get('stop') and out.get(30, {}).get('stop')
+          and out[30]['jobs'] == [] and not any(j['job_id'] in ('bf1', 'bf2') for g in out.get(31, {}).get('groups', []) for j in g['jobs']),
+          json.dumps({k: (v.get('note') or '')[:40] if isinstance(v, dict) else v for k, v in out.items()})[:200])
+    api.start_run('claude', 1)
+    for _ in range(100):
+        if not api.run_status()['running']:
+            break
+        time.sleep(0.2)
+    check('a new Autopilot run gets a fresh chance at its browser', not api.next_jobs(5).get('stop'))
+
     # in-app tailoring on the subscription (no API key) returns the agent's JSON
     agents._cache.clear()
     store.save('profile.json', {**store.profile(), "apply": {**store.profile()['apply'], "agent": "codex"}})

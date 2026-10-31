@@ -12,7 +12,9 @@ themselves on a careful day.
 ## Setup (once per session)
 1. `applytwin_get_profile`: note `apply.auto_submit`, `daily_limit`, `per_company_cap`, `stop_on`.
 2. `applytwin_playbook("general")` and follow it. Keep it in mind for every job.
-3. Make sure you have a browser tool. Work in your own tab or window, never in the user's existing tabs.
+3. Make sure you have a browser tool: open about:blank in your own tab or window (never the user's existing tabs). If the
+   browser tool doesn't work, `applytwin_notify` once with the error and stop. Never log jobs as blocked because of your
+   own browser: ApplyTwin puts such jobs back in the queue and tells you to stop after two.
 
 ## For each job
 1. **Pick**: `applytwin_next_jobs(n)` (or the job the user named) -> `applytwin_claim(job_id)`. Skip if not claimed.
@@ -29,7 +31,9 @@ themselves on a careful day.
    - Write your own plan (`applytwin_tailor_prompt` then `applytwin_tailor_apply(job_id, plan)`) only when the user
      asked for a specific change to this resume.
 4. **Prepare answers**: Greenhouse: `applytwin_job_questions(job_id)`. Others: read the form's questions, then
-   `applytwin_answer_questions([{question, options}])`. Results with `action: "write"` are open-ended questions
+   `applytwin_answer_questions([{question, options}], job_id)` (always the job_id, and the options of every dropdown or
+   radio). `action: "knockout"` = the form's own options rule the user out (e.g. graduation years that stop before
+   theirs): log Skipped with `skip_reason`. `formats` gives a date as MM/YYYY, YYYY-MM, etc. Results with `action: "write"` are open-ended questions
    (why this company, what interested you, anything else): write them yourself following `how`, never ask the user and
    never leave them blank. Anything else returned null is a fact only the user knows: collect those, ask the user ONCE
    for all of them (batch across jobs when you can), then `applytwin_save_answer` each.
@@ -52,10 +56,20 @@ themselves on a careful day.
 9. **Only-the-user steps** (sign-in, password, account creation, CAPTCHA, arbitration, assessments, essays over ~250 words,
    a required fact the vault doesn't have such as a date of birth or a recommender's name): `applytwin_notify(...)` with
    exactly what is needed and the URL, log "Needs User" with notes naming the exact blocker ("Workday sign-in required at
-   <url>", "hCaptcha on submit", "required: date of birth"), keep the tab, continue. Never type a password or solve a
+   <url>", "hCaptcha on submit", "required: date of birth"), keep the tab, continue. Fill everything else first: on a
+   no-account form fill the whole form; where an account is needed, leave the tab on the sign-in / create-account page.
+   A second item for the same site is grouped with the first (`batched: true`), so report each blocker plainly. Never type a password or solve a
    CAPTCHA, and never fill such a fact with a guess or another answer.
-10. **Coming back**: at the end of the run (and whenever the user says they handled something) call `applytwin_pending_jobs`
-   and finish each one that is now unblocked, then `applytwin_log_application(..., "Applied")`.
+10. **Coming back**: at the end of the run call `applytwin_needs_you` and give the user the grouped list (one sign-in per
+   site unblocks all of its jobs). Whenever the user says they handled something, call `applytwin_pending_jobs` and finish
+   each one that is now unblocked: `applytwin_get_job` shows `resume_from`, so continue where it stopped (reuse the open tab,
+   keep what is filled), then `applytwin_log_application(..., "Applied")`.
+
+## What ApplyTwin sorts out for you
+- `applytwin_next_jobs` never hands you homepage-only links, clear title/location knockouts, jobs waiting for a page-error
+  retry, or jobs on a site that is waiting for the user's sign-in (`waiting_on_you`).
+- Logging Needs User for a closed posting, a homepage link or a duplicate files it as Skipped. A page error or timeout
+  (not on the submit step) goes back to the queue once (`requeued: true`). `stop: true` in any result = end the run.
 
 ## Between jobs
 - Respect pacing in the general playbook (Greenhouse spacing, company caps).

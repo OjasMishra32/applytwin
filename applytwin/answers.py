@@ -6,6 +6,8 @@ must ask the user (and save the answer so it never asks twice).
 """
 import re
 
+from . import blockers
+
 STOP = set('a an the of to for in on and or is are you your do does did be been have has with at by as this that '
            'will would can could please any if from our we us it its which what when where who how'.split())
 
@@ -30,7 +32,36 @@ def standing(p):
 def default_bank(p):
     s = p.get('eeo', {})
     grad = f"{p.get('grad_month', '')} {p.get('grad_year', '')}".strip()
+    school_start = f"{p.get('start_month', '')} {p.get('start_year', '')}".strip()
+    email = p.get('school_email') or (p.get('email', '') if re.search(r'\.edu\s*$', p.get('email') or '', re.I) else '')
     rows = [
+        # asked by quant/trading and campus forms; checked first so 'graduation year' / 'school' never answer them
+        ('hs_grad_year', 'High school graduation year', r'high ?school[^?]{0,40}(grad|year|class)|(grad|year|class)[^?]{0,30}high ?school',
+         p.get('hs_grad_year', '')),
+        ('hs_name', 'High school name', r'high ?school( name)?\b(?![^?]{0,40}(grad|year|class|gpa))|secondary school', p.get('high_school', '')),
+        ('sat', 'SAT score', r'\bsat\b[^?]{0,30}\bscores?\b|\bscores?\b[^?]{0,20}\bsat\b', p.get('sat_score', '')),
+        ('act', 'ACT score', r'\bact\b[^?]{0,15}\bscores?\b|\bscores?\b[^?]{0,20}\bact\b', p.get('act_score', '')),
+        ('school_email', 'School email', r'(school|university|college|student|academic|\.edu)[^?]{0,10}e-?mail', email),
+        ('school_start', 'When did you start at your university?',
+         r'(start|began|begin|enrollment|matriculation|attendance)\s*(date|month|year|term)\b[^?]{0,30}\b(university|college|school|'
+         r'program|degree|studies)|(university|college|school|degree|studies)[^?]{0,20}\b(start|begin|enrollment|matriculation|attendance)'
+         r'\s*(date|month|year|term)|attendance start|attended from|when did you (start|begin|enroll|matriculate)|'
+         r'(what|which) (month|year|term|semester) did you (start|begin|enroll|matriculate)|(date|month|year) (you )?(started|began|enrolled|matriculated)',
+         school_start),
+        ('availability', 'What are your internship dates / availability?',
+         r'internship (dates|availability|term)|dates? (of|for) (your )?(internship )?availability|availab\w+ (dates|window|period)|'
+         r'what dates (are|would|will) you (be )?available', p.get('availability', '')),
+        ('applied_before', 'Have you applied to this company before?',
+         r'\b(have|did|has) you (ever |previously |already |recently )?(applied|submitted an application|interviewed)\b|'
+         r'prior applications? (to|with|at|for)|previously applied|applied (to|with|at) [^?]{0,40}\b(before|previously|in the past)', ''),
+        ('knows_employee', 'Do you know anyone / have relatives who work here?',
+         r'^(?!.*\bhear\b)(?=.*\b(know|related to|relatives?|family members?|friends?|relationships?)\b).*(know|related to|relatives?|family members?|friends?|relationships?)\b[^?]{0,50}\b(employ|works? (at|for)|working (at|for)|'
+         r'currently work|director|officer)', _yn(p.get('knows_employee'))),
+        ('political', 'Have you made political contributions?', r'political (contribution|donation)|campaign contribution|'
+         r'contribut\w+ to [^?]{0,40}(candidate|campaign|political)', _yn(p.get('political_contributions'))),
+        ('offers', 'Do you have other offers or deadlines?',
+         r'(current|other|existing|competing|outstanding|pending|active) (job |internship |return )?offers?|offer deadlines?|'
+         r'recruiting (timelines?|deadlines?)|deadlines?[^?]{0,30}(offer|decision|recruit)', p.get('offers', '')),
         ('work_auth', 'Are you legally authorized to work in the United States?',
          r'(legally )?(authori[sz]ed|eligible|permitted) to work|work authori[sz]ation|right to work', _yn(p.get('work_authorized_us'))),
         ('sponsorship', 'Will you now or in the future require visa sponsorship?',
@@ -149,8 +180,64 @@ HEAR_PICKS = [r'company (careers? )?(web)?site|careers? (site|page|website)|comp
               r'job board|online job|internet|online|web search|search engine|google', r'job (site|posting)|posting', r'^other\b']
 
 
-def match(question, bank, options=None):
-    """Best answer for one question. options = the dropdown/radio choices, if any (we pick the closest)."""
+def match(question, bank, options=None, context=None):
+    """Best answer for one question. options = the dropdown/radio choices, if any (we pick the closest). context = facts
+    about this job's company from ApplyTwin's own records: {company, worked_here, applied_before}."""
+    r = _match(question, bank, options)
+    return _finish(r, bank, options, context or {})
+
+
+DATE_KEYS = ('grad', 'start', 'school_start', 'grad_year')
+
+
+def date_formats(text):
+    """'May 2029' in the shapes forms ask for. Month and year only: a day of the month is never made up."""
+    m = re.search(r'\b(' + '|'.join(x[:3] for x in MONTHS) + r')[a-z]*\.?\s+(20\d\d)\b', text or '', re.I)
+    if not m:
+        y = re.search(r'\b(20\d\d)\b', text or '')
+        return {"year": y.group(1)} if y else {}
+    mi = [x[:3].lower() for x in MONTHS].index(m.group(1).lower()[:3]) + 1
+    y = m.group(2)
+    return {"month": MONTHS[mi - 1], "month_number": f'{mi:02d}', "year": y, "MM/YYYY": f'{mi:02d}/{y}', "YYYY-MM": f'{y}-{mi:02d}',
+            "Month YYYY": f'{MONTHS[mi - 1]} {y}', "note": "If the form needs a day of the month, use the one the user gave; never pick one."}
+
+
+def _finish(r, bank, options, ctx):
+    k = r.get('key')
+    vals = {row.get('key'): row.get('answer') for row in bank}
+    if k == 'prior_employee' and 'worked_here' in ctx and r.get('confidence', 0) >= 0.9 and not _user_saved(bank, k):
+        # the vault lists every place the user worked: "No" is only true when this company isn't one of them
+        a = 'Yes' if ctx['worked_here'] else 'No'
+        r.update(answer=pick_option(a, options) if options else a, confidence=0.92)
+    if k == 'applied_before' and r.get('answer') in (None, '') and ctx.get('applied_before'):
+        r.update(answer=pick_option('Yes', options) if options else 'Yes', confidence=0.92)
+        r.pop('action', None)
+    if k in ('grad', 'grad_year') and options:
+        year, month = str(vals.get('grad_year') or ''), (vals.get('grad') or '').split(' ')[0] if vals.get('grad') else ''
+        if year and not any(year in (o or '') for o in options):
+            why = blockers.grad_options_knockout(options, year, month)
+            other = next((o for o in options if re.search(r'\bother\b|not listed', o or '', re.I)), None)
+            if why:
+                return {"question": r['question'], "answer": None, "confidence": 0.95, "key": k, "action": "knockout",
+                        "skip_reason": why, "how": "The form's own graduation options exclude the user: log Skipped with skip_reason."}
+            if other:
+                r.update(answer=other, confidence=0.9)
+                r['how'] = f"The user's graduation ({vals.get('grad') or year}) isn't listed: chose '{other}'. Type the real date if it asks."
+            else:
+                r.update(answer=None, confidence=0, action=f"none of the options is {vals.get('grad') or year}: never pick a different "
+                                                           "year; leave it for the user (Needs User with the exact options)")
+    if k in DATE_KEYS and r.get('answer'):
+        f = date_formats(vals.get('grad') if k == 'grad_year' else r['answer'])
+        if f:
+            r['formats'] = f
+    return r
+
+
+def _user_saved(bank, key):
+    return any(row.get('key') == key and row.get('source') == 'user' for row in bank)
+
+
+def _match(question, bank, options=None):
     q = (question or '').strip()
     # "Why ...?", "Describe ...", "Tell us ...": always written for the job, even when a word inside ("major", "relocate")
     # would match a saved fact
@@ -216,9 +303,61 @@ def match(question, bank, options=None):
         return {"question": q, "answer": hit, "confidence": round(conf, 2) if hit else 0, "key": 'hear',
                 **({} if hit else {"action": "pick the closest truthful option by hand (where the posting was found); never "
                                              "'Referral' or 'Career fair' unless the user said so"})}
+    if options and best.get('key') in STRICT_KEYS:
+        hit = pick_strict(ans, options, best.get('key'))
+        if hit is None:
+            return {"question": q, "answer": None, "confidence": 0.3, "key": best.get('key'), "user_value": ans,
+                    "action": f"no option is '{ans}'. Pick the closest BROAD option that is still true (e.g. 'Engineering', "
+                              f"'Other') by hand; never a different specific one (Computer Engineering is not Computer Science "
+                              f"or Aerospace Engineering). If none is true, Needs User with the options."}
+        return {"question": q, "answer": hit, "confidence": round(conf, 2), "key": best.get('key')}
     if options:
         ans = pick_option(ans, options)
     return {"question": q, "answer": ans, "confidence": round(conf, 2), "key": best.get('key')}
+
+
+STRICT_KEYS = ('major', 'school', 'degree')
+GENERIC = {'of', 'and', 'in', 'the', 'science', 'sciences', 'studies', 'arts', 'bachelor', 'bachelors', 'degree', 'university', 'college',
+           'engineering', 'program', 's'}
+DEGREE_SYN = [(r"\bbachelor|\bb\.?\s?s\.?c?\b|\bb\.?a\.?\b|\bb\.?eng\b|undergrad", 'bachelor'), (r"\bmaster|\bm\.?s\.?c?\b|\bm\.?eng\b", 'master'),
+              (r'\bph\.?d|doctor', 'phd'), (r'\bassociate', 'associate'), (r'\bmba\b', 'mba')]
+
+
+def _deg(s):
+    return next((v for pat, v in DEGREE_SYN if re.search(pat, s or '', re.I)), None)
+
+
+def pick_strict(answer, options, key):
+    """School, major and degree: the exact option or a broader true one, never a sibling ('Aerospace Engineering' for
+    'Computer Engineering' was a real mis-pick). None when nothing fits."""
+    a = (answer or '').strip()
+    opts = [o for o in options if o and o.strip().lower() not in ('select', 'select one', '--', 'please select', '')]
+    low = a.lower()
+    for o in opts:
+        if o.strip().lower() == low:
+            return o
+    if key == 'degree':
+        d = _deg(a)
+        hits = [o for o in opts if d and _deg(o) == d]
+        if hits:   # "Bachelor of Science" -> "Bachelor's Degree"; prefer the one naming the same field (Science/Arts)
+            return max(hits, key=lambda o: len(_tokens(o) & _tokens(a)))
+        return None
+    at = _tokens(a)
+    within = [o for o in opts if low in o.lower()]   # "Computer Engineering" in "Electrical and Computer Engineering"
+    if within:
+        return min(within, key=len)
+    covers = [o for o in opts if at and at <= _tokens(o)]   # every word of the answer, generic ones too
+    if covers:
+        return min(covers, key=len)
+    if key == 'school':
+        abbrev = [o for o in opts if re.sub(r'[^a-z]', '', o.lower()) and len(o) <= 6 and
+                  re.sub(r'[^a-z]', '', o.lower()) == ''.join(w[0] for w in re.findall(r'[a-z]+', low) if w not in ('of', 'and', 'the'))]
+        return abbrev[0] if abbrev else None
+    broad = [o for o in opts if _tokens(o) and _tokens(o) <= (_tokens(a) | {'other'}) and not (_tokens(o) - GENERIC - {'other'})]
+    return min(broad, key=lambda o: 'other' in o.lower()) if broad else None
+
+
+NEG = re.compile(r"\b(no|not|don'?t|do not|never|without|none|n/a)\b", re.I)
 
 
 def pick_option(answer, options):
@@ -232,6 +371,10 @@ def pick_option(answer, options):
         for o in opts:
             if re.match(r'^%s\b' % a, o.lower()):
                 return o
+        # 'I will not require sponsorship' / 'I will require sponsorship': the negated one is No
+        neg = [o for o in opts if NEG.search(o)]
+        if len(opts) == 2 and len(neg) == 1:
+            return neg[0] if a == 'no' else next(o for o in opts if o is not neg[0])
     at = _tokens(a)
     scored = sorted(opts, key=lambda o: -len(at & _tokens(o)) / (len(_tokens(o)) or 1))
     return scored[0] if scored and at & _tokens(scored[0]) else answer
@@ -275,6 +418,15 @@ QUESTIONS = [   # (key, label, group, kind, options, optional, hint)  ... kind: 
     ('class_standing', 'Year in school right now', 'School', 'select', ['Freshman', 'Sophomore', 'Junior', 'Senior', 'Graduate'], False, ''),
     ('enrolled', 'Currently enrolled in a degree program', 'School', 'yesno', YES_NO, False, ''),
     ('earliest_start', 'Earliest start date', 'School', 'text', None, False, 'May 2027'),
+    # optional, but forms ask them often enough that a blank one sent applications to "Needs you" in real runs
+    ('start_month', 'Month you started at your school', 'School', 'select', MONTHS, True, ''),
+    ('start_year', 'Year you started at your school', 'School', 'text', None, True, '2025'),
+    ('school_email', 'School email', 'School', 'text', None, True, 'you@school.edu'),
+    ('availability', 'Internship dates you are available', 'School', 'text', None, True, 'May 18 - Aug 14, 2027'),
+    ('high_school', 'High school', 'School', 'text', None, True, ''),
+    ('hs_grad_year', 'High school graduation year', 'School', 'text', None, True, ''),
+    ('sat_score', 'SAT score', 'School', 'text', None, True, 'Leave blank if you never share it'),
+    ('act_score', 'ACT score', 'School', 'text', None, True, 'Leave blank if you never share it'),
     ('work_authorized_us', 'Legally authorized to work in the US', 'Work authorization', 'yesno', YES_NO, False, ''),
     ('needs_sponsorship', 'Will need visa sponsorship, now or later', 'Work authorization', 'yesno', YES_NO, False, ''),
     ('citizenship', 'Citizenship status', 'Work authorization', 'select',
@@ -286,6 +438,10 @@ QUESTIONS = [   # (key, label, group, kind, options, optional, hint)  ... kind: 
     ('background_check_ok', 'Consent to a background check', 'Standard questions', 'yesno', YES_NO, False, ''),
     ('has_noncompete', 'Bound by a non-compete or non-solicit', 'Standard questions', 'yesno', YES_NO, False, ''),
     ('government_employee', 'Current or former government employee', 'Standard questions', 'yesno', YES_NO, False, ''),
+    ('knows_employee', 'Know someone or have relatives working at companies you apply to', 'Standard questions', 'yesno', YES_NO, True,
+     'Answer No only if that is true everywhere; otherwise leave blank and you are asked per company'),
+    ('political_contributions', 'Made political contributions over $150 in the last 2 years', 'Standard questions', 'yesno', YES_NO, True, ''),
+    ('offers', 'Other offers or recruiting deadlines right now', 'Standard questions', 'text', None, True, 'e.g. No'),
     ('sms_ok', 'OK with recruiters texting you', 'Standard questions', 'yesno', YES_NO, False, ''),
     ('ai_review_ok', 'OK with companies using AI to review your application', 'Standard questions', 'yesno', YES_NO, False, ''),
     ('salary_expectation', 'Salary expectations', 'Standard questions', 'text', None, False, 'e.g. Flexible, in line with the posted range'),
