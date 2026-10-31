@@ -1,6 +1,29 @@
 /* apply.twinly.tech: Apple's own conventions. System font (SF Pro on Apple devices), white and #f5f5f7 surfaces,
    one blue for links and buttons, light or dark by the visitor's system setting. No glows, gradients or decoration. */
-.site {
+.site {   /* dark is the default */
+  --bg: #000000;
+  --bg-2: #161617;
+  --bg-3: #1d1d1f;
+  --fg: #f5f5f7;
+  --fg-2: #a1a1a6;
+  --fg-3: #86868b;
+  --line: rgb(255 255 255 / .14);
+  --blue: #0071e3;
+  --blue-text: #2997ff;
+  --green: #30d158;
+  --orange: #ff9f0a;
+  --nav: rgb(22 22 23 / .8);
+  --shadow: 0 2px 8px rgb(0 0 0 / .3), 0 12px 40px rgb(0 0 0 / .5);
+  --appwin-shadow: 0 30px 80px rgb(0 0 0 / .6), 0 0 0 1px rgb(255 255 255 / .12);
+  color-scheme: dark;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", "Segoe UI", system-ui, sans-serif;
+  letter-spacing: -0.011em;
+  -webkit-font-smoothing: antialiased;
+  transition: background-color .4s, color .4s;
+}
+.site[data-theme="light"] {
   --bg: #ffffff;
   --bg-2: #f5f5f7;
   --bg-3: #ffffff;
@@ -8,38 +31,16 @@
   --fg-2: #6e6e73;
   --fg-3: #86868b;
   --line: rgb(0 0 0 / .1);
-  --blue: #0071e3;
   --blue-text: #0066cc;
-  --green: #28a745;
+  --green: #248a3d;
   --orange: #c45500;
   --nav: rgb(255 255 255 / .8);
   --shadow: 0 2px 8px rgb(0 0 0 / .04), 0 12px 40px rgb(0 0 0 / .08);
+  --appwin-shadow: 0 30px 80px rgb(0 0 0 / .22), 0 0 0 1px rgb(0 0 0 / .08);
   color-scheme: light;
-  background: var(--bg);
-  color: var(--fg);
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", "Segoe UI", system-ui, sans-serif;
-  letter-spacing: -0.011em;
-  -webkit-font-smoothing: antialiased;
 }
-@media all { /* dark by default for everyone (was: the visitor's system setting) */
-  .site {
-    --bg: #000000;
-    --bg-2: #161617;
-    --bg-3: #1d1d1f;
-    --fg: #f5f5f7;
-    --fg-2: #a1a1a6;
-    --fg-3: #86868b;
-    --line: rgb(255 255 255 / .14);
-    --blue: #0071e3;
-    --blue-text: #2997ff;
-    --green: #30d158;
-    --orange: #ff9f0a;
-    --nav: rgb(22 22 23 / .8);
-    --shadow: 0 2px 8px rgb(0 0 0 / .3), 0 12px 40px rgb(0 0 0 / .5);
-    color-scheme: dark;
-  }
-}
-html:has(.site), html:has(.site) body { background: var(--bg, #fff); overflow-x: clip; }
+html:has(.site), html:has(.site) body { background: #000; overflow-x: clip; }
+html[data-site-theme="light"]:has(.site), html[data-site-theme="light"]:has(.site) body { background: #fff; }
 .site .display { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", system-ui, sans-serif; letter-spacing: -0.022em; }
 .site .nav { background: var(--nav); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px); border-bottom: 1px solid var(--line); }
 .site .tile { background: var(--bg-2); border-radius: 28px; }
@@ -63,17 +64,41 @@ html:has(.site), html:has(.site) body { background: var(--bg, #fff); overflow-x:
   font-weight: 600; letter-spacing: -0.032em; line-height: 1.04; }
 /* A full-bleed dark band for the one section that should feel serious. */
 .site .band { --band-fg-2: #86868b; background: #000; color: #f5f5f7; --orange: #ff9f0a; }
-@media all { .site .band { background: #161617; } }
-html { scroll-behavior: smooth; }
+.site .band { background: #161617; }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
 .site [id] { scroll-margin-top: 48px; }
-.site .appwin { box-shadow: 0 30px 80px rgb(0 0 0 / .22), 0 0 0 1px rgb(0 0 0 / .08); }
-@media all { .site .appwin { box-shadow: 0 30px 80px rgb(0 0 0 / .6), 0 0 0 1px rgb(255 255 255 / .12); } }
+.site .appwin { box-shadow: var(--appwin-shadow); }
 /* The hero's entrance runs in CSS, so the headline never waits on JavaScript to become visible. */
 @keyframes site-rise { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: none; } }
 .site .rise { animation: site-rise .9s cubic-bezier(.25,.1,.25,1) both; }
-@media (prefers-reduced-motion: reduce) { .site .rise { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .site .rise { animation: none; } .site, .site * { transition-duration: 0s !important; } }
 /* The star button: a secondary pill beside the blue one. */
 .site .star { background: var(--bg-2); color: var(--fg); box-shadow: inset 0 0 0 1px var(--line); transition: background .2s, box-shadow .2s; }
 .site .star:hover { background: color-mix(in srgb, var(--bg-2) 80%, var(--fg) 6%); }
 .site .star-count { background: var(--bg-3); color: var(--fg); box-shadow: 0 0 0 1px var(--line), 0 1px 2px rgb(0 0 0 / .05); }
 .site .nav .star { background: transparent; }
+
+/* Hero eyebrow: one quiet line that says the two things people ask first. */
+.site .eyebrow { display: inline-flex; align-items: center; gap: 8px; height: 30px; padding: 0 14px; border-radius: 980px;
+  font-size: 13px; font-weight: 500; background: var(--bg-2); box-shadow: inset 0 0 0 1px var(--line); }
+.site .eyebrow-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 22%, transparent); }
+
+/* The install command: the one thing on the page you act on, so it gets the clearest surface. */
+.site .cmd { background: var(--bg-2); box-shadow: inset 0 0 0 1px var(--line); transition: box-shadow .2s, background .2s; }
+.site .cmd:hover { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--blue) 60%, transparent); }
+.site .cmd:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
+.site .cmd .copy { background: var(--blue); color: #fff; transition: background .2s; }
+.site .cmd:hover .copy { background: #0077ed; }
+
+/* After you paste it: a numbered line, across on wide screens and down on phones. */
+.site .after-step { position: relative; }
+.site .after-step li { display: grid; grid-template-columns: 36px minmax(0,1fr); gap: 16px; padding-bottom: 28px; }
+.site .after-num { position: relative; z-index: 1; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%;
+  font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; background: var(--bg-2); box-shadow: inset 0 0 0 1px var(--line); }
+.site .after-step:last-child .after-num { background: var(--blue); color: #fff; box-shadow: none; }
+.site .after-step:not(:last-child)::before { content: ""; position: absolute; left: 17.5px; top: 40px; bottom: 4px; width: 1px; background: var(--line); }
+@media (min-width: 1024px) {
+  .site .after-step li { grid-template-columns: 1fr; gap: 14px; padding-bottom: 0; }
+  .site .after-step:not(:last-child)::before { left: 46px; right: -20px; top: 18px; bottom: auto; width: auto; height: 1px; }
+}
+.site :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; border-radius: 6px; }

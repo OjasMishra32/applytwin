@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, useRef, useState } from 'react'
-import { AnimatePresence, motion, useInView, useMotionValueEvent, useScroll, useTransform, useReducedMotion } from 'motion/react'
-import { Check, Copy, Star } from 'lucide-react'
+import { AnimatePresence, MotionConfig, motion, useInView, useMotionValueEvent, useScroll, useTransform, useReducedMotion } from 'motion/react'
+import { ArrowDown, Check, Copy, Moon, Star, Sun } from 'lucide-react'
 import { Toaster } from 'sonner'
 import { Avatar } from '../components/ui'
 import { REPO_URL, useStars } from '../lib/star'
@@ -24,6 +24,7 @@ const FAQ = [
   ['Is it only for software jobs?', 'No. It knows what a strong resume looks like in your field, from nursing and finance to design, research and engineering.'],
   ['Why do I sign in with Google?', 'So your setup, answers and applications are saved to your account. ApplyTwin never posts, emails or signs up for anything as you.'],
   ['Does it track me?', 'It counts installs with a random ID, your OS and its version, once a day. Never your resume, jobs or applications. You can turn it off in Settings.'],
+  ['What do I need before I install?', 'Python 3.9 or newer, Node.js, and Claude Code or Codex signed in on your computer. The installer checks for each one and tells you what is missing.'],
   ['What does it cost?', 'Nothing. ApplyTwin is free.'],
 ]
 
@@ -42,25 +43,38 @@ const webgl = () => { try { const c = document.createElement('canvas'); return !
 
 export default function Site() {
   const stars = useStars()   // fetched once, shown on every star button
+  const [win, setWin] = useState(IS_WIN)   // one OS choice, shared by every install box on the page
+  const [theme, setTheme] = useTheme()
   return (
-    <div className="site min-h-screen overflow-x-clip">
+    <MotionConfig reducedMotion="user">
+    <div className="site min-h-screen overflow-x-clip" data-theme={theme}>
       <Toaster position="bottom-center" />
       <Nav stars={stars} />
+      <StarPrompt n={stars} />
 
       {/* 1. What it is, with the app itself as the picture */}
-      <section className="px-4 pt-28 sm:pt-36">
+      <section className="px-4 pt-24 sm:pt-32">
         <div className="mx-auto max-w-[1120px] min-[1800px]:max-w-[1360px] text-center">
-          <h1 className="display-xl text-[clamp(44px,7.4vw,104px)] [text-wrap:balance]">
+          <div style={{ animationDelay: '0s' }} className="rise eyebrow mx-auto w-fit">
+            <span className="eyebrow-dot" aria-hidden />Free and open source<span className="faint">· Mac, Windows, Linux</span>
+          </div>
+          <h1 className="display-xl mt-6 text-[clamp(44px,7.4vw,104px)] [text-wrap:balance]">
             <span style={{ animationDelay: '0.04s' }} className="rise block">You apply once.</span>
             <span style={{ animationDelay: '0.12s' }} className="rise block muted">Your twin does the rest.</span>
           </h1>
-          <p style={{ animationDelay: '0.22s' }} className="rise mx-auto mt-7 max-w-[640px] text-[19px] leading-[1.42] [text-wrap:balance] sm:text-[21px]">
-            It finds internships that fit you, writes a one-page resume for each posting and fills out the application.
-            <span className="muted"> All on the Claude Code or Codex plan you already pay for.</span>
+          <p style={{ animationDelay: '0.22s' }} className="rise mx-auto mt-7 max-w-[660px] text-[19px] leading-[1.42] [text-wrap:balance] sm:text-[21px]">
+            ApplyTwin is a free app for your computer. It finds internships that fit you, writes a one-page resume for each posting and fills out the application.
+            <span className="muted"> It runs on the Claude Code or Codex plan you already pay for.</span>
           </p>
-          <div style={{ animationDelay: '0.3s' }} className="rise mt-8 flex flex-wrap items-center justify-center gap-x-7 gap-y-3">
-            <a href="#start" className="btn">Install free</a>
+          <div style={{ animationDelay: '0.3s' }} className="rise mx-auto mt-9 max-w-[640px] text-left">
+            <InstallBox win={win} setWin={setWin} hero />
+          </div>
+          <p style={{ animationDelay: '0.36s' }} className="rise mx-auto mt-4 max-w-[560px] text-[14px] leading-[1.5] muted [text-wrap:balance]">
+            Paste it into {win ? 'PowerShell' : 'Terminal'}. ApplyTwin installs and opens on your computer at <span className="mono text-[var(--fg)]">localhost:4747</span>.
+          </p>
+          <div style={{ animationDelay: '0.42s' }} className="rise mt-7 flex flex-wrap items-center justify-center gap-x-6 gap-y-3">
             <StarButton n={stars} />
+            <a href="#start" className="link inline-flex items-center gap-1.5 text-[17px]">What happens after you paste it<ArrowDown className="size-4" /></a>
           </div>
         </div>
         <div className="mx-auto mt-14 max-w-[1120px] min-[1800px]:max-w-[1360px] sm:mt-20"><Lid><AppWindow /></Lid></div>
@@ -86,7 +100,7 @@ export default function Site() {
         <div className="mx-auto max-w-[1120px] min-[1800px]:max-w-[1360px]">
           <Scrub className="display-l max-w-[1040px] text-[clamp(32px,5.2vw,64px)] [text-wrap:balance]" parts={[
             ['It applies at', 0], ['Google, Meta, Apple, NVIDIA, Jane Street, Citadel, Palantir, Anduril, Stripe, OpenAI, Two Sigma', 1],
-            ['and more than 600 other companies, straight through their own career sites.', 0]]} />
+            ['and more than 600 other companies, on their own career sites.', 0]]} />
         </div>
       </section>
 
@@ -106,28 +120,38 @@ export default function Site() {
         </div>
       </section>
 
-      {/* 8. Install */}
+      {/* 8. Install, and exactly what happens after */}
       <section id="start" className="px-4 pt-24 sm:pt-36">
-        <div className="mx-auto max-w-[1120px] min-[1800px]:max-w-[1360px] text-center">
-          <Reveal><h2 className="display-l text-[clamp(38px,6vw,72px)]">Set up in one line.</h2></Reveal>
-          <Reveal delay={0.05} className="mx-auto mt-4 max-w-[560px] text-[19px] leading-[1.45] muted [text-wrap:balance]">Paste this into your terminal. It installs ApplyTwin on your computer, connects your agent, and opens the app in your browser at localhost:4747.</Reveal>
-          <Reveal delay={0.1} className="mx-auto mt-10 max-w-[760px] text-left"><InstallBox /></Reveal>
-          <p className="mt-4 text-[14px] faint">Mac, Windows and Linux. Needs Python 3.9+, Node.js, and Claude Code or Codex.</p>
-          <Reveal delay={0.12} className="mx-auto mt-8 flex max-w-[760px] flex-wrap items-center justify-center gap-x-5 gap-y-3 rounded-[18px] px-6 py-5" style={{ background: 'var(--bg-2)' }}>
-            <span className="text-[15px] [text-wrap:balance]">ApplyTwin is free and open source. <span className="muted">A star helps other students find it.</span></span>
-            <StarButton n={stars} size="sm" />
+        <div className="mx-auto max-w-[1120px] min-[1800px]:max-w-[1360px]">
+          <div className="text-center">
+            <Reveal><h2 className="display-l text-[clamp(38px,6vw,72px)]">Set up in one line.</h2></Reveal>
+            <Reveal delay={0.05} className="mx-auto mt-4 max-w-[580px] text-[19px] leading-[1.45] muted [text-wrap:balance]">
+              Paste this into {win ? 'PowerShell' : 'Terminal'}. It is the only thing you install, and it puts the whole app on your computer.
+            </Reveal>
+            <Reveal delay={0.1} className="mx-auto mt-10 max-w-[760px] text-left"><InstallBox win={win} setWin={setWin} /></Reveal>
+            <p className="mt-4 text-[14px] faint">Needs Python 3.9+, Node.js, and Claude Code or Codex. The installer checks for you.</p>
+          </div>
+
+          <Reveal delay={0.05} className="mx-auto mt-20 max-w-[1040px] sm:mt-24">
+            <h3 className="text-center text-[21px] font-semibold tracking-[-0.015em] sm:text-[24px]">After you paste it</h3>
           </Reveal>
-          <ol className="mx-auto mt-14 grid max-w-[880px] gap-8 sm:grid-cols-3 sm:gap-6">
-            {[['Paste the command', 'in Terminal, or PowerShell on Windows.'], ['It opens at localhost:4747', 'Sign in with Google there and drop in your resume. It runs on your computer, not this website.'],
-              ['Press Start', 'and watch it apply in its own window.']].map(([t, d], i) => (
-              <Reveal key={t} delay={i * 0.06}>
+          <ol className="after mx-auto mt-10 grid max-w-[1040px] gap-x-6 gap-y-0 lg:grid-cols-5">
+            {AFTER.map(([t, d], i) => (
+              <Reveal key={t} delay={i * 0.07} className="after-step">
                 <li className="list-none">
-                  <div className="mx-auto grid size-9 place-items-center rounded-full text-[15px] font-semibold" style={{ background: 'var(--bg-2)' }}>{i + 1}</div>
-                  <div className="mt-3 text-[17px] font-semibold">{t}</div>
-                  <div className="mx-auto max-w-[240px] text-[15px] muted">{d}</div>
+                  <div className="after-num">{i + 1}</div>
+                  <div className="after-body">
+                    <div className="text-[17px] font-semibold tracking-[-0.01em]">{t}</div>
+                    <p className="mt-1 text-[15px] leading-[1.45] muted">{d}</p>
+                  </div>
                 </li>
               </Reveal>))}
           </ol>
+
+          <Reveal delay={0.1} className="mx-auto mt-16 flex max-w-[760px] flex-wrap items-center justify-center gap-x-5 gap-y-3 rounded-[18px] px-6 py-5 text-center" style={{ background: 'var(--bg-2)' }}>
+            <span className="text-[15px] [text-wrap:balance]">ApplyTwin is free and open source. <span className="muted">A star helps other students find it.</span></span>
+            <StarButton n={stars} size="sm" />
+          </Reveal>
         </div>
       </section>
 
@@ -142,10 +166,10 @@ export default function Site() {
       {/* 10. Close */}
       <section className="px-4 pb-28 pt-28 sm:pb-40 sm:pt-40">
         <Reveal className="mx-auto max-w-[1120px] min-[1800px]:max-w-[1360px] text-center">
-          <h2 className="display-xl text-[clamp(56px,10vw,128px)]">Get hired.</h2>
-          <p className="mx-auto mt-5 max-w-[520px] text-[19px] leading-[1.45] muted [text-wrap:balance]">ApplyTwin is free and has no ads. A star on GitHub is how other students find it.</p>
+          <h2 className="display-xl text-[clamp(52px,9vw,120px)] [text-wrap:balance]">Paste one line.<br /><span className="muted">Press Start.</span></h2>
+          <p className="mx-auto mt-6 max-w-[520px] text-[19px] leading-[1.45] muted [text-wrap:balance]">ApplyTwin is free and has no ads. A star on GitHub is how other students find it.</p>
           <div className="mt-9 flex flex-wrap items-center justify-center gap-x-7 gap-y-3">
-            <a href="#start" className="btn">Install free</a>
+            <a href="#start" className="btn">Get the install line</a>
             <StarButton n={stars} />
           </div>
         </Reveal>
@@ -154,10 +178,39 @@ export default function Site() {
       <footer className="border-t border-[var(--line)] bg-[var(--bg-2)] px-4 py-8 text-[12px] faint">
         <div className="mx-auto flex max-w-[1120px] min-[1800px]:max-w-[1360px] flex-wrap items-center justify-between gap-3">
           <span>Copyright © 2026 Ojasva Mishra. ApplyTwin, from Twinly.</span>
-          <span className="flex gap-5"><a href="/app" className="hover:underline">Your account</a><a href={REPO_URL} target="_blank" rel="noreferrer" className="hover:underline">GitHub</a></span>
+          <span className="flex items-center gap-5"><ThemeSwitch theme={theme} setTheme={setTheme} /><a href="/app" className="hover:underline">Your account</a><a href={REPO_URL} target="_blank" rel="noreferrer" className="hover:underline">GitHub</a></span>
         </div>
       </footer>
     </div>
+    </MotionConfig>
+  )
+}
+
+/* The five things that happen between pasting the line and your first application. */
+const AFTER = [
+  ['It installs', 'It downloads ApplyTwin and checks for Python, Node.js and your agent. Nothing to configure.'],
+  ['The app opens', 'Your browser goes to localhost:4747. That is ApplyTwin, running on your own computer.'],
+  ['Sign in with Google', 'Your setup and answers are saved to your account, so a new laptop picks up where you left off.'],
+  ['Add your resume', 'Drop in the one you have. You answer the usual application questions once.'],
+  ['Press Start', 'It applies in its own browser window and pings you when it needs you.'],
+]
+
+/* Dark by default. Light is one click away in the footer and is remembered on this device. */
+function useTheme() {
+  const [theme, setTheme] = useState(() => { try { return localStorage.getItem('at:theme') === 'light' ? 'light' : 'dark' } catch { return 'dark' } })
+  useEffect(() => {
+    document.documentElement.dataset.siteTheme = theme
+    try { localStorage.setItem('at:theme', theme) } catch {}
+  }, [theme])
+  return [theme, setTheme]
+}
+function ThemeSwitch({ theme, setTheme }) {
+  const light = theme === 'light'
+  return (
+    <button onClick={() => setTheme(light ? 'dark' : 'light')} aria-label={light ? 'Switch to dark mode' : 'Switch to light mode'}
+      className="inline-flex items-center gap-1.5 hover:underline">
+      {light ? <Moon className="size-3.5" /> : <Sun className="size-3.5" />}{light ? 'Dark' : 'Light'}
+    </button>
   )
 }
 
@@ -233,7 +286,7 @@ function Word({ p, at, span, strong, children }) {
 }
 
 /* The hard limits, in a dark band, scrubbed line by line. */
-const NEVER = ['Type your password.', 'Solve a CAPTCHA.', 'Create an account in your name.', 'Accept a legal agreement.', 'Change a number or a title on your resume.']
+const NEVER = ['Type your password.', 'Solve a CAPTCHA.', 'Create an account in your name.', 'Accept a legal agreement.', 'Change a number, title or employer on your resume.']
 function Never() {
   const ref = useRef(null)
   const { scrollYProgress } = useScroll({ target: ref, offset: ['start 0.75', 'end 0.6'] })
@@ -468,23 +521,25 @@ function AppWindow() {
   )
 }
 
-function InstallBox() {
-  const [win, setWin] = useState(IS_WIN)
+function InstallBox({ win, setWin, hero }) {
   const [ok, setOk] = useState(false)
   const cmd = win ? INSTALL_WIN : INSTALL
-  const copy = () => { navigator.clipboard.writeText(cmd); setOk(true); setTimeout(() => setOk(false), 1600) }
+  const copy = () => { navigator.clipboard?.writeText(cmd).catch(() => {}); setOk(true); setTimeout(() => setOk(false), 1600) }
   return (
     <div>
-      <div className="mb-3 flex w-fit rounded-full bg-[var(--bg-2)] p-[3px] text-[13px]">
+      <div className={'mb-3 flex w-fit rounded-full bg-[var(--bg-2)] p-[3px] text-[13px] ring-1 ring-[var(--line)] ' + (hero ? 'mx-auto' : '')} role="tablist" aria-label="Your computer">
         {[[false, 'Mac & Linux'], [true, 'Windows']].map(([w, l]) => (
-          <button key={l} onClick={() => setWin(w)} className={'rounded-full px-4 py-1.5 transition ' + (win === w ? 'bg-[var(--bg-3)] font-semibold shadow-sm' : 'muted')}>{l}</button>))}
+          <button key={l} role="tab" aria-selected={win === w} onClick={() => setWin(w)}
+            className={'rounded-full px-4 py-1.5 transition ' + (win === w ? 'bg-[var(--bg-3)] font-semibold text-[var(--fg)] shadow-sm' : 'muted hover:text-[var(--fg)]')}>{l}</button>))}
       </div>
       <button onClick={copy} aria-label="Copy the install command"
-        className="flex w-full items-center gap-3 rounded-[16px] bg-[var(--bg-2)] py-4 pl-5 pr-4 text-left transition hover:brightness-[.98] sm:py-5 sm:pl-6">
-        <span className="mono min-w-0 flex-1 text-[13px] leading-snug sm:text-[17px]"><span className="faint select-none">$ </span>{cmd}</span>
-        <span className="flex shrink-0 items-center gap-1.5 text-[14px] font-medium link">
+        className={'cmd group flex w-full items-center gap-3 text-left ' + (hero ? 'rounded-[14px] py-3.5 pl-4 pr-3 sm:py-4 sm:pl-5' : 'rounded-[16px] py-4 pl-5 pr-4 sm:py-5 sm:pl-6')}>
+        <span className={'mono min-w-0 flex-1 leading-snug [overflow-wrap:anywhere] ' + (hero ? 'text-[13px] sm:text-[16px]' : 'text-[13px] sm:text-[17px]')}>
+          <span className="faint select-none">{win ? 'PS> ' : '$ '}</span>{cmd}</span>
+        <span className="copy flex h-8 shrink-0 items-center gap-1.5 rounded-full px-3 text-[13.5px] font-medium">
           {ok ? <Check className="size-4" /> : <Copy className="size-4" />}<span className="hidden sm:inline">{ok ? 'Copied' : 'Copy'}</span></span>
       </button>
+      <span className="sr-only" aria-live="polite">{ok ? 'Copied to clipboard' : ''}</span>
     </div>
   )
 }
@@ -526,5 +581,49 @@ function Faq({ q, a }) {
         <p className="max-w-[600px] pb-6 text-[17px] leading-[1.5] muted">{a}</p>
       </motion.div>
     </div>
+  )
+}
+
+/* A friendly, one-time ask for a GitHub star. Shows after someone has actually read the page (scrolled past the middle,
+   or 40 seconds in), never on a first glance, and never again once they star it or say no. */
+function StarPrompt({ n }) {
+  const [open, setOpen] = useState(false)
+  const seen = () => { try { return localStorage.getItem('at:star-ask') } catch { return null } }
+  const remember = v => { try { localStorage.setItem('at:star-ask', v) } catch {} }
+  useEffect(() => {
+    if (seen()) return
+    let done = false
+    const show = () => { if (done || seen()) return; done = true; setOpen(true) }
+    const t = setTimeout(show, 40000)
+    const onScroll = () => { const h = document.documentElement; if ((h.scrollTop + innerHeight) / h.scrollHeight > 0.55) show() }
+    addEventListener('scroll', onScroll, { passive: true })
+    return () => { clearTimeout(t); removeEventListener('scroll', onScroll) }
+  }, [])
+  const close = v => { remember(v); setOpen(false) }
+  return (
+    <AnimatePresence>{open && (
+      <motion.div role="dialog" aria-label="Star ApplyTwin on GitHub" initial={{ opacity: 0, y: 24, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 16, scale: 0.98 }} transition={{ duration: 0.5, ease: EASE }}
+        className="fixed bottom-4 left-4 right-4 z-[60] mx-auto max-w-[400px] rounded-[22px] p-5 shadow-[0_20px_60px_rgba(0,0,0,.35)] ring-1 ring-[var(--line)] sm:left-auto sm:right-6 sm:bottom-6 sm:mx-0"
+        style={{ background: 'var(--bg-2)' }}>
+        <button onClick={() => close('later')} aria-label="Close" className="absolute right-3.5 top-3 text-[20px] leading-none muted hover:opacity-70">×</button>
+        <div className="flex items-center gap-3">
+          <motion.div initial={{ rotate: -30, scale: 0.6 }} animate={{ rotate: 0, scale: 1 }} transition={{ type: 'spring', stiffness: 260, damping: 14, delay: 0.15 }}
+            className="grid size-11 shrink-0 place-items-center rounded-full bg-[#ffcc00]/15"><Star className="size-6 fill-[#ffcc00] text-[#ffcc00]" /></motion.div>
+          <div className="text-[17px] font-semibold tracking-[-0.01em]">Hey, quick favor?</div>
+        </div>
+        <p className="mt-3 text-[15px] leading-[1.45] muted">
+          ApplyTwin is free, open source, and built by a student for students. If it looks useful, a star on GitHub takes two seconds
+          and is honestly the biggest way other students find it. It would mean a lot.
+        </p>
+        <div className="mt-4 flex items-center gap-2.5">
+          <a href={REPO_URL} target="_blank" rel="noreferrer" onClick={() => close('starred')}
+            className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-full bg-[var(--blue)] px-4 text-[15px] font-semibold text-white transition hover:brightness-110">
+            <Star className="size-4 fill-white" />Star on GitHub{n ? <span className="font-normal text-white/80"> · {n.toLocaleString()}</span> : null}
+          </a>
+          <button onClick={() => close('later')} className="h-10 rounded-full px-4 text-[14.5px] font-medium muted hover:opacity-80">Maybe later</button>
+        </div>
+      </motion.div>)}
+    </AnimatePresence>
   )
 }
