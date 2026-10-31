@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { Check, CircleSlash, ExternalLink, FileText, Hand, Search } from 'lucide-react'
 import { Toaster, toast } from 'sonner'
-import { Sky } from '../components/Sky'
 import { Avatar, Segmented, spring } from '../components/ui'
 import { StarButton } from '../lib/star'
 
@@ -110,13 +109,14 @@ export default function Dashboard() {
       <header className="glass fixed inset-x-0 top-0 z-50 border-b border-white/[.06]">
         <div className="mx-auto flex h-14 max-w-[1080px] items-center justify-between px-5">
           <a href="/" className="flex items-center gap-2 text-[15px] font-semibold text-white"><Logo />ApplyTwin</a>
-          {session && <div className="flex items-center gap-4 text-[13.5px]">
-            <StarButton compact />
-            <span className="hidden text-white/60 sm:block">{session.user?.email}</span>
-            <button onClick={signOut} className="text-white/70 hover:text-white">Sign out</button></div>}
+          <div className="flex items-center gap-4 text-[13.5px]">
+            <StarButton compact={!!session} />
+            {session && <>
+              <span className="hidden text-white/60 sm:block">{session.user?.email}</span>
+              <button onClick={signOut} className="text-white/70 hover:text-white">Sign out</button></>}
+          </div>
         </div>
       </header>
-      <div className="relative"><Sky height={420} /></div>
 
       <main className="relative mx-auto max-w-[1080px] px-5 pb-24 pt-28">
         {session === undefined ? <div className="h-[60vh]" />
@@ -132,7 +132,7 @@ export default function Dashboard() {
                 {[['Sent by your twin', count('Applied'), GREEN], ['Waiting on you', count('Needs User'), ORANGE], ['Sent this week', week, BLUE],
                   pastCount ? ['Applied before ApplyTwin', pastCount, '#7d869f'] : ['Skipped', count('Skipped'), '#7d869f']].map(([l, v, c], i) => (
                   <motion.div key={l} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ ...spring, delay: 0.1 + i * 0.05 }}
-                    className="rounded-[20px] bg-[#111526]/90 px-5 py-4 ring-1 ring-white/[.06] backdrop-blur">
+                    className="rounded-[20px] bg-[#1c1c1e]/90 px-5 py-4 ring-1 ring-white/[.06] backdrop-blur">
                     <div className="text-[34px] font-semibold leading-none tracking-[-0.04em] text-white tabular-nums">{v.toLocaleString()}</div>
                     <div className="mt-2 text-[13px] text-muted">{l}</div>
                   </motion.div>))}
@@ -147,7 +147,7 @@ export default function Dashboard() {
                   <h2 className="text-[20px] font-semibold tracking-[-0.02em] text-white">Applications</h2>
                   <Segmented id="flt" value={filter} onChange={setFilter} options={[['all', 'All'], ['Applied', 'Applied'], ['Needs User', 'Needs you'], ['Skipped', 'Skipped']]} />
                 </div>
-                <div className="overflow-hidden rounded-[18px] bg-[#111526] ring-1 ring-white/[.06]">
+                <div className="overflow-hidden rounded-[18px] bg-[#1c1c1e] ring-1 ring-white/[.06]">
                   <label className="flex items-center gap-2.5 border-b border-white/[.06] px-4 py-2.5">
                     <Search className="size-4 text-white/35" />
                     <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search companies and roles" className="w-full bg-transparent text-[14px] text-white outline-none placeholder:text-faint" />
@@ -184,15 +184,13 @@ export default function Dashboard() {
 }
 
 function Connect() {
-  const steps = [['Install ApplyTwin on your computer', 'One line in your terminal. It runs on your Claude Code or Codex plan, no API keys.', true],
-    ['It opens at localhost:4747. Press Sign in with Google there', 'Use this same Google account. If it did not open, go to http://localhost:4747 or type applytwin in your terminal.'],
-    ['Press Start in Autopilot', 'Every application your twin fills shows up here, with the exact resume it sent.']]
+  const steps = [['Install ApplyTwin on your computer', 'Paste this into your terminal. It runs on your Claude Code or Codex plan, with no API keys.', true],
+    ['Sign in there with this Google account', 'ApplyTwin opens in your browser at localhost:4747. If it did not open, type applytwin in your terminal.'],
+    ['Press Start in Autopilot', 'Every application your twin fills shows up on this page, with the exact resume it sent.']]
   return (
-    <motion.section initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={spring} className="mt-7 max-w-[640px]">
-      <p className="text-[17px] text-white/75">Your account is ready. One thing to know: ApplyTwin is not a website you use here. It is an app that runs on your own computer, and this page just shows what it sent.</p>
-      <div className="mt-4 rounded-[16px] bg-[#0a84ff]/10 px-4 py-3 text-[14px] leading-relaxed text-white/85 ring-1 ring-[#0a84ff]/30">
-        After you run the install line, ApplyTwin opens in your browser at <span className="font-mono text-white">http://localhost:4747</span>. That address only works on the computer you installed it on. Already installed? <a href="http://localhost:4747" className="font-semibold text-[#64b5ff] underline">Open ApplyTwin</a></div>
-      <div className="mt-5 overflow-hidden rounded-[20px] bg-[#111526]/90 ring-1 ring-white/[.06] backdrop-blur [&>*+*]:border-t [&>*+*]:border-white/[.06]">
+    <motion.section initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={spring} className="mt-3 max-w-[640px]">
+      <p className="text-[17px] leading-[1.45] text-white/75">Your account is ready. ApplyTwin itself runs on your computer, and this page shows what it sent. Three steps to your first application:</p>
+      <div className="mt-6 overflow-hidden rounded-[20px] bg-[#1c1c1e]/90 ring-1 ring-white/[.06] backdrop-blur [&>*+*]:border-t [&>*+*]:border-white/[.06]">
         {steps.map(([t, d, install], i) => (
           <div key={t} className="flex gap-4 px-5 py-4">
             <span className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-full text-[13px] font-semibold text-white ring-1 ring-white/20">{i + 1}</span>
@@ -200,6 +198,7 @@ function Connect() {
               <div className="mt-0.5 text-[13.5px] text-muted">{d}</div>{install && <div className="mt-3"><Install /></div>}</div>
           </div>))}
       </div>
+      <p className="mt-4 px-1 text-[13.5px] leading-relaxed text-white/55">Already installed? <a href="http://localhost:4747" className="font-medium text-[#64b5ff] hover:underline">Open ApplyTwin</a>. That link only works on the computer you installed it on.</p>
     </motion.section>
   )
 }
@@ -207,7 +206,7 @@ function Connect() {
 function SignedOut() {
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={spring} className="mx-auto max-w-[520px] pt-10 text-center">
-      <h1 className="text-[48px] font-bold leading-[1] tracking-[-0.04em] text-white">Your applications, anywhere.</h1>
+      <h1 className="text-[clamp(38px,10.5vw,48px)] font-bold leading-[1.02] tracking-[-0.04em] text-white [text-wrap:balance]">Your applications, anywhere.</h1>
       <p className="mx-auto mt-4 max-w-[420px] text-[17px] text-white/75">Sign in with the Google account you use in ApplyTwin to see every application your twin sent, and the resume it sent with each one.</p>
       <motion.button whileTap={{ scale: 0.96 }} onClick={signIn} className="mx-auto mt-8 flex h-12 items-center gap-2.5 rounded-full bg-white px-7 text-[16px] font-semibold text-[#0b1020]">
         <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.8 1.1 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z" /><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3 0 5.8 1.1 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z" /><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z" /><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z" /></svg>
@@ -241,7 +240,7 @@ function Group({ title, footer, children }) {
   return (
     <section>
       <h2 className="mb-2.5 px-1 text-[20px] font-semibold tracking-[-0.02em] text-white">{title}</h2>
-      <div className="overflow-hidden rounded-[18px] bg-[#111526] ring-1 ring-white/[.06] [&>*+*]:border-t [&>*+*]:border-white/[.06]">{children}</div>
+      <div className="overflow-hidden rounded-[18px] bg-[#1c1c1e] ring-1 ring-white/[.06] [&>*+*]:border-t [&>*+*]:border-white/[.06]">{children}</div>
       {footer && <p className="mt-2 px-1 text-[12.5px] leading-relaxed text-faint">{footer}</p>}
     </section>
   )
@@ -250,7 +249,7 @@ function Group({ title, footer, children }) {
 function Install() {
   const [ok, setOk] = useState(false)
   return (
-    <button onClick={() => { navigator.clipboard.writeText(INSTALL); setOk(true); setTimeout(() => setOk(false), 1500) }}
+    <button onClick={() => { navigator.clipboard?.writeText(INSTALL).catch(() => {}); setOk(true); setTimeout(() => setOk(false), 1500) }} aria-label="Copy the install command"
       className="flex w-full items-center gap-3 rounded-[12px] bg-black/40 px-3.5 py-3 text-left ring-1 ring-white/10 hover:ring-white/25">
       <span className="min-w-0 flex-1 break-words font-mono text-[12.5px] leading-snug text-white">{INSTALL}</span>
       <span className="shrink-0 text-[12.5px] font-semibold" style={{ color: ok ? GREEN : BLUE }}>{ok ? 'Copied' : 'Copy'}</span>
@@ -260,7 +259,7 @@ function Install() {
 
 function Logo({ size = 20 }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden><defs><linearGradient id="lg2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#38bdf8" /><stop offset="1" stopColor="#a78bfa" /></linearGradient></defs>
-      <rect x="4" y="4" width="38" height="38" rx="12" fill="url(#lg2)" /><rect x="22" y="22" width="38" height="38" rx="12" fill="#fff" fillOpacity=".85" /></svg>
+    <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden>   {/* the same mark as the home page */}
+      <rect x="4" y="4" width="38" height="38" rx="12" fill="#0071e3" /><rect x="22" y="22" width="38" height="38" rx="12" fill="#5ac8fa" fillOpacity=".9" /></svg>
   )
 }

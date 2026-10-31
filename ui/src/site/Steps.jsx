@@ -156,19 +156,19 @@ function Sift({ p }) {
 }
 
 /* 02. One sheet, turned over as you scroll; each side is the same record rewritten for the next company. */
-const VERS = [['Google', 98, 'google.com', 'Large-scale systems'], ['NVIDIA', 95, 'nvidia.com', 'Autonomy and AI compute'], ['Jane Street', 96, 'janestreet.com', 'Markets and economics']]
+const VERS = [['Google', 98, 'google.com', 'Large-scale systems'], ['NVIDIA', 95, 'nvidia.com', 'Autonomy and AI'], ['Jane Street', 96, 'janestreet.com', 'Markets and risk']]
 const VERSIONS = VERS.map(([c, f]) => [c, f])
 function Turn({ p }) {
   const ref = useRef(null)
   const [ok] = useState(() => typeof window !== 'undefined' && webgl())
   const near = useInView(ref, { margin: '400px 0px', once: true })
   const stage = useRef(0)
-  const s = smooth(range(p, 0.3, 0.46)) + smooth(range(p, 0.56, 0.72))
+  const s = smooth(range(p, 0.26, 0.4)) + smooth(range(p, 0.48, 0.62))   // both turns finish while the scene is still mid-screen
   stage.current = s
   const cur = Math.round(s)
   const still = useMemo(() => (ok ? null : typeof document !== 'undefined' ? paperCanvas('Google', 98).toDataURL('image/png') : null), [ok])
   return (
-    <div ref={ref} className="relative grid grid-cols-1 items-center gap-2 sm:h-[600px] sm:grid-cols-[200px_minmax(0,1fr)] min-[1800px]:h-[740px]">
+    <div ref={ref} className="relative grid grid-cols-1 items-center gap-2 sm:h-[600px] sm:grid-cols-[216px_minmax(0,1fr)] min-[1800px]:h-[740px]">
       <div className="relative z-10">
         <div className="mb-3 px-1 text-[12px] font-semibold uppercase tracking-[0.06em] faint">Written for</div>
         <div className="flex gap-1 sm:block sm:space-y-2">
@@ -181,8 +181,8 @@ function Turn({ p }) {
         </div>
         <div className="mt-5 hidden items-center gap-2 px-1 text-[12px] muted sm:flex"><span className="inline-block h-3 w-5 shrink-0 rounded-[3px]" style={{ background: 'rgb(0 113 227 / .2)' }} />Rewritten for this job</div>
       </div>
-      <div className="relative h-[440px] sm:h-full">
-        <div className="absolute bottom-[1%] left-1/2 h-[30px] w-[70%] -translate-x-1/2 rounded-[50%] blur-[18px]" style={{ background: 'rgb(0 0 0 / .18)' }} />
+      {/* the shadow follows the outline of the sheet as it turns, so a white page still reads on a white background */}
+      <div className="relative h-[440px] sm:h-full" style={{ filter: 'drop-shadow(0 1px 1px rgb(0 0 0 / .08)) drop-shadow(0 18px 28px rgb(0 0 0 / .16))' }}>
         {ok ? (near && <Suspense fallback={null}><Flip3D stage={stage} versions={VERSIONS} /></Suspense>)
           : still && <img src={still} alt="" className="sheet absolute left-1/2 top-1/2 w-[80%] -translate-x-1/2 -translate-y-1/2 rounded-[6px]" />}
       </div>
@@ -190,14 +190,17 @@ function Turn({ p }) {
   )
 }
 
-/* 03. The application, in its browser window: it turns toward you and straightens while the answers type themselves in. */
+/* 03. The application, in its browser window: it turns toward you and straightens, then the answers type themselves in
+   while the scene sits in the middle of the screen, and the pointer moves from field to field and ends on Review. */
 const FIELDS = [['Are you authorized to work in the US?', 'Yes'], ['Expected graduation', 'May 2028'], ['Street address', '1 University Ave, Gainesville, FL'],
-  ['What interests you about NVIDIA?', 'Your GPU kernels team ships the code I profile every day…']]
+  ['What interests you about NVIDIA?', 'Your GPU kernels team ships the code I profile every day in my lab, and I want to help write it.']]
 const TOTAL = FIELDS.reduce((n, [, a]) => n + a.length, 0)
 function Fill({ p }) {
-  const turn = smooth(range(p, 0.05, 0.42))
-  const shown = Math.round(TOTAL * range(p, 0.3, 0.7))
+  const turn = smooth(range(p, 0.02, 0.28))
+  const shown = Math.round(TOTAL * range(p, 0.2, 0.56))
   const done = shown >= TOTAL
+  const boxes = useRef([])
+  const submit = useRef(null)
   let before = 0, active = FIELDS.length
   const rows = FIELDS.map(([q, a], i) => {
     const start = before; before += a.length
@@ -205,37 +208,48 @@ function Fill({ p }) {
     if (n < a.length && active === FIELDS.length) active = i
     return [q, a, n]
   })
-  const cursorY = done ? 438 : 130 + active * 76
-  const cursorX = done ? 470 : 380
+  // the pointer rests at the right end of the field being typed (clear of the text), then on the Review button.
+  // Positions come from the real layout, so it always lands on what it points at.
+  const target = done ? submit.current : boxes.current[active]
+  const essay = active === FIELDS.length - 1
+  const cursor = !target ? { x: 470, y: 170 } : done ? { x: target.offsetLeft + target.offsetWidth * 0.6, y: target.offsetTop + target.offsetHeight * 0.5 }
+    : { x: target.offsetLeft + target.offsetWidth - 44, y: target.offsetTop + (essay ? target.offsetHeight - 22 : target.offsetHeight * 0.4) }
   return (
-    <Stage w={600} h={540}>
+    <Stage w={600} h={560}>
       <div className="absolute inset-0" style={{ perspective: 1400 }}>
         <div className="absolute inset-x-[10px] top-[10px] overflow-hidden rounded-[14px] appwin"
           style={{ background: 'var(--bg-3)', transform: `rotateY(${(1 - turn) * -28}deg) rotateX(${(1 - turn) * 10}deg) scale(${0.88 + 0.12 * turn})`, transformOrigin: '60% 50%' }}>
           <div className="flex h-10 items-center gap-2 border-b border-[var(--line)] px-3.5" style={{ background: 'var(--bg-2)' }}>
             {['#ff5f57', '#febc2e', '#28c840'].map(c => <span key={c} className="size-3 rounded-full" style={{ background: c }} />)}
             <div className="mx-auto flex h-6 w-[300px] items-center justify-center rounded-[7px] text-[12px] muted" style={{ background: 'var(--bg-3)' }}>nvidia.wd5.myworkdayjobs.com</div>
+            <span className="w-[52px]" />
           </div>
           <div className="flex items-center gap-3 border-b border-[var(--line)] px-6 py-3.5">
             <Avatar name="NVIDIA" domain="nvidia.com" size={28} />
             <div className="min-w-0 flex-1"><div className="truncate text-[15px] font-semibold">Deep Learning Software Intern</div><div className="text-[12.5px] muted">NVIDIA · Application</div></div>
-            <span className="text-[12.5px] font-semibold" style={{ color: done ? 'var(--green)' : 'var(--blue-text)' }}>{done ? 'All filled' : shown ? 'Filling…' : 'Ready'}</span>
+            <span className="text-[12.5px] font-semibold tabular-nums" style={{ color: done ? 'var(--green)' : 'var(--blue-text)' }}>
+              {done ? 'All filled' : shown ? `${rows.filter(r => r[2] === r[1].length).length} of ${FIELDS.length}` : 'Ready'}</span>
           </div>
           <div className="space-y-3.5 px-6 py-5">
-            {rows.map(([q, a, n], i) => (
-              <div key={q}>
-                <div className="text-[12.5px] muted">{q}</div>
-                <div className={'mt-1.5 flex h-[40px] items-center rounded-[10px] border px-3 text-[14px] transition-colors duration-300 ' + (i === active && !done ? 'border-[var(--blue)] shadow-[0_0_0_3px_rgb(0_113_227/.15)]' : 'border-[var(--line)]')}>
-                  <span className="truncate">{a.slice(0, n)}</span>{i === active && n > 0 && <span className="ml-px h-[17px] w-[1.5px] animate-pulse bg-[var(--blue)]" />}
-                </div>
-              </div>))}
+            {rows.map(([q, a, n], i) => {
+              const essay = i === FIELDS.length - 1
+              return (
+                <div key={q}>
+                  <div className="text-[12.5px] muted">{q}</div>
+                  <div ref={el => { boxes.current[i] = el }}
+                    className={'mt-1.5 flex rounded-[10px] border px-3 text-[14px] transition-[border-color,box-shadow] duration-300 ' + (essay ? 'h-[64px] items-start py-2.5 leading-[1.4]' : 'h-[40px] items-center') + ' ' +
+                      (i === active && !done ? 'border-[var(--blue)] shadow-[0_0_0_3px_rgb(0_113_227/.15)]' : 'border-[var(--line)]')}>
+                    <span className={essay ? '' : 'truncate'}>{a.slice(0, n)}{i === active && n > 0 && <span className="ml-px inline-block h-[16px] w-[1.5px] translate-y-[3px] animate-pulse bg-[var(--blue)]" />}</span>
+                  </div>
+                </div>)
+            })}
           </div>
           <div className="flex justify-end border-t border-[var(--line)] px-6 py-3.5">
-            <span className={'rounded-full px-4 py-1.5 text-[13px] font-medium transition-colors duration-500 ' + (done ? 'bg-[var(--blue)] text-white' : 'bg-[var(--bg-2)] faint')}>Review and submit</span>
+            <span ref={submit} className={'rounded-full px-4 py-1.5 text-[13px] font-medium transition-colors duration-500 ' + (done ? 'bg-[var(--blue)] text-white' : 'bg-[var(--bg-2)] faint')}>Review and submit</span>
           </div>
           {/* the pointer, moving field to field */}
           <motion.svg width="20" height="24" viewBox="0 0 20 24" className="pointer-events-none absolute left-0 top-0" style={{ filter: 'drop-shadow(0 2px 3px rgb(0 0 0 / .3))' }}
-            animate={{ x: cursorX, y: cursorY, opacity: turn > 0.6 ? 1 : 0 }} transition={{ duration: 0.6, ease: EASE }}>
+            initial={false} animate={{ x: cursor.x, y: cursor.y, opacity: turn > 0.6 ? 1 : 0 }} transition={{ duration: 0.6, ease: EASE }}>
             <path d="M2 1.5v18.5l5-4.6 3.2 7 3-1.4-3.1-6.8H17L2 1.5z" fill="#fff" stroke="#000" strokeWidth="1.2" strokeLinejoin="round" />
           </motion.svg>
         </div>
@@ -244,28 +258,31 @@ function Fill({ p }) {
   )
 }
 
-/* 04. Behind, the next application keeps filling on your Mac. In front, your phone gets the one thing only you can do. */
+/* 04. Behind, the next application keeps filling on your Mac. In front, your phone gets the one thing only you can do.
+   The two stay in step: the Mac finishes Figma at the moment the "Applied to Figma" notification lands. */
 function Ping({ p }) {
-  const turn = smooth(range(p, 0.05, 0.45))
-  const n1 = smooth(range(p, 0.32, 0.44)), n2 = smooth(range(p, 0.58, 0.7))
-  const fill = 0.12 + 0.84 * range(p, 0.3, 0.75)
+  const turn = smooth(range(p, 0.02, 0.3))
+  const n1 = smooth(range(p, 0.24, 0.36))
+  const fill = 0.12 + 0.88 * range(p, 0.3, 0.56)
+  const sent = fill >= 1
+  const n2 = smooth(range(p, 0.56, 0.66))
   return (
     <Stage w={600} h={560}>
       <div className="absolute inset-0" style={{ perspective: 1600 }}>
-        {/* the Mac, still working */}
+        {/* the Mac, still working. Its content stops short of where the phone covers it, so no line runs underneath. */}
         <div className="absolute left-0 top-[70px] w-[400px] overflow-hidden rounded-[12px] appwin"
           style={{ background: '#1c1c1e', color: '#f5f5f7', transform: `rotateY(${14 + (1 - turn) * 10}deg)`, transformOrigin: '0% 50%' }}>
           <div className="flex h-8 items-center gap-1.5 border-b border-white/[.07] px-3">
             {['#ff5f57', '#febc2e', '#28c840'].map(c => <span key={c} className="size-2.5 rounded-full" style={{ background: c }} />)}
-            <span className="mx-auto pr-10 text-[11.5px] text-white/50">ApplyTwin</span>
+            <span className="ml-3 text-[11.5px] text-white/50">ApplyTwin</span>
           </div>
-          <div className="p-5">
-            <div className="text-[11.5px] font-medium text-[#30d158]">Meanwhile, next job · {p > 0.75 ? 3 : 2} of 25</div>
-            <div className="mt-1 text-[21px] font-semibold tracking-[-0.02em]">{p > 0.75 ? 'Submitted' : 'Filling the application'}</div>
-            <div className="mt-2 flex items-center gap-2 text-[12.5px] text-white/60"><Avatar name="Figma" domain="figma.com" size={18} />Figma · Software Engineer Intern</div>
-            <div className="mt-4 h-[4px] overflow-hidden rounded-full bg-white/[.08]"><div className="h-full rounded-full bg-[#0a84ff]" style={{ width: `${fill * 100}%` }} /></div>
+          <div className="w-[296px] p-5">
+            <div className="text-[11.5px] font-medium text-[#30d158]">Meanwhile, next job · {sent ? 3 : 2} of 25</div>
+            <div className="mt-1 text-[21px] font-semibold tracking-[-0.02em]">{sent ? 'Submitted' : 'Filling the application'}</div>
+            <div className="mt-2 flex items-center gap-2 text-[12.5px] text-white/60"><Avatar name="Figma" domain="figma.com" size={18} /><span className="truncate">Figma · Software Engineer Intern</span></div>
+            <div className="mt-4 h-[4px] overflow-hidden rounded-full bg-white/[.08]"><div className="h-full rounded-full transition-colors duration-500" style={{ width: `${fill * 100}%`, background: sent ? '#30d158' : '#0a84ff' }} /></div>
             <div className="mt-5 space-y-2.5">
-              {[['Work authorization', 0.25], ['Graduation date', 0.45], ['Why Figma?', 0.7]].map(([l, at]) => (
+              {[['Work authorization', 0.3], ['Graduation date', 0.55], ['Why Figma?', 0.85]].map(([l, at]) => (
                 <div key={l} className="flex items-center gap-2 rounded-[8px] bg-white/[.05] px-3 py-2 text-[12px]">
                   <span className="grid size-4 place-items-center rounded-full transition-colors duration-500" style={{ background: fill > at ? '#30d158' : 'rgb(255 255 255 / .12)' }}>
                     <Check className="size-2.5 text-black" strokeWidth={3.5} style={{ opacity: fill > at ? 1 : 0 }} /></span>
@@ -282,19 +299,19 @@ function Ping({ p }) {
             style={{ background: 'radial-gradient(120% 80% at 20% 0%, #3b5bdb 0%, #1b2a6b 45%, #0b1026 100%)' }}>
             <div className="absolute left-1/2 top-[11px] h-[26px] w-[86px] -translate-x-1/2 rounded-full bg-black" />
             <div className="mt-[62px] text-center">
-              <div className="text-[14px] font-medium text-white/80">Thursday, October 30</div>
+              <div className="text-[14px] font-medium text-white/80">Tuesday, September 15</div>
               <div className="text-[76px] font-semibold leading-[1.02] tracking-[-0.03em]">9:41</div>
             </div>
-            <div className="absolute inset-x-[10px] top-[230px] space-y-2">
-              {[[n1, 'Code needed for Stripe', 'Check your email and type it in the open tab.', 'now'],
-                [n2, 'Applied to Figma', 'Software Engineer Intern. 3 of 25 done today.', 'now']].map(([k, h, b, t]) => (
-                <div key={h} className="rounded-[20px] px-3.5 py-3 backdrop-blur-xl"
+            <div className="absolute inset-x-[10px] top-[226px] space-y-2">
+              {[[n1, 'Stripe needs a code', 'Check your email and type it into the open tab.'],
+                [n2, 'Applied to Figma', 'Software Engineer Intern. 3 of 25 done today.']].map(([k, h, b]) => (
+                <div key={h} className="rounded-[20px] px-3.5 py-3"
                   style={{ background: 'rgb(255 255 255 / .2)', opacity: k, transform: `translateY(${(1 - k) * -24}px) scale(${0.94 + 0.06 * k})` }}>
                   <div className="flex items-start gap-2.5">
                     <div className="grid size-[34px] shrink-0 place-items-center rounded-[9px] bg-white"><Logo size={24} /></div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between text-[13px]"><span className="font-semibold">{h}</span><span className="text-white/60">{t}</span></div>
-                      <div className="text-[13px] leading-snug text-white/85">{b}</div>
+                    <div className="min-w-0 flex-1 text-[13px] leading-snug">
+                      <div className="flex items-baseline justify-between gap-2"><span className="truncate font-semibold">{h}</span><span className="shrink-0 text-[12px] text-white/60">now</span></div>
+                      <div className="text-white/85">{b}</div>
                     </div>
                   </div>
                 </div>))}

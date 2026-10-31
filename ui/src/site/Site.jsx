@@ -1,7 +1,6 @@
 import { Suspense, lazy, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, MotionConfig, motion, useInView, useMotionValueEvent, useScroll, useTransform, useReducedMotion } from 'motion/react'
 import { ArrowDown, Check, Copy, Moon, Star, Sun } from 'lucide-react'
-import { Toaster } from 'sonner'
 import { Avatar } from '../components/ui'
 import { REPO_URL, useStars } from '../lib/star'
 import { HowItWorks, Logo } from './Steps'
@@ -48,7 +47,6 @@ export default function Site() {
   return (
     <MotionConfig reducedMotion="user">
     <div className="site min-h-screen overflow-x-clip" data-theme={theme}>
-      <Toaster position="bottom-center" />
       <Nav stars={stars} />
       <StarPrompt n={stars} />
 
@@ -96,7 +94,7 @@ export default function Site() {
       <section className="px-4 pt-20 sm:pt-28">
         <div className="mx-auto max-w-[1120px] min-[1800px]:max-w-[1360px]">
           <Scrub className="display-l max-w-[1040px] text-[clamp(32px,5.2vw,64px)] [text-wrap:balance]" parts={[
-            ['It applies at', 0], ['Google, Meta, Apple, NVIDIA, Jane Street, Citadel, Palantir, Anduril, Stripe, OpenAI, Two Sigma', 1],
+            ['It applies at', 0], ['Google, Meta, Apple, NVIDIA, Jane\u00a0Street, Citadel, Palantir, Anduril, Stripe, OpenAI, Two\u00a0Sigma', 1],
             ['and more than 600 other companies, on their own career sites.', 0]]} />
         </div>
       </section>
@@ -344,11 +342,12 @@ function Becomes() {
   const role = at(0) > 0.5
   return (
     <section ref={ref} className="relative h-auto px-4 pt-20 md:h-[250vh] md:pt-0">
-      <div className="mx-auto max-w-[1120px] min-[1800px]:max-w-[1360px] md:sticky md:top-0 md:flex md:h-screen md:flex-col md:justify-center md:pb-6 md:pt-16">
-        <h2 className="display-l max-w-[900px] text-[clamp(38px,5.4vw,64px)] [text-wrap:balance]">Same person.<br /><span className="muted">Proven for this job.</span></h2>
-        <p className="mt-4 max-w-[640px] text-[19px] leading-[1.45] muted [text-wrap:pretty]">It reads what the team screens for, then rewrites your real experience to prove each point. Here is Elon Musk's public record, aimed at one NASA posting.</p>
-        <div className="mt-8 grid gap-5 md:grid-cols-[0.9fr_1.1fr]">
-          <div className="sheet flex flex-col p-6 sm:p-8">
+      <div className="mx-auto max-w-[1120px] min-[1800px]:max-w-[1360px] md:sticky md:top-0 md:flex md:h-screen md:flex-col md:justify-center md:pb-6 md:pt-16 md:[@media(max-height:860px)]:pb-4 md:[@media(max-height:860px)]:pt-14">
+        {/* on short laptop screens everything steps down a size, so the pinned scene never runs under the nav or off the bottom */}
+        <h2 className="display-l max-w-[900px] text-[clamp(38px,5.4vw,64px)] md:[@media(max-height:860px)]:text-[44px] [text-wrap:balance]">Same person.<br /><span className="muted">Proven for this job.</span></h2>
+        <p className="mt-4 max-w-[640px] text-[19px] leading-[1.45] muted md:[@media(max-height:860px)]:mt-2.5 md:[@media(max-height:860px)]:text-[17px] [text-wrap:pretty]">It reads what the team screens for, then rewrites your real experience to prove each point. Here is Elon Musk's public record, aimed at one NASA posting.</p>
+        <div className="mt-8 grid gap-5 md:grid-cols-[0.9fr_1.1fr] md:[@media(max-height:860px)]:mt-5">
+          <div className="sheet flex flex-col p-6 sm:p-8 md:[@media(max-height:860px)]:py-6">
             <div className="flex items-center gap-3"><Avatar name={ROLE.company} domain={ROLE.domain} size={36} />
               <div><div className="text-[15px] font-semibold">{ROLE.title}</div><div className="text-[13px] muted">{ROLE.company}</div></div></div>
             <div className="mt-6 text-[12px] font-semibold uppercase tracking-[0.05em] faint">What they screen for</div>
@@ -367,15 +366,16 @@ function Becomes() {
               <div className="display-l text-[52px] tabular-nums leading-none" style={{ color: done === 3 ? 'var(--green)' : 'var(--fg)' }}>{match}%</div>
             </div>
           </div>
-          <div className="sheet p-6 text-left sm:p-8" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
+          <div className="sheet p-6 text-left sm:p-8 md:[@media(max-height:860px)]:py-6" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
             <div className="text-center text-[22px] font-bold tracking-[0.04em]">ELON MUSK</div>
-            <div className="relative mt-1 h-[20px] overflow-hidden text-center text-[13px] font-semibold">
-              <AnimatePresence mode="popLayout" initial={false}>
-                <motion.div key={role ? 'r' : 'g'} initial={{ y: 14, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -14, opacity: 0 }}
-                  transition={{ duration: 0.5, ease: EASE }}>
-                  {role ? 'Human Spaceflight · Reusable Rockets · Engineering Leadership' : 'Entrepreneur'}
-                </motion.div>
-              </AnimatePresence>
+            {/* both titles share one grid cell, so the box is as tall as the longer one and nothing is clipped when it wraps */}
+            <div className="mt-1 grid items-center text-center text-[13px] font-semibold [text-wrap:balance]">
+              {['Entrepreneur', 'Human Spaceflight · Reusable Rockets · Engineering Leadership'].map((t, i) => {
+                const on = role === !!i   // the old title is gone before the new one arrives, so the two never overlap
+                return (
+                  <motion.div key={t} className="col-start-1 row-start-1" initial={false} animate={{ opacity: on ? 1 : 0, y: on ? 0 : (i ? 8 : -8) }}
+                    transition={{ duration: 0.25, ease: EASE, delay: on ? 0.22 : 0 }} aria-hidden={!on}>{t}</motion.div>)
+              })}
             </div>
             <div className="mt-5 border-b border-[var(--line)] pb-1 text-[12px] font-semibold tracking-[0.08em]">EXPERIENCE & PROJECTS</div>
             <div className="mt-3 space-y-4">

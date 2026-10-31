@@ -1,5 +1,3 @@
-import * as THREE from 'three'
-
 /* A real one-page resume, drawn onto a canvas for the 3D scenes: Elon Musk's public record, set the way ApplyTwin
    renders a page. A tailored version reorders and rewrites lines for one company; the rewritten lines are tinted blue. */
 
@@ -98,11 +96,4 @@ export function paperCanvas(company, fit) {
     g.fillText(`${fit}% match`, c.width - 145, 68)
   }
   return c
-}
-
-export function paperTexture(company, fit) {
-  const t = new THREE.CanvasTexture(paperCanvas(company, fit))
-  t.colorSpace = THREE.SRGBColorSpace
-  t.anisotropy = 16
-  return t
 }

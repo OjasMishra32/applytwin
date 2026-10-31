@@ -1,7 +1,8 @@
 import { useMemo, useRef } from 'react'
+import { useInView } from 'motion/react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
-import { paperTexture } from './paper'
+import { paperTexture } from './paperTexture'
 
 /* Step 02: one sheet of paper, the same person. As you scroll it turns over, and each side it shows is that resume
    rewritten for the next company: the lines that changed are tinted blue. stage runs 0 -> 2 (Google, NVIDIA, Jane Street). */
@@ -35,12 +36,14 @@ function Sheet({ stage, pointer, versions }) {
 
 export default function Flip3D({ stage, versions }) {
   const pointer = useRef({ x: 0, y: 0 })
+  const box = useRef(null)
+  const seen = useInView(box, { margin: '100px 0px' })   // stop drawing frames while the scene is off screen
   return (
-    <div className="h-full w-full" onPointerMove={e => {
+    <div ref={box} className="h-full w-full" onPointerMove={e => {
       const r = e.currentTarget.getBoundingClientRect()
       pointer.current = { x: ((e.clientX - r.left) / r.width - 0.5) * 2, y: -((e.clientY - r.top) / r.height - 0.5) * 2 }
     }} onPointerLeave={() => { pointer.current = { x: 0, y: 0 } }}>
-      <Canvas flat dpr={[1, 2]} camera={{ position: [0, 0, 2.15], fov: 34 }} gl={{ antialias: true, alpha: true }}>
+      <Canvas frameloop={seen ? 'always' : 'never'} flat dpr={[1, 2]} camera={{ position: [0, 0, 2.15], fov: 34 }} gl={{ antialias: true, alpha: true }}>
         <ambientLight intensity={1.3} />
         <directionalLight position={[-2, 3, 3]} intensity={1.1} />
         <directionalLight position={[2.5, -1, 2]} intensity={0.3} />

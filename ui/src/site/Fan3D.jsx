@@ -1,7 +1,8 @@
 import { useMemo, useRef } from 'react'
+import { useInView } from 'motion/react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
-import { paperTexture } from './paper'
+import { paperTexture } from './paperTexture'
 
 /* One resume becomes many: real paper sheets in studio light. Scrolled from 0 to 1, a single stack (your resume) fans out
    into an arc of versions, each tailored for one company, while the camera eases in. The pointer tilts the scene a little. */
@@ -51,12 +52,14 @@ function Rig({ progress, pointer }) {
 
 export default function Fan3D({ progress }) {
   const pointer = useRef({ x: 0, y: 0 })
+  const box = useRef(null)
+  const seen = useInView(box, { margin: '100px 0px' })   // stop drawing frames while the scene is off screen
   return (
-    <div className="h-full w-full" onPointerMove={e => {
+    <div ref={box} className="h-full w-full" onPointerMove={e => {
       const r = e.currentTarget.getBoundingClientRect()
       pointer.current = { x: ((e.clientX - r.left) / r.width - 0.5) * 2, y: -((e.clientY - r.top) / r.height - 0.5) * 2 }
     }}>
-      <Canvas shadows flat dpr={[1, 2]} camera={{ position: [0, 0.12, 3.9], fov: 30 }} gl={{ antialias: true, alpha: true }}>
+      <Canvas frameloop={seen ? 'always' : 'never'} shadows flat dpr={[1, 2]} camera={{ position: [0, 0.12, 3.9], fov: 30 }} gl={{ antialias: true, alpha: true }}>
         <ambientLight intensity={1.4} />
         <hemisphereLight args={['#ffffff', '#e4e7ee', 0.45]} />
         <directionalLight position={[-2.5, 4, 3]} intensity={1.25} castShadow shadow-mapSize={[2048, 2048]} shadow-radius={8}
