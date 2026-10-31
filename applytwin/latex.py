@@ -108,7 +108,7 @@ def build_tex(r, k=1.0):
             for e in data:
                 from .render import degree_line
                 deg = '; '.join(x for x in (degree_line(e), e.get('minor') and 'Minor in ' + e['minor'],
-                                            e.get('gpa') and 'GPA: ' + e['gpa']) if x)
+                                            e.get('gpa') and f"{e.get('gpa_label') or 'GPA'}: {e['gpa']}") if x)
                 body.append(r'\resumeSubheading{%s}{%s}{%s}{%s}' % (esc(e.get('school')), esc(e.get('location')), esc(deg), dates(e)))
                 # honors share one line (as in the HTML templates) instead of one bullet each
                 extra = ([r' $\cdot$ '.join(tex(h) for h in e['honors'])] if e.get('honors') else []) + \
@@ -152,6 +152,8 @@ def build_tex(r, k=1.0):
     # \small and the headings are relative to the class size, so shrink by changing the class size (11pt -> 10pt), and at
     # the last step also tighten the space between items
     pre = PREAMBLE if k >= 0.99 else PREAMBLE.replace('[letterpaper,11pt]', '[letterpaper,10pt]')
+    if str(r.get('paper') or '').upper() == 'A4':   # outside the US and Canada (regions.conventions)
+        pre = pre.replace('letterpaper', 'a4paper')
     if k < 0.93:
         pre += '\n\\setlist{itemsep=-1pt}\n'
     return pre + '\n\\begin{document}\n' + '\n'.join(body) + '\n\\end{document}\n'

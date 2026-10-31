@@ -181,7 +181,7 @@ def _heading(title, style):
 
 def build_html(r, style='classic', k=1.0, titles=None):
     style = style if style in STYLE_CSS else 'classic'  # 'latex' previews with the closest HTML look
-    return _doc(STYLE_CSS[style], _page(r, style, titles), k, title=(r.get('basics') or {}).get('name') or 'Resume')
+    return _doc(_css(style, r), _page(r, style, titles), k, title=(r.get('basics') or {}).get('name') or 'Resume')
 
 
 def _doc(css, pages, k=1.0, s=1.0, title='Resume', extra=''):
@@ -220,7 +220,7 @@ def _page(r, style, titles=None):
         if sec == 'education':
             for e in data:
                 deg = degree_line(e)
-                extra = '; '.join(x for x in (e.get('minor') and 'Minor in ' + e['minor'], e.get('gpa') and 'GPA: ' + e['gpa']) if x)
+                extra = '; '.join(x for x in (e.get('minor') and 'Minor in ' + e['minor'], e.get('gpa') and (e.get('gpa_label') or 'GPA') + ': ' + e['gpa']) if x)
                 body.append(f'<div class="entry"><div class="row"><span class="org">{html.escape(e.get("school", ""))}</span>'
                             f'<span>{html.escape(e.get("location", ""))}</span></div><div class="row"><span class="role">{html.escape(deg)}'
                             f'{("; " + html.escape(extra)) if extra else ""}</span><span class="meta">{html.escape(dates(e))}</span></div>')
@@ -423,6 +423,12 @@ def dump_dom(doc, limit=60):
 
 
 PAGE_PX = 1056   # 11in at 96 CSS px per inch
+A4_PX = 1122     # 297mm
+
+
+def _css(style, r):
+    from .regions import paper_css
+    return STYLE_CSS[style] + paper_css((r or {}).get('paper'))   # A4 outside the US and Canada; Letter otherwise
 
 # Runs inside Chrome over every candidate page (the resume after 0, 1, 2... trims). Policy, in order: the fewest cut lines
 # whose page fits with the type shrunk at most to the tier's floor; then the largest type (up to kmax) that still fits; then
@@ -456,9 +462,9 @@ def _fit_measured(r, style, out_pdf, worth=None, kmax=1.04, smax=1.5):
         dropped.append(v)
         states.append((copy.deepcopy(cur), list(dropped)))
     n = len(states)
-    cfg = {"limit": PAGE_PX - 2, "kmax": kmax, "smax": smax, "tiers": [[0, 12, .95], [13, 24, .92], [25, max(25, n - 1), .9]]}
+    cfg = {"limit": (A4_PX if str(r.get('paper') or '').upper() == 'A4' else PAGE_PX) - 2, "kmax": kmax, "smax": smax, "tiers": [[0, 12, .95], [13, 24, .92], [25, max(25, n - 1), .9]]}
     pages = ''.join(f'<div class="m" style="display:none">{_page(s, style)}</div>' for s, _ in states)
-    doc = _doc(STYLE_CSS[style], pages + '<pre id="fit"></pre><script>' + (_FIT_JS % json.dumps(cfg)) + '</script>',
+    doc = _doc(_css(style, r), pages + '<pre id="fit"></pre><script>' + (_FIT_JS % json.dumps(cfg)) + '</script>',
                extra='<style>.m .page{min-height:0}#fit{display:none}</style>')
     dom = dump_dom(doc)
     m = re.search(r'<pre id="fit"[^>]*>(\{.*?\})</pre>', dom or '')
@@ -473,7 +479,7 @@ def _fit_measured(r, style, out_pdf, worth=None, kmax=1.04, smax=1.5):
     if os.environ.get('APPLYTWIN_FIT_DEBUG'):
         print('fit', style, fit, file=sys.stderr)
     for attempt in range(4):   # screen layout and print layout agree to the pixel in practice; shrink a hair if they don't
-        html_to_pdf(_doc(STYLE_CSS[style], _page(res, style), k, s, title=(res.get('basics') or {}).get('name') or 'Resume'), out_pdf)
+        html_to_pdf(_doc(_css(style, res), _page(res, style), k, s, title=(res.get('basics') or {}).get('name') or 'Resume'), out_pdf)
         pages_out = page_count(out_pdf)
         if pages_out == 1 or not fit.get('fit'):
             break

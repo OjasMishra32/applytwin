@@ -7,6 +7,7 @@ must ask the user (and save the answer so it never asks twice).
 import re
 
 from . import blockers
+from . import regions
 
 STOP = set('a an the of to for in on and or is are you your do does did be been have has with at by as this that '
            'will would can could please any if from our we us it its which what when where who how'.split())
@@ -137,7 +138,7 @@ def default_bank(p):
         ('privacy', 'Do you acknowledge the privacy policy / certify your answers?', r'privacy (policy|notice)|certify|acknowledge|attest|i agree',
          'Yes'),
     ]
-    return [{"key": k, "question": q, "pattern": pat, "answer": a, "source": "profile"} for k, q, pat, a in rows]
+    return [{"key": k, "question": q, "pattern": pat, "answer": a, "source": "profile"} for k, q, pat, a in rows] + regions.answer_rows(p)
 
 
 def _tokens(s):
@@ -244,6 +245,9 @@ def _match(question, bank, options=None):
     if re.match(r'\s*(why|please (describe|explain|tell)|describe|explain|tell us|what (interest|excite|draw|motivat))', q, re.I) and open_ended(q) \
             and not re.search(r'linkedin|github|portfolio|website|url|link|race|ethnic|gender|veteran|disab|authori[sz]|sponsor|visa|citizen', q, re.I):
         return {"question": q, "answer": None, "confidence": 0, "key": None, "action": "write", "how": WRITE_RULES}
+    intl = regions.match(q, bank, options)   # right to work in the UK / EU / India (never the US answer), notice period, CTC, GDPR...
+    if intl:
+        return intl
     if not options and NEVER_GUESS.search(q):
         qt = _tokens(q)
         for row in bank:

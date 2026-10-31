@@ -6,6 +6,8 @@ keyword match lives in ats.py and runs only on jobs you actually look at.
 import re
 import time
 
+from . import regions
+
 INTERN = re.compile(r'\b(intern|interns|internship|extern|externship|practicum|trainee|traineeship|co-?op|summer (?:analyst|associate|scholar|fellow)|'
                     r'student|apprentice|apprenticeship|'
                     r'fellow(?:ship)?|insight (?:day|days|week|program|series)|discovery (?:day|days|program|week)|sophomore|freshman|first[- ]year|'
@@ -383,7 +385,12 @@ def knockouts(job, prof):
     why = level_gate(job, prof)
     if why:
         out.append(why[0].upper() + why[1:])
-    if prof.get('needs_sponsorship') and NO_SPONSOR.search(text):
+    abroad, ko = regions.work_rights(job, prof)   # outside the US: that country's rules, not US sponsorship / citizenship
+    if ko:
+        out.append(ko)
+    elif abroad:
+        pass
+    elif prof.get('needs_sponsorship') and NO_SPONSOR.search(text):
         out.append('No visa sponsorship (or US citizenship / clearance required) and you need sponsorship')
     else:
         cit = (prof.get('citizenship') or '').lower()
@@ -415,7 +422,7 @@ def fit(job, prof, vault_terms=None):
     why_level = level_gate(job, prof)
     if why_level:
         return 0, why_level
-    intern_title = bool(re.search(r'\b(intern|internship|co-?op)\b', t))
+    intern_title = bool(re.search(r'\b(intern|internship|co-?op)\b', t)) or regions.intern_like(title)
     for x in s.get('exclude', []):
         x = (x or '').lower().strip()
         if not x:
@@ -430,18 +437,23 @@ def fit(job, prof, vault_terms=None):
     if kind == 'co-op':   # co-ops are internships for matching; the term picks which ones
         kind = 'internship'
     if kind == 'internship':
-        if not INTERN.search(title):
+        if not INTERN.search(title) and not regions.intern_like(title):   # also placement year, Werkstudent, Praktikum, stage
             return 0, 'not an internship'
         if SENIOR.search(title) and not re.search(r'\bintern', title, re.I):
             return 0, 'senior role'
         score += 10
     elif kind == 'new-grad':
-        program = re.search(r'early career|new grad|graduate (program|trainee|scheme)|rotational|fellowship program', t)
-        if re.search(r'\b(intern|internship|co-?op)\b', t) or (SENIOR.search(title) and not program):
+        program = re.search(r'early career|new grad|graduate (program|trainee|scheme)|rotational|fellowship program', t) or regions.grad_program(title)
+        if re.search(r'\b(intern|internship|co-?op)\b', t) or regions.intern_like(title) or (SENIOR.search(title) and not program):
             return 0, 'not new-grad level'
         score += 10 if NEWGRAD.search(title) else 0
     elif SENIOR.search(title) and not s.get('allow_senior'):
         score -= 25
+    why_prog, prog_note = regions.program_gate(job, prof)   # program types the user picked (placement, Werkstudent, graduate scheme...)
+    if why_prog:
+        return 0, why_prog
+    if prog_note:
+        why.append(prog_note)
     roles = s.get('roles') or []
     hit = []
     for r in roles:
@@ -505,7 +517,14 @@ def fit(job, prof, vault_terms=None):
         return 0, 'immediate start, before your earliest start'
     locs = [l.lower() for l in s.get('locations', [])]
     loc = job.get('location') or ''
-    if locs and loc:
+    lf = regions.location_fit(job, prof)   # countries / cities picked in Settings; None = not picked, the original rules below
+    if lf is not None:
+        if not lf[0]:
+            return 0, lf[1]
+        score += lf[2]
+        if lf[1]:
+            why.append(lf[1])
+    elif locs and loc:
         if any(l in ('united states', 'us', 'usa') for l in locs):
             if place(loc) == 'foreign' and not any(l in loc.lower() for l in locs if l not in ('united states', 'us', 'usa')):
                 return 0, 'outside target locations'
@@ -517,11 +536,19 @@ def fit(job, prof, vault_terms=None):
     if ok:
         score += 10
         why.append(note)
-    if prof.get('needs_sponsorship') and NO_SPONSOR.search(text):
+    abroad, ko = regions.work_rights(job, prof)   # outside the US: the right to work there, as the user set it per country
+    if ko:
+        return 3, ko
+    if abroad:
+        note = regions.rights_note(job, prof)
+        if note:
+            score -= 5
+            why.append(note)
+    elif prof.get('needs_sponsorship') and NO_SPONSOR.search(text):
         return 3, 'no sponsorship / citizenship required'
     cit = (prof.get('citizenship') or '').lower()
     us_citizen = re.match(r'\s*(u\.?s\.?|us|united states|american)\b.*citizen|^\s*citizen', cit) and not re.search(r'\bnot\b|non-?citizen', cit)
-    if cit and not us_citizen and CITIZEN.search(text):
+    if not abroad and cit and not us_citizen and CITIZEN.search(text):
         return 3, 'US citizenship or clearance required'
     m = re.match(r'(20\d\d)-(\d\d)-(\d\d)', job.get('posted') or '')
     if m:

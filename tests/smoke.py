@@ -1070,6 +1070,8 @@ res.append(ok('about:blank' in _rp and 'applytwin_needs_you' in _rp and "closed:
               'Autopilot instructions: browser check first, closed = Skipped, batched needs-you at the end'))
 from applytwin import mcp as _mcp
 res.append(ok('applytwin_needs_you' in _mcp.BY and 'waiting_on_you' in _mcp.BY['applytwin_next_jobs'][1], 'MCP exposes the batched needs-you list'))
+# international: location parsing, regions, work rights, answers, CV conventions, A4 (kept in its own file)
+exec(compile(open(os.path.join(ROOT, 'tests', 'smoke_intl.py'), encoding='utf-8').read(), 'smoke_intl.py', 'exec'))
 
 print(f'\n{sum(res)}/{len(res)} passed')
 sys.exit(0 if all(res) else 1)

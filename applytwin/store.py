@@ -33,12 +33,18 @@ DEFAULT_PROFILE = {   # nothing about the person is assumed: unanswered fields s
     "over_18": None, "background_check_ok": None, "has_noncompete": None, "government_employee": None,
     "salary_expectation": "", "sms_ok": None, "ai_review_ok": None,
     "eeo": {"gender": "", "race": "", "hispanic": "", "veteran": "", "disability": "", "pronouns": ""},
+    # outside the US (regions.py): right to work per country ('GB', 'EU', 'IN'...: citizen | authorized | sponsorship) and
+    # what European and Indian forms ask
+    "work_auth": {}, "nationality": "", "notice_period": "", "current_ctc": "", "expected_ctc": "", "expected_salary_local": "",
+    "marks_10th": "", "marks_12th": "", "cgpa": "", "gpa_scale": "", "languages": "", "visa_type": "", "gdpr_ok": None,
     "search": {
         "kind": "",                                 # internship | co-op | new-grad | full-time (asked in setup)
         "season": "",                               # one or more terms, e.g. "Summer 2027, Fall 2027"
         "roles": [], "arrangement": [],
         "include": [], "exclude": ["phd", "mba", "master", "senior", "staff", "principal", "manager"],
         "locations": [],
+        "countries": [], "cities": [],              # countries / cities to work in; empty = the original US-first matching
+        "programs": [],                             # internship | placement | working_student | graduate_scheme | campus; empty = all
         "min_fit": 65,
         "companies_priority": [], "companies_skip": [],
     },

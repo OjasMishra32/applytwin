@@ -9,6 +9,7 @@ import { useApp } from '../App'
 import { Drop, Segmented, Switch } from '../components/ui'
 import { Logo } from '../components/Shell'
 import { Chips, ROLE_SUGGEST } from './Settings'
+import { WhereAbroad } from '../components/Regions'
 import { ProfileQuestions, missing, useQuestions } from '../components/ProfileQuestions'
 
 /* Setup, the way Apple does it: one clear question per screen, big choices, a gentle slide between screens, and you
@@ -85,7 +86,7 @@ export default function Welcome() {
     { id: 'kind', ok: !!s.kind, cta: 'Continue' },
     { id: 'when', ok: intern ? picked.length > 0 : !!p.earliest_start, cta: 'Continue' },
     { id: 'roles', ok: (s.roles || []).length > 0, cta: 'Continue' },
-    { id: 'where', ok: (s.locations || []).length > 0 && (s.arrangement || []).length > 0, cta: 'Continue' },
+    { id: 'where', ok: ((s.locations || []).length > 0 || (s.countries || []).length > 0) && (s.arrangement || []).length > 0, cta: 'Continue' },
     { id: 'companies', ok: true, cta: 'Continue' },
     { id: 'history', ok: true, cta: 'Continue' },
     { id: 'You', ok: groupLeft('You') === 0, cta: 'Continue' },
@@ -176,6 +177,8 @@ export default function Welcome() {
         onPick={v => { const a = s.arrangement || []; const n = a.includes(v) ? a.filter(x => x !== v) : [...a, v]; ss('arrangement', n); setP(x => ({ ...x, search: { ...x.search, arrangement: n }, onsite_ok: n.some(y => y !== 'remote') || x.onsite_ok })) }} />
       <div className="mx-auto mt-6 max-w-[600px] text-left"><Chips large value={s.locations || []} onChange={v => ss('locations', v)} placeholder="United States, a city, Remote…"
         suggestions={['United States', 'Remote', 'New York', 'San Francisco', 'Seattle', 'Boston', 'Chicago', 'Austin', 'Los Angeles', 'Washington, DC']} /></div>
+      <div className="mx-auto mt-8 max-w-[600px] text-left"><div className="mb-3 text-[15px] font-medium text-white">Outside the US? <span className="font-normal text-muted">Optional: Europe, India and more.</span></div>
+        <WhereAbroad large compact p={p} setP={setP} /></div>
     </Center>,
     companies: <Center wide>
       <H>Dream companies</H>

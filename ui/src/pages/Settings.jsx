@@ -5,6 +5,7 @@ import { api } from '../lib/api'
 import { useApp, Page } from '../App'
 import { Button, Segmented, Slider, Switch, Title } from '../components/ui'
 import { ProfileQuestions, missing, useQuestions } from '../components/ProfileQuestions'
+import { WhereAbroad, AbroadAnswers } from '../components/Regions'
 
 export function Chips({ value = [], onChange, placeholder, suggestions = [], large }) {
   const [t, setT] = useState('')
@@ -91,11 +92,14 @@ export default function Settings() {
           <Row label="Dream companies" hint="Applied to first, every time they post." stack><Chips value={s.companies_priority} onChange={v => ss('companies_priority', v)} placeholder="e.g. Google, Jane Street, Mayo Clinic" /></Row>
           <Row label="Never apply to" stack><Chips value={s.companies_skip} onChange={v => ss('companies_skip', v)} placeholder="Companies to skip" /></Row>
           <Row label="Locations" stack><Chips value={s.locations} onChange={v => ss('locations', v)} placeholder="United States, Remote, New York…" suggestions={['United States', 'Remote', 'New York', 'San Francisco', 'Seattle', 'Boston']} /></Row>
+          <Row label="Working outside the US" hint="Europe, India and more: countries, cities, your right to work in each, and local program types." stack>
+            <WhereAbroad p={p} setP={setP} /></Row>
           <Row label="Skip titles with" stack><Chips value={s.exclude} onChange={v => ss('exclude', v)} placeholder="senior, phd…" /></Row>
           <Row wide label={`Show jobs with fit ${s.min_fit}+`}><Slider value={s.min_fit} min={0} max={95} onChange={v => ss('min_fit', v)} /></Row>
         </Group>
         <div className="mb-1.5 px-4 text-[13px] font-medium text-muted">Application answers, used on every form</div>
         <div className="mb-8"><ProfileQuestions qs={qs} p={p} setP={setP} showMissing /></div>
+        <AbroadAnswers p={p} setP={setP} />
         <Group title="ApplyTwin">
           <Row label="Update automatically" hint="Installs each tested version on start and every hour, never mid-run."><div className="flex justify-end"><Switch checked={a.auto_update !== false} onChange={v => sa('auto_update', v)} /></div></Row>
           <UpdateRow />

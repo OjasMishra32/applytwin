@@ -21,6 +21,7 @@ const FAQ = [
   ['What will it never do?', 'Type your passwords, solve CAPTCHAs, create accounts, accept legal agreements, or change your numbers, titles or employers. Those come to you instead.'],
   ['Does it work on Windows?', 'Yes. Mac, Windows and Linux. On Windows, paste the PowerShell command.'],
   ['Is it only for software jobs?', 'No. It knows what a strong resume looks like in your field, from nursing and finance to design, research and engineering.'],
+  ['Does it work outside the US?', 'Yes. Pick countries like the UK, Germany, the Netherlands or India and it finds internships, placement years, Werkstudent roles and graduate schemes there, skips postings that need a work permit you don\'t have, and makes an A4 CV for those jobs.'],
   ['Why do I sign in with Google?', 'So your setup, answers and applications are saved to your account. ApplyTwin never posts, emails or signs up for anything as you.'],
   ['Does it track me?', 'It counts installs with a random ID, your OS and its version, once a day. Never your resume, jobs or applications. You can turn it off in Settings.'],
   ['What do I need before I install?', 'Python 3.9 or newer, Node.js, and Claude Code or Codex signed in on your computer. The installer checks for each one and tells you what is missing.'],
