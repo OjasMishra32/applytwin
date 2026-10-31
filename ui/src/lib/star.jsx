@@ -20,14 +20,15 @@ export function useStars() {
   return n
 }
 
-export function StarButton({ className = '', label = 'Star', compact }) {
+export function StarButton({ className = '', label = 'Star', compact, quiet }) {   // quiet: the app's toolbar, one neutral control
   const n = useStars()
   return (
     <a href={REPO_URL} target="_blank" rel="noreferrer" title="Star ApplyTwin on GitHub"
-      className={'inline-flex h-8 items-center gap-1.5 rounded-full bg-white/[.08] px-3 text-[13px] font-medium text-white transition hover:bg-white/[.14] ' + className}>
-      <Star className="size-3.5 fill-[#ffd60a] text-[#ffd60a]" />
+      className={(quiet ? 'inline-flex h-8 items-center gap-1.5 rounded-[8px] px-2.5 text-[13px] text-muted transition-colors hover:bg-white/[.06] hover:text-ink '
+        : 'inline-flex h-8 items-center gap-1.5 rounded-full bg-white/[.08] px-3 text-[13px] font-medium text-white transition hover:bg-white/[.14] ') + className}>
+      <Star className={quiet ? 'size-3.5' : 'size-3.5 fill-[#ffd60a] text-[#ffd60a]'} />
       {!compact && <span>{label}</span>}
-      {n !== null && <span className="tabular-nums text-white/60">{n.toLocaleString()}</span>}
+      {n !== null && <span className={quiet ? 'tabular-nums' : 'tabular-nums text-white/60'}>{n.toLocaleString()}</span>}
     </a>
   )
 }

@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { toast } from 'sonner'
-import { ArrowDown, ArrowUp, Check, CheckCircle2, ChevronLeft, ChevronRight, FileDown, Palette, PenLine, Plus, ScanSearch, Trash2, AlertTriangle, Sparkles, Upload } from 'lucide-react'
+import { ArrowDown, ArrowUp, Check, CheckCircle2, ChevronLeft, ChevronRight, FileDown, Loader2, Plus, Trash2, AlertTriangle, Upload } from 'lucide-react'
 import { api, fileUrl } from '../lib/api'
 import { useApp, Page } from '../App'
-import { Badge, Button, Drop, Ring, Segmented, Title, spring } from '../components/ui'
+import { Button, Drop, Ring, Segmented, Title, spring } from '../components/ui'
 import { Paper } from './Jobs'
 import { ImportWait } from '../components/ImportWait'
 
@@ -86,25 +86,25 @@ export default function Studio({ arg }) {
   return (
     <div className="relative">
       
-      <Page wide>
+      <Page>
         <Title sub="Put everything here, even what won't fit. Your twin picks the best of it for every job."
           right={<>
-            <span className="mr-1 flex w-[72px] items-center justify-end gap-1.5 text-[13px] text-muted" aria-live="polite">{saved ? <><CheckCircle2 className="size-3.5 text-good" />Saved</> : 'Saving…'}</span>
+            <span className="mr-1 w-[64px] text-right text-[13px] text-muted" aria-live="polite">{saved ? 'Saved' : 'Saving…'}</span>
             <Button variant="white" onClick={() => setImporting(true)}><Upload className="size-4" />Import</Button>
             <Button variant="sky" onClick={download}><FileDown className="size-4" />Download PDF</Button></>}>
           Resume
         </Title>
-        <div className="mb-6 flex justify-center">
-          <Segmented value={mode} onChange={setMode} options={[['write', 'Write', PenLine], ['check', 'Check', ScanSearch], ['style', 'Style', Palette]]} />
+        <div className="mb-6">
+          <Segmented value={mode} onChange={setMode} options={[['write', 'Write'], ['check', 'Check'], ['style', 'Template']]} />
         </div>
         <AnimatePresence initial={false}>
           {mode === 'write' && (
             <motion.div key="w" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.15 }} className="grid gap-6 lg:grid-cols-[1fr_300px]">
               <Doc v={v} set={set} save={save} />
-              <aside className="space-y-4 lg:sticky lg:top-[72px] lg:self-start">
-                <div className="card p-5"><div className="flex items-center gap-4"><Ring value={rep?.score ?? 0} size={64} label={rep ? undefined : ''} />
-                  <div><div className="text-[17px] font-semibold leading-tight text-white">Resume score</div><div className="mt-0.5 text-[13px] text-muted">{!rep ? 'Checking…' : fails.length ? `${fails.length} thing${fails.length === 1 ? '' : 's'} to fix` : 'Looking sharp'}</div></div></div>
-                  <button onClick={() => setMode('check')} className="mt-3 flex items-center text-[13px] font-medium text-signal-ink hover:underline">See the checks<ChevronRight className="size-3.5" /></button></div>
+              <aside className="space-y-3 lg:sticky lg:top-[72px] lg:self-start">
+                <div className="card p-5"><div className="flex items-center gap-4"><Ring value={rep?.score ?? 0} size={56} stroke={5} label={rep ? undefined : ''} />
+                  <div><div className="text-[15px] font-semibold leading-tight text-white">Resume score</div><div className="mt-0.5 text-[13px] text-muted">{!rep ? 'Checking…' : fails.length ? `${fails.length} thing${fails.length === 1 ? '' : 's'} to fix` : 'Looking sharp'}</div></div></div>
+                  <button onClick={() => setMode('check')} className="mt-3 text-[13px] font-medium text-signal-ink hover:underline">See the checks</button></div>
                 <div className="card p-5"><div className="text-[15px] font-semibold text-white">How it works</div>
                   <ul className="mt-2 space-y-2 text-[13px] leading-relaxed text-muted">
                     <li>Click any line to edit it. <b className="text-fg">**bold**</b> works.</li>
@@ -114,12 +114,12 @@ export default function Studio({ arg }) {
             </motion.div>)}
           {mode === 'check' && (
             <motion.div key="c" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.15 }} className="mx-auto max-w-[760px]">
-              <div className="card p-6 sm:p-7"><div className="flex items-center gap-5"><Ring value={rep?.score ?? 0} size={88} stroke={8} label={rep ? undefined : ''} />
-                <div><div className="text-[26px] font-bold leading-tight tracking-[-0.02em] text-white">{!rep ? 'Checking…' : rep.score >= 85 ? 'Recruiter-ready' : 'Almost there'}</div>
-                  <div className="mt-2 text-[14px] text-muted">The checks recruiters and ATS parsers actually care about.</div></div></div>
+              <div className="card p-6 sm:p-7"><div className="flex items-center gap-5"><Ring value={rep?.score ?? 0} size={72} stroke={6} label={rep ? undefined : ''} />
+                <div><div className="text-[22px] font-semibold leading-tight tracking-[-0.02em] text-white">{!rep ? 'Checking…' : rep.score >= 85 ? 'Recruiter-ready' : 'Almost there'}</div>
+                  <div className="mt-1 text-[14px] text-muted">The checks recruiters and ATS parsers actually care about.</div></div></div>
                 <div className="mt-6 divide-y divide-line">{(rep?.lint || []).map((c, i) => (
                   <div key={c.id} className="flex items-start gap-3 py-3 text-[14px]">
-                    {c.level === 'pass' ? <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-good text-white"><Check className="size-3" strokeWidth={3} /></span>
+                    {c.level === 'pass' ? <Check className="mt-0.5 size-5 shrink-0 text-good" strokeWidth={2.5} />
                       : <AlertTriangle className={`mt-0.5 size-5 shrink-0 ${c.level === 'fail' ? 'text-bad' : 'text-warn'}`} />}
                     <div className="min-w-0 flex-1"><span className={c.level === 'pass' ? 'text-muted' : 'text-fg'}>{c.msg}</span>
                       {c.items?.length > 0 && <ul className="mt-2 space-y-1.5">{c.items.map((x, j) => (
@@ -132,9 +132,9 @@ export default function Studio({ arg }) {
             </motion.div>)}
         </AnimatePresence>
       </Page>
-      {backup && <div className="fixed inset-x-0 bottom-6 z-40 mx-auto flex w-fit max-w-[92vw] items-center gap-4 rounded-full bg-[#2c2c2e] px-5 py-2.5 text-[13.5px] text-white shadow-xl ring-1 ring-white/10">
+      {backup && <div className="fixed inset-x-0 bottom-20 z-40 mx-auto flex w-fit max-w-[92vw] flex-wrap items-center gap-x-4 gap-y-2 rounded-[12px] bg-[#2c2c2e] px-4 py-3 text-[13.5px] text-white shadow-xl ring-1 ring-white/10 md:bottom-6">
         <span>Your resume is empty. A saved version from {new Date(backup.at * 1000).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })} has {backup.experience} roles and {backup.projects} projects.</span>
-        <button onClick={restore} className="rounded-full bg-signal px-3.5 py-1 font-semibold">Restore it</button></div>}
+        <button onClick={restore} className="h-8 rounded-full bg-signal px-3.5 font-medium">Restore it</button></div>}
       <Import open={importing} setOpen={setImporting} onDone={nv => { if (nv) { setV(nv); setState(s => ({ ...s, vault: nv })) } }} />
     </div>
   )
@@ -165,7 +165,7 @@ function Doc({ v, set, save }) {
           <div key={i} className="group relative mb-3">
             <Row l={<E value={e.school} ph="School" onChange={x => set(['education', i, 'school'], x)} className="font-sans text-[14.5px] font-semibold" />} r={<E value={e.location} ph="City, ST" onChange={x => set(['education', i, 'location'], x)} />} />
             <Row l={<span className="font-sans text-[13.5px] italic text-muted"><E value={e.degree} ph="Degree" onChange={x => set(['education', i, 'degree'], x)} />{' in '}<E value={e.major} ph="Major" onChange={x => set(['education', i, 'major'], x)} />
-              {' · GPA '}<E value={e.gpa} ph="—" onChange={x => set(['education', i, 'gpa'], x)} /></span>}
+              {' · GPA '}<E value={e.gpa} ph="4.0" onChange={x => set(['education', i, 'gpa'], x)} /></span>}
               r={<span><E value={e.start} ph="Start" onChange={x => set(['education', i, 'start'], x)} /> – <E value={e.end} ph="Graduation" onChange={x => set(['education', i, 'end'], x)} /></span>} />
             <div className="mt-0.5 font-sans text-[13px] text-muted"><E value={(e.honors || []).join(' · ')} ph="Honors, scholarships, test scores (optional)" onChange={x => set(['education', i, 'honors'], x.split(/\s*·\s*/).filter(Boolean))} /></div>
           </div>))}
@@ -245,15 +245,15 @@ function Import({ open, setOpen, onDone }) {
   return (
     <Dialog.Root open={open} onOpenChange={o => { setOpen(o); if (!o) { setOut(null); setText(null) } }}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/25 backdrop-blur-[2px]" />
-        <Dialog.Content aria-describedby={undefined} className="fixed left-1/2 top-1/2 z-50 max-h-[calc(100vh-32px)] w-[min(600px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-[16px] bg-[#1c1c1e] p-6 shadow-[0_40px_100px_rgb(0_0_0/.5)] outline-none ring-1 ring-white/10 sm:p-7">
-          <Dialog.Title className="text-[22px] font-bold tracking-[-0.02em] text-ink">Import your resume</Dialog.Title>
+        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40" />
+        <Dialog.Content aria-describedby={undefined} className="fixed left-1/2 top-1/2 z-50 max-h-[calc(100vh-32px)] w-[min(560px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-[14px] bg-[#1c1c1e] p-6 shadow-[0_40px_100px_rgb(0_0_0/.5)] outline-none ring-1 ring-white/10 sm:p-7">
+          <Dialog.Title className="text-[20px] font-semibold tracking-[-0.01em] text-ink">Import your resume</Dialog.Title>
           <p className="mb-5 mt-1 text-[14px] text-muted">Old resumes, your LinkedIn, project notes. Your twin pulls it all into one vault and never invents anything.</p>
-          {busy ? <div className="grid place-items-center py-14"><motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1.1, ease: 'linear' }}><Sparkles className="size-8 text-signal" /></motion.div>
-            <div className="mt-3 text-[14px] text-muted">Reading it like a recruiter…</div>
+          {busy ? <div className="grid place-items-center py-14"><Loader2 className="size-6 animate-spin text-muted" />
+            <div className="mt-3 text-[14px] text-white">Reading your resume…</div>
             <ImportWait className="mt-1 text-center text-[13px] text-faint" /></div>
-            : out ? <div className="rounded-[18px] bg-mist p-6"><div className="flex items-center gap-2 font-medium text-ink"><CheckCircle2 className="size-5 text-good" />{out.message}</div>
-              {out.counts && <div className="mt-3 flex flex-wrap gap-2">{Object.entries(out.counts).map(([k, n]) => n > 0 && <Badge key={k} tone="sky">{n} {k}</Badge>)}</div>}
+            : out ? <div className="rounded-[12px] bg-mist p-5"><div className="flex items-center gap-2 font-medium text-ink"><CheckCircle2 className="size-5 text-good" />{out.message}</div>
+              {out.counts && <div className="mt-2 pl-7 text-[13px] text-muted">{Object.entries(out.counts).filter(([, n]) => n > 0).map(([k, n]) => `${n} ${k}`).join(' · ')}</div>}
               {!out.structured && <div className="mt-3 text-[13px] text-muted">To structure it fully, tell Claude Code or Codex: <span className="font-mono text-fg">twin: structure my dump</span>. Or add an API key in Settings.</div>}
               <div className="mt-5 flex justify-end gap-2"><Button variant="white" onClick={() => setOut(null)}>Add more</Button><Button onClick={() => setOpen(false)} arrow>Done</Button></div></div>
             : text !== null ? <div><textarea autoFocus rows={10} value={text} onChange={e => setText(e.target.value)} placeholder="Paste anything: a resume, your LinkedIn About + Experience, notes…" className="box" />
@@ -282,10 +282,10 @@ function Coverflow({ templates, tpl, pick }) {
           return (
             <motion.button key={x.id} onClick={() => d === 0 ? pick(x.id) : setI(j)}
               className="absolute left-1/2 top-4 w-[360px]" style={{ zIndex: 50 - ad, transformStyle: 'preserve-3d' }}
-              animate={{ x: `calc(-50% + ${d * 230 + Math.sign(d) * 60}px)`, rotateY: d === 0 ? 0 : d > 0 ? -55 : 55, z: d === 0 ? 80 : -120 - ad * 40,
-                opacity: ad > 3 ? 0 : 1, scale: d === 0 ? 1 : 0.86 }}
-              transition={{ type: 'spring', stiffness: 160, damping: 22 }}>
-              <div className={`overflow-hidden rounded-[10px] ${tpl === x.id ? 'ring-2 ring-signal' : ''}`} style={{ boxShadow: d === 0 ? '0 50px 120px rgb(0 0 0 / .6), 0 0 80px rgb(76 141 255 / .25)' : '0 30px 70px rgb(0 0 0 / .5)' }}>
+              animate={{ x: `calc(-50% + ${d * 250 + Math.sign(d) * 40}px)`, rotateY: d === 0 ? 0 : d > 0 ? -30 : 30, z: d === 0 ? 0 : -80 - ad * 30,
+                opacity: ad > 2 ? 0 : d === 0 ? 1 : 0.55, scale: d === 0 ? 1 : 0.9 }}
+              transition={{ type: 'spring', stiffness: 260, damping: 34 }}>
+              <div className={`overflow-hidden rounded-[8px] ${tpl === x.id ? 'ring-2 ring-signal' : ''}`} style={{ boxShadow: '0 20px 50px rgb(0 0 0 / .45)' }}>
                 <Paper src={`/preview?template=${x.id}`} />
               </div>
               <div className="mt-4 text-center opacity-0 transition-opacity" style={{ opacity: d === 0 ? 1 : 0 }} />
@@ -293,8 +293,8 @@ function Coverflow({ templates, tpl, pick }) {
         })}
       </div>
       <div className="mt-2 text-center">
-        <AnimatePresence mode="wait"><motion.div key={cur.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}>
-          <div className="text-[26px] font-bold tracking-[-0.02em] text-white">{cur.label}</div>
+        <AnimatePresence mode="wait"><motion.div key={cur.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
+          <div className="text-[20px] font-semibold tracking-[-0.01em] text-white">{cur.label}</div>
           <div className="mt-1 text-[15px] text-muted">{cur.desc}</div>
           <div className="mt-1 text-[13px] text-faint">Best for {cur.best}</div>
         </motion.div></AnimatePresence>
@@ -304,8 +304,8 @@ function Coverflow({ templates, tpl, pick }) {
             : <Button className="min-w-[180px]" onClick={() => pick(cur.id)}>Use this template</Button>}
           <Button variant="white" className="w-10 px-0" aria-label="Next template" disabled={i === templates.length - 1} onClick={() => setI(x => Math.min(templates.length - 1, x + 1))}><ChevronRight className="size-4" /></Button>
         </div>
-        <div className="mt-4 flex justify-center gap-1.5">{templates.map((x, j) => <button key={x.id} onClick={() => setI(j)}
-          aria-label={x.label} className={`h-1.5 rounded-full transition-all ${j === i ? 'w-6 bg-white' : 'w-1.5 bg-white/25 hover:bg-white/40'}`} />)}</div>
+        <div className="mt-4 text-[12.5px] tabular-nums text-faint">{i + 1} of {templates.length}</div>
+
       </div>
     </div>
   )

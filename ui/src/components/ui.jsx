@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { animate, motion, useInView, useMotionValue, useSpring, useTransform, AnimatePresence } from 'motion/react'
+import { motion } from 'motion/react'
 import * as RSwitch from '@radix-ui/react-switch'
 import * as RSlider from '@radix-ui/react-slider'
-import { ArrowUpRight, Check, ChevronRight, Copy, UploadCloud } from 'lucide-react'
+import { ChevronRight, UploadCloud } from 'lucide-react'
 import { cn } from '../lib/utils'
 
 export const spring = { type: 'spring', stiffness: 420, damping: 34, mass: 0.8 }
@@ -13,13 +13,12 @@ export function Button({ variant = 'ink', size = 'md', className, children, arro
     ink: 'bg-signal text-white hover:bg-[#2b95ff]', signal: 'bg-signal text-white hover:bg-[#2b95ff]', sky: 'bg-signal text-white hover:bg-[#2b95ff]',
     dark: 'bg-white text-[#1d1d1f] hover:bg-white/90',
     white: 'bg-white/[.08] text-ink hover:bg-white/[.13]',
-    glass: 'bg-white/20 text-white backdrop-blur-md hover:bg-white/30',
     ghost: 'text-signal-ink hover:bg-signal/[.06]',
     danger: 'text-bad hover:bg-bad/[.06]',
   }[variant]
   const s = { sm: 'h-8 px-3.5 text-[13px] gap-1', md: 'h-10 px-5 text-[14px] gap-1.5', lg: 'h-12 px-6 text-[16px] gap-1.5' }[size]
   return (
-    <motion.button whileTap={{ scale: 0.96 }} transition={spring} disabled={loading || p.disabled}
+    <motion.button whileTap={{ scale: 0.98 }} transition={spring} disabled={loading || p.disabled}
       className={cn('inline-flex shrink-0 items-center justify-center whitespace-nowrap rounded-full font-medium transition-colors duration-150 disabled:cursor-default disabled:opacity-50 cursor-pointer select-none', loading && '[&>svg]:hidden', v, s, className)} {...p}>
       {loading && <span className="size-4 animate-spin rounded-full border-2 border-current/30 border-t-current" />}
       {children}
@@ -34,7 +33,7 @@ export function Card({ className, children, ...p }) {
 export function Badge({ tone = 'gray', className, children }) {
   const t = { gray: 'bg-white/[.05] text-muted', good: 'bg-good/10 text-good', sky: 'bg-signal/10 text-signal-ink', warn: 'bg-warn/10 text-warn',
     bad: 'bg-bad/10 text-bad', ink: 'bg-ink text-white' }[tone]
-  return <span className={cn('inline-flex items-center gap-1 rounded-full px-2.5 py-[3px] text-[12px] font-medium', t, className)}>{children}</span>
+  return <span className={cn('inline-flex items-center gap-1 rounded-[6px] px-2 py-[2px] text-[12px] font-medium', t, className)}>{children}</span>
 }
 export function Field({ label, hint, children, className }) {
   return (
@@ -78,19 +77,9 @@ export function Segmented({ options, value, onChange, className }) {
     </div>
   )
 }
-export function NumberTicker({ value, className }) {
-  const ref = useRef(null)
-  const inView = useInView(ref, { once: true })
-  const mv = useMotionValue(0)
-  const sp = useSpring(mv, { damping: 40, stiffness: 140 })
-  useEffect(() => { if (inView) mv.set(Number(value) || 0) }, [inView, value, mv])
-  useEffect(() => sp.on('change', v => { if (ref.current) ref.current.textContent = Math.round(v).toLocaleString() }), [sp])
-  return <span ref={ref} className={cn('tabular-nums', className)}>0</span>
-}
-
 export function Ring({ value = 0, size = 64, stroke = 6, label, color, className }) {
   const r = (size - stroke) / 2, c = 2 * Math.PI * r
-  const col = color || (value >= 75 ? 'var(--color-good)' : value >= 50 ? 'var(--color-signal)' : 'var(--color-warn)')
+  const col = color || 'var(--color-signal)'   // one accent: the ring's length says how good, not a traffic-light color
   return (
     <div className={cn('relative grid place-items-center', className)} style={{ width: size, height: size }}>
       <svg width={size} height={size} className="-rotate-90">
@@ -105,18 +94,6 @@ export function Ring({ value = 0, size = 64, stroke = 6, label, color, className
     </div>
   )
 }
-export function Spotlight({ className, children, ...p }) {
-  return <div className={cn('card relative overflow-hidden', className)} {...p}>{children}</div>
-}
-export function BorderBeam({ duration = 7, className }) {
-  return (
-    <div className={cn('pointer-events-none absolute inset-0 rounded-[inherit] [mask:linear-gradient(#000,#000)_content-box,linear-gradient(#000,#000)] [mask-composite:exclude] p-px', className)}>
-      <motion.div className="absolute aspect-square w-24 bg-[radial-gradient(closest-side,#60a5fa,#a78bfa_45%,transparent)]"
-        style={{ offsetPath: 'rect(0 auto auto 0 round 22px)' }} animate={{ offsetDistance: ['0%', '100%'] }} transition={{ duration, repeat: Infinity, ease: 'linear' }} />
-    </div>
-  )
-}
-
 const SUFFIX = /\b(inc|llc|ltd|corp|corporation|co|company|technologies|technology|holdings|group|plc|lp|llp|incorporated|the)\b\.?/gi
 const KNOWN = { 'd. e. shaw': 'deshaw.com', 'de shaw': 'deshaw.com', 'hudson river trading': 'hudsonrivertrading.com', 'meta': 'meta.com',
   'google': 'google.com', 'alphabet': 'abc.xyz', 'amazon': 'amazon.com', 'x': 'x.com', 'mayo clinic': 'mayoclinic.org' }
@@ -145,16 +122,6 @@ export function Avatar({ name, size = 40, domain, icon }) {
 export function Fit({ v }) {
   return <Gauge v={v} />
 }
-export function CopyLine({ text }) {
-  const [ok, setOk] = useState(false)
-  return (
-    <button onClick={() => { navigator.clipboard.writeText(text); setOk(true); setTimeout(() => setOk(false), 1400) }}
-      className="group flex w-full items-center justify-between gap-3 rounded-[12px] bg-mist px-4 py-3 text-left font-mono text-[12.5px] text-ink transition hover:bg-white/[.07]">
-      <span className="truncate">{text}</span>
-      {ok ? <Check className="size-4 text-good" /> : <Copy className="size-4 text-faint group-hover:text-ink" />}
-    </button>
-  )
-}
 export function Stagger({ children, className, delay = 0.012 }) {
   return (
     <motion.div className={className} initial="h" animate="s" variants={{ s: { transition: { staggerChildren: delay } } }}>
@@ -164,15 +131,12 @@ export function Stagger({ children, className, delay = 0.012 }) {
 }
 export const item = { h: { opacity: 0 }, s: { opacity: 1, transition: { duration: 0.16, ease: 'easeOut' } } }
 
-export function Hand({ children, className }) {
-  return <span className={cn('text-[14px] font-semibold text-signal', className)}>{children}</span>
-}
-/* The large title every page opens with (macOS/iOS large title: 34pt bold). No entrance animation: the page itself fades in. */
+/* The title every page opens with (a macOS window title, 28pt bold). No entrance animation: the page itself fades in. */
 export function Title({ children, sub, right }) {
   return (
     <div className="mb-8 flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
       <div className="min-w-0">
-        <h1 className="text-[34px] font-bold leading-[1.1] tracking-[-0.025em] text-white">{children}</h1>
+        <h1 className="text-[28px] font-bold leading-[1.15] tracking-[-0.02em] text-white">{children}</h1>
         {sub && <p className="mt-1.5 max-w-xl text-[15px] leading-snug text-muted">{sub}</p>}
       </div>
       {right && <div className="flex flex-wrap items-center gap-2">{right}</div>}
@@ -190,17 +154,16 @@ export function Drop({ onFile, onText, compact }) {
     onFile({ name: f.name, data: btoa(bin) })
   }
   return (
-    <motion.div onDragOver={e => { e.preventDefault(); setOver(true) }} onDragLeave={() => setOver(false)}
+    <div onDragOver={e => { e.preventDefault(); setOver(true) }} onDragLeave={() => setOver(false)}
       onDrop={e => { e.preventDefault(); setOver(false); handle(e.dataTransfer.files[0]) }} onClick={() => input.current.click()}
-      animate={{ scale: over ? 1.015 : 1 }} transition={spring}
-      className={cn('group relative flex cursor-pointer flex-col items-center justify-center rounded-[20px] border-2 border-dashed text-center transition-all',
-        over ? 'border-signal bg-signal/[.05]' : 'border-white/15 bg-white/[.03] backdrop-blur-xl hover:border-signal/60', compact ? 'px-6 py-7' : 'px-8 py-12')}>
+      className={cn('group relative flex cursor-pointer flex-col items-center justify-center rounded-[12px] border border-dashed text-center transition-colors',
+        over ? 'border-signal bg-signal/[.06]' : 'border-white/[.16] bg-white/[.025] hover:border-white/30', compact ? 'px-6 py-7' : 'px-8 py-12')}>
       <input ref={input} type="file" accept=".pdf,.txt,.md,.docx" className="hidden" onChange={e => handle(e.target.files[0])} />
-      <motion.div animate={{ y: over ? -4 : 0 }} className="mb-3 grid size-12 place-items-center rounded-full bg-signal/10 text-signal"><UploadCloud className="size-6" /></motion.div>
+      <UploadCloud className="mb-3 size-7 text-muted" strokeWidth={1.6} />
       <div className="text-[15px] font-medium text-fg">Drop your resume here</div>
-      <div className="mt-1 text-[13px] text-muted">PDF, Word or text. Old ones too: drop as many as you have.</div>
-      {onText && !compact && <button onClick={e => { e.stopPropagation(); onText() }} className="mt-4 text-[14px] font-medium text-signal-ink hover:underline">or paste text, your LinkedIn, anything</button>}
-    </motion.div>
+      <div className="mt-1 text-[13px] text-muted">PDF, Word or plain text</div>
+      {onText && !compact && <button onClick={e => { e.stopPropagation(); onText() }} className="mt-4 text-[14px] font-medium text-signal-ink hover:underline">Or paste text instead</button>}
+    </div>
   )
 }
 
@@ -212,22 +175,6 @@ export function Reveal({ children, className, delay = 0 }) {
     <motion.div className={className} initial={{ opacity: 0 }} animate={{ opacity: 1 }}
       transition={{ duration: 0.18, ease: 'easeOut', delay: Math.min(delay, 0.08) }}>{children}</motion.div>
   )
-}
-
-/* Headline that assembles word by word. */
-export function Words({ text, className, delay = 0, stagger = 0.06 }) {
-  return (
-    <span className={className}>
-      {text.split(' ').map((w, i) => (
-        <motion.span key={i} className="inline-block" initial={{ opacity: 0, y: '0.35em' }} animate={{ opacity: 1, y: 0 }}
-          transition={{ type: 'spring', stiffness: 120, damping: 18, delay: delay + i * stagger }}>{w}&nbsp;</motion.span>))}
-    </span>
-  )
-}
-
-/* Leans toward the cursor a little. */
-export function Magnetic({ children, className }) {
-  return <div className={cn('inline-block', className)}>{children}</div>
 }
 
 /* A list whose hover highlight glides from row to row. rows: [{key, onClick, content}] */
@@ -244,68 +191,8 @@ export function GlideList({ rows, className }) {
   )
 }
 
-/* A soft light that follows the cursor inside any panel (pure CSS vars, no re-render). */
-export function Glow({ children, className, as: As = 'div', color, size, ...p }) {
-  return <As className={cn('relative', className)} {...p}>{children}</As>
-}
-
-/* A rotating ring of light around anything (CTAs, drop zones). */
-export function LightRing({ children, className }) {
-  return <div className={className}>{children}</div>
-}
-
 /* Small fit gauge that sweeps in. */
 export function Gauge({ v }) {
   const n = Math.round(v)
   return <span className={cn('w-10 shrink-0 text-right text-[13px] font-medium tabular-nums', n >= 85 ? 'text-white' : 'text-muted')}>{n}%</span>
-}
-
-/* Celebration burst. */
-export function burst(x = window.innerWidth / 2, y = window.innerHeight / 2) {
-  const colors = ['#4c8dff', '#a5f3fc', '#c4b5fd', '#34d399', '#fbbf24', '#f472b6']
-  for (let i = 0; i < 70; i++) {
-    const el = document.createElement('i')
-    const a = Math.random() * Math.PI * 2, v = 6 + Math.random() * 10
-    Object.assign(el.style, { position: 'fixed', left: x + 'px', top: y + 'px', width: '8px', height: '12px', background: colors[i % colors.length],
-      borderRadius: '2px', zIndex: 9999, pointerEvents: 'none', transform: 'translate(-50%,-50%)' })
-    document.body.appendChild(el)
-    let vx = Math.cos(a) * v, vy = Math.sin(a) * v - 8, px = 0, py = 0, rot = 0, life = 0
-    const tick = () => { life++; vy += 0.45; vx *= 0.985; px += vx; py += vy; rot += 12
-      el.style.transform = `translate(${px - 4}px,${py - 6}px) rotate(${rot}deg)`; el.style.opacity = String(Math.max(0, 1 - life / 90))
-      if (life < 90) requestAnimationFrame(tick); else el.remove() }
-    requestAnimationFrame(tick)
-  }
-}
-
-/* Digits roll like an odometer. */
-export function Odometer({ value, className }) {
-  const s = Math.round(Number(value) || 0).toLocaleString()
-  return (
-    <span className={cn('inline-flex overflow-hidden tabular-nums', className)} style={{ lineHeight: 1 }}>
-      {s.split('').map((ch, i) => /\d/.test(ch) ? (
-        <span key={i + '-' + s.length} className="relative inline-block h-[1em] overflow-hidden" style={{ width: '0.62em' }}>
-          <motion.span className="absolute left-0 top-0 flex flex-col" initial={{ y: '0em' }} animate={{ y: `-${(+ch + 10)}em` }}
-            transition={{ type: 'spring', stiffness: 60, damping: 16, delay: i * 0.06 }}>
-            {Array.from({ length: 20 }, (_, k) => <span key={k} className="block h-[1em]">{k % 10}</span>)}
-          </motion.span>
-        </span>) : <span key={i}>{ch}</span>)}
-    </span>
-  )
-}
-
-/* Text that resolves from scrambled glyphs. */
-export function Scramble({ text, className, speed = 22 }) {
-  const [out, setOut] = useState(text.replace(/\S/g, ' '))
-  useEffect(() => {
-    const G = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
-    let f = 0
-    const total = text.length + 12
-    const id = setInterval(() => {
-      f++
-      setOut(text.split('').map((c, i) => c === ' ' ? ' ' : i < f - 8 ? c : i < f ? G[(i * 13 + f * 7) % G.length] : ' ').join(''))
-      if (f > total) { clearInterval(id); setOut(text) }
-    }, speed)
-    return () => clearInterval(id)
-  }, [text, speed])
-  return <span className={className}>{out}</span>
 }

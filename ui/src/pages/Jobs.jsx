@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { toast } from 'sonner'
-import { Check, ChevronRight, ExternalLink, Loader2, Plus, Search, Sparkles, X, FileDown, Bot } from 'lucide-react'
+import { Check, ChevronRight, ExternalLink, Loader2, Plus, Search, X, FileDown } from 'lucide-react'
 import { api, fileUrl, safeUrl } from '../lib/api'
 import { ago, atsName } from '../lib/utils'
 import { useApp, Page } from '../App'
@@ -28,9 +28,9 @@ export default function Jobs({ arg }) {
           <Button onClick={startScan} loading={scan?.running}>{scan?.running ? 'Scanning' : 'Scan now'}</Button></>}>
           Jobs
         </Title>
-        <div className="card mb-4 flex flex-wrap items-center gap-2 p-2">
-          <div className="relative min-w-[200px] flex-1 basis-[240px]"><Search className="absolute left-3 top-2.5 size-4 text-faint" />
-            <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search roles, companies or places" className="h-9 w-full rounded-[8px] bg-white/[.06] pl-9 pr-3 text-[14px] text-white outline-none placeholder:text-faint focus:ring-2 focus:ring-signal" /></div>
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <div className="relative min-w-[200px] flex-1 basis-[240px]"><Search className="absolute left-3 top-2 size-4 text-faint" />
+            <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search roles, companies or places" className="h-8 w-full rounded-[8px] bg-white/[.06] pl-9 pr-3 text-[14px] text-white outline-none placeholder:text-faint focus:ring-2 focus:ring-signal" /></div>
           <Segmented id="st" value={status} onChange={setStatus} options={[['new', 'New'], ['applied', 'Applied'], ['skipped', 'Skipped'], ['all', 'All']]} />
           <Segmented id="ord" value={order} onChange={setOrder} options={[['fit', 'Best fit'], ['new', 'Newest']]} />
         </div>
@@ -42,13 +42,12 @@ export default function Jobs({ arg }) {
                   <Avatar name={j.company} />
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-[15px] font-medium text-ink">{j.title}</div>
-                    <div className="mt-0.5 flex items-center gap-2 truncate text-[13px] text-muted">
-                      <span className="truncate">{j.company} · {j.location || 'Multiple / remote'}</span>
-                      <Badge className="hidden sm:inline-flex">{atsName(j.ats)}</Badge>{j.found_at && <span className="text-faint">{ago(j.found_at)}</span>}
+                    <div className="mt-0.5 truncate text-[13px] text-muted">
+                      {j.company} · {j.location || 'Multiple / remote'}<span className="hidden sm:inline"> · {atsName(j.ats)}</span>{j.found_at && <span className="text-faint"> · {ago(j.found_at)} ago</span>}
                     </div>
                   </div>
-                  {j.status !== 'new' && <Badge tone={j.status === 'applied' ? 'good' : 'gray'} className="capitalize">{j.status}</Badge>}
-                  <Fit v={j.fit} /><ChevronRight className="size-4 text-faint transition-transform group-hover:translate-x-1 group-hover:text-signal" /></> }))} />
+                  {j.status !== 'new' && <span className="shrink-0 text-[13px] capitalize text-muted">{j.status}</span>}
+                  <Fit v={j.fit} /><ChevronRight className="size-4 shrink-0 text-faint" /></> }))} />
               </Stagger>
             ) : <div className="px-6 py-16 text-center">
                 <div className="text-[15px] font-semibold text-white">{q ? `Nothing matches “${q}”` : { applied: 'No applications yet', skipped: 'Nothing skipped' }[status] || 'No jobs here yet'}</div>
@@ -82,7 +81,8 @@ function BuildProgress({ p, since }) {
         <span className="font-medium text-ink">{p ? 'Building your resume' : 'Starting…'}</span>
         <span className="tabular-nums text-muted">{p ? `${p.slow ? 'Taking longer than usual · ' : ''}${clock(elapsed)} elapsed · about ${clock(left)} left` : ''}</span>
       </div>
-      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-mist">
+      <div className="mt-2 h-1 overflow-hidden rounded-full bg-mist">
+
         <motion.div className="h-full rounded-full bg-signal" animate={{ width: `${pct}%` }} transition={{ ease: 'linear', duration: 0.25 }} />
       </div>
       <div className="mt-4 space-y-2">{steps.map(s => (
@@ -101,16 +101,16 @@ function Watch({ live }) {
   return (
     <div className="mt-6 space-y-5 border-t border-line pt-5">
       {reqs.length > 0 && <div>
-        <div className="text-[11.5px] font-semibold uppercase tracking-[0.06em] text-faint">What they screen for</div>
+        <div className="text-[13px] font-medium text-muted">What they screen for</div>
         <div className="mt-2 flex flex-wrap gap-1.5"><AnimatePresence initial={false}>{reqs.map((r, i) => (
           <motion.span key={i} layout initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={spring}
-            className="rounded-full bg-white/[.06] px-3 py-1 text-[12.5px] text-ink"><span className="mr-1.5 text-faint">{i + 1}</span>{r}</motion.span>))}
+            className="rounded-[6px] bg-white/[.06] px-2.5 py-1 text-[12.5px] text-ink">{r}</motion.span>))}
         </AnimatePresence></div></div>}
       {live.positioning && <div>
-        <div className="text-[11.5px] font-semibold uppercase tracking-[0.06em] text-faint">Your story for this job</div>
+        <div className="text-[13px] font-medium text-muted">Your story for this job</div>
         <div className="mt-1.5 text-[15px] leading-snug text-ink">{live.positioning}</div></div>}
       {rw.length > 0 && <div>
-        <div className="text-[11.5px] font-semibold uppercase tracking-[0.06em] text-faint">Rewriting your lines</div>
+        <div className="text-[13px] font-medium text-muted">Rewriting your lines</div>
         <div className="mt-2 space-y-2.5"><AnimatePresence initial={false}>{rw.map(x => (
           <motion.div key={x.from || x.to} layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={spring}
             className="rounded-[12px] bg-white/[.04] px-3.5 py-2.5">
@@ -128,7 +128,7 @@ function Diff({ from, to }) {
   const old = new Set(parts(from))
   return (to || '').split(/(\s+)/).map((w, i) => {
     const p = parts(w)
-    return p.length && p.some(x => !old.has(x)) ? <span key={i} className="text-signal">{w}</span> : <span key={i}>{w}</span>
+    return p.length && p.some(x => !old.has(x)) ? <span key={i} className="text-signal-ink">{w}</span> : <span key={i}>{w}</span>
   })
 }
 
@@ -182,45 +182,45 @@ function JobSheet({ id, onClose, onChange }) {
     <Dialog.Root open={!!id} onOpenChange={o => !o && onClose()}>
       <AnimatePresence>{id && (
         <Dialog.Portal forceMount>
-          <Dialog.Overlay asChild><motion.div className="fixed inset-0 z-40 bg-black/25 backdrop-blur-[2px]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} /></Dialog.Overlay>
+          <Dialog.Overlay asChild><motion.div className="fixed inset-0 z-40 bg-black/40" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} /></Dialog.Overlay>
           <Dialog.Content asChild aria-describedby={undefined} onOpenAutoFocus={e => e.preventDefault()}>
-            <motion.div initial={{ x: '105%' }} animate={{ x: 0 }} exit={{ x: '105%' }} transition={{ type: 'spring', stiffness: 260, damping: 32 }}
-              className="fixed bottom-2 right-2 top-2 z-50 w-[min(780px,calc(100vw-16px))] overflow-y-auto overscroll-contain rounded-[16px] bg-[#1c1c1e] p-5 shadow-[0_40px_100px_rgb(0_0_0/.5)] outline-none ring-1 ring-white/10 sm:p-8">
+            <motion.div initial={{ x: '105%' }} animate={{ x: 0 }} exit={{ x: '105%' }} transition={{ type: 'spring', stiffness: 300, damping: 36 }}
+              className="fixed bottom-2 right-2 top-2 z-50 w-[min(760px,calc(100vw-16px))] overflow-y-auto overscroll-contain rounded-[14px] bg-[#1c1c1e] p-5 shadow-[0_40px_100px_rgb(0_0_0/.5)] outline-none ring-1 ring-white/10 sm:p-8">
               <Dialog.Title className="sr-only">{job?.title || 'Job'}</Dialog.Title>
               <button onClick={onClose} aria-label="Close" className="absolute right-4 top-4 grid size-8 place-items-center rounded-full bg-white/[.06] text-muted transition hover:bg-white/[.1] hover:text-ink"><X className="size-4" /></button>
               {!job ? <div className="space-y-3 pt-6"><div className="skel h-12 w-2/3" /><div className="skel h-40" /><div className="skel h-64" /></div> : <>
                 <div className="flex flex-col items-start gap-3 pr-10 sm:flex-row sm:gap-4">
                   <Avatar name={job.company} size={48} />
                   <div className="min-w-0"><div className="text-[14px] text-muted">{job.company}</div>
-                    <h2 className="mt-0.5 text-[26px] font-bold leading-[1.15] tracking-[-0.02em] text-ink">{job.title}</h2>
-                    <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[13px] text-muted"><span>{job.location || 'Multiple / remote'}</span><Badge>{atsName(job.ats)}</Badge>
-                      <Badge tone="sky">{Math.round(job.fit)}% fit</Badge></div>
+                    <h2 className="mt-0.5 text-[24px] font-bold leading-[1.2] tracking-[-0.02em] text-ink">{job.title}</h2>
+                    <div className="mt-1 text-[13px] text-muted">{job.location || 'Multiple / remote'} · {atsName(job.ats)} · <span className="text-ink">{Math.round(job.fit)}% fit</span></div>
                     {job.fit_why && <div className="mt-1 text-[12.5px] text-faint first-letter:uppercase">{job.fit_why}</div>}</div>
                 </div>
                 <div className="mt-5 flex flex-wrap gap-2">
                   <a href={safeUrl(job.apply_url || job.url)} target="_blank" rel="noreferrer"><Button variant="sky" tabIndex={-1}><ExternalLink className="size-4" />Open application</Button></a>
-                  <Button variant="white" onClick={() => { navigator.clipboard.writeText(`twin: apply to job ${job.id}`); toast('Copied. Paste it into Claude Code or Codex.') }}><Bot className="size-4" />Have my agent apply</Button>
+                  <Button variant="white" onClick={() => { navigator.clipboard.writeText(`twin: apply to job ${job.id}`); toast('Copied. Paste it into Claude Code or Codex.') }}>Have my agent apply</Button>
                   <Button variant="white" onClick={() => mark('applied')}><Check className="size-4" />I applied</Button>
                   <Button variant="danger" onClick={() => mark('skipped')}>Skip</Button>
                 </div>
 
-                <div className="mt-6 flex flex-col gap-4 rounded-[14px] bg-mist p-5 sm:flex-row sm:items-center sm:gap-5">
-                  <Ring value={rep?.coverage ?? 0} size={80} stroke={7} label={rep ? undefined : ''} />
-                  <div className="min-w-0 flex-1"><div className="text-[17px] font-semibold leading-tight text-ink">Keyword match</div>
-                    <div className="mb-2.5 mt-0.5 text-[13px] text-muted">{rep?.terms || 0} skills in the posting. Tailoring surfaces the ones you have; the rest are a study list.</div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {hard.slice(0, 14).map(m => <Badge key={m.term} tone="good"><Check className="size-3" />{m.term}</Badge>)}
-                      {miss.slice(0, 8).map(m => <Badge key={m.term} tone="warn">{m.term}</Badge>)}</div></div>
+                <div className="card mt-6 flex flex-col gap-4 p-5 sm:flex-row sm:items-start sm:gap-5">
+                  <Ring value={rep?.coverage ?? 0} size={64} stroke={6} label={rep ? undefined : ''} />
+                  <div className="min-w-0 flex-1"><div className="text-[15px] font-semibold leading-tight text-ink">Keyword match</div>
+                    <div className="mt-0.5 text-[13px] text-muted">{rep?.terms || 0} skills in the posting. Tailoring surfaces the ones you have.</div>
+                    {hard.length > 0 && <div className="mt-3"><div className="mb-1.5 text-[12px] text-muted">You have</div><div className="flex flex-wrap gap-1.5">
+                      {hard.slice(0, 14).map(m => <Badge key={m.term} className="text-ink"><Check className="size-3 text-good" />{m.term}</Badge>)}</div></div>}
+                    {miss.length > 0 && <div className="mt-3"><div className="mb-1.5 text-[12px] text-muted">Not on your resume yet</div><div className="flex flex-wrap gap-1.5">
+                      {miss.slice(0, 8).map(m => <Badge key={m.term}>{m.term}</Badge>)}</div></div>}</div>
                 </div>
 
-                <div className="mt-4 rounded-[14px] border border-line p-5">
+                <div className="card mt-3 p-5">
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="min-w-0"><div className="text-[17px] font-semibold leading-tight text-ink">Your resume for this job</div>
-                      <div className="mt-0.5 text-[13px] text-muted">Built from your vault, written for this posting. Your numbers, titles and employers are checked against it.</div></div>
+                    <div className="min-w-0"><div className="text-[15px] font-semibold leading-tight text-ink">Your resume for this job</div>
+                      <div className="mt-0.5 text-[13px] text-muted">Written for this posting from your vault. Numbers, titles and employers are checked.</div></div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <select value={tpl} onChange={e => setTpl(e.target.value)} disabled={building} className="h-10 max-w-full rounded-full bg-white/[.06] px-4 text-[13.5px] text-ink outline-none focus:ring-2 focus:ring-signal disabled:opacity-50">
+                      <select value={tpl} onChange={e => setTpl(e.target.value)} disabled={building} className="h-10 max-w-full rounded-[10px] bg-white/[.06] px-3 text-[13.5px] text-ink outline-none focus:ring-2 focus:ring-signal disabled:opacity-50">
                         <option value="">Best template for this field</option>{templates.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}</select>
-                      <Button variant={res ? 'white' : 'ink'} onClick={tailor} loading={building}><Sparkles className="size-4" />{building ? 'Building…' : res ? 'Rebuild' : 'Build it'}</Button>
+                      <Button variant={res ? 'white' : 'ink'} onClick={tailor} loading={building}>{building ? 'Building…' : res ? 'Rebuild' : 'Build it'}</Button>
                     </div>
                   </div>
                   <AnimatePresence>{(building || prog) && !res && (
@@ -229,12 +229,13 @@ function JobSheet({ id, onClose, onChange }) {
                     </motion.div>)}</AnimatePresence>
                   {res && (
                     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={spring}>
-                      <div className="mt-5 flex flex-wrap items-center gap-2">
-                        <Badge tone={res.coverage >= 70 ? 'good' : 'sky'}>{res.coverage}% keywords</Badge><Badge tone="sky">ATS {res.score}</Badge>
-                        <Badge>{res.pages} page{res.pages === 1 ? '' : 's'}</Badge><Badge className="capitalize">{templates.find(t => t.id === res.style)?.label || res.style}</Badge>{res.field && <Badge className="capitalize">{res.field}</Badge>}
-                        {res.rewrites > 0 && <Badge tone="good">{res.rewrites} lines rewritten</Badge>}
-                        {res.rejected?.length > 0 && <Badge tone="warn">{res.rejected.length} blocked by fact guard</Badge>}
-                        <a href={fileUrl(res.pdf)} target="_blank" rel="noreferrer" className="ml-auto"><Button size="sm" variant="sky" tabIndex={-1}><FileDown className="size-4" />Download PDF</Button></a>
+                      <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2">
+                        <div className="min-w-0 flex-1 text-[13px] text-muted">
+                          {[`${res.coverage}% keywords`, `ATS ${res.score}`, `${res.pages} page${res.pages === 1 ? '' : 's'}`, templates.find(t => t.id === res.style)?.label || res.style,
+                            res.field, res.rewrites > 0 && `${res.rewrites} lines rewritten`].filter(Boolean).join(' · ')}
+                          {res.rejected?.length > 0 && <span className="text-warn"> · {res.rejected.length} blocked by fact guard</span>}
+                        </div>
+                        <a href={fileUrl(res.pdf)} target="_blank" rel="noreferrer"><Button size="sm" variant="sky" tabIndex={-1}><FileDown className="size-4" />Download PDF</Button></a>
                       </div>
                       {res.positioning && <div className="mt-4 rounded-[12px] bg-white/[.04] px-4 py-3">
                         <div className="text-[12.5px] font-medium text-muted">How your twin positioned you</div>
@@ -245,8 +246,8 @@ function JobSheet({ id, onClose, onChange }) {
                       {res.dropped?.length > 0 && <div className="mt-3 text-[12.5px] text-faint">Left out to fit one page: {res.dropped.slice(0, 6).join(' · ')}{res.dropped.length > 6 ? '…' : ''}</div>}
                     </motion.div>)}
                 </div>
-                <div className="mt-6"><div className="mb-2 text-[17px] font-semibold text-ink">The posting</div>
-                  <div className="max-h-[420px] overflow-y-auto whitespace-pre-wrap rounded-[14px] bg-mist p-5 text-[13.5px] leading-relaxed text-fg">{job.description || 'No description available. Open the posting to read it.'}</div></div>
+                <div className="mt-6"><div className="mb-2 px-1 text-[15px] font-semibold text-ink">The posting</div>
+                  <div className="max-h-[420px] overflow-y-auto whitespace-pre-wrap rounded-[12px] bg-mist p-5 text-[13.5px] leading-relaxed text-fg">{job.description || 'No description available. Open the posting to read it.'}</div></div>
               </>}
             </motion.div>
           </Dialog.Content>
@@ -273,9 +274,9 @@ function AddJob({ open, setOpen }) {
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/25 backdrop-blur-[2px]" />
-        <Dialog.Content aria-describedby={undefined} className="fixed left-1/2 top-1/2 z-50 max-h-[calc(100vh-32px)] w-[min(520px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-[16px] bg-[#1c1c1e] p-6 shadow-[0_40px_100px_rgb(0_0_0/.5)] outline-none ring-1 ring-white/10">
-          <Dialog.Title className="text-[22px] font-bold tracking-[-0.02em] text-ink">Add a job</Dialog.Title>
+        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40" />
+        <Dialog.Content aria-describedby={undefined} className="fixed left-1/2 top-1/2 z-50 max-h-[calc(100vh-32px)] w-[min(520px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-[14px] bg-[#1c1c1e] p-6 shadow-[0_40px_100px_rgb(0_0_0/.5)] outline-none ring-1 ring-white/10">
+          <Dialog.Title className="text-[20px] font-semibold tracking-[-0.01em] text-ink">Add a job</Dialog.Title>
           <p className="mb-5 mt-1 text-[14px] text-muted">Paste the link. Pasting the description too makes the resume sharper.</p>
           <div className="space-y-4">
             {[['url', 'Job link', 'https://…'], ['title', 'Title', 'Software Engineer Intern'], ['company', 'Company', 'Acme']].map(([k, l, ph]) => (
