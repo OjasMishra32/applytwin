@@ -1,6 +1,6 @@
 {
- "about": "Aggregate norms from resumes people deliberately published (public GitHub resume repositories, MIT-licensed public dataset as a general baseline). No names, contacts, links or real bullet text are stored: only counts, shares, section orders, verb frequencies and skills-heading labels. Example bullets are invented for shape. See docs/RESUME_PATTERNS.md.",
- "version": 2,
+ "about": "Aggregate norms from resumes people deliberately published (public GitHub resume repositories, MIT-licensed public dataset as a general baseline). Since round 5, profile norms come from the elite set only: student and new-grad resumes of people who actually landed intern or new-grad roles at top firms; everyone else is a contrast. No names, contacts, links or real bullet text are stored: only counts, shares, section orders, verb frequencies and skills-heading labels. Example bullets are invented for shape. See docs/RESUME_PATTERNS.md.",
+ "version": 3,
  "corpus": {
   "github_tex_resumes": 2496,
   "levels": {
@@ -10,7 +10,34 @@
   },
   "students_top_firm": 124,
   "students_all": 1565,
-  "baseline_dataset": null
+  "baseline_dataset": null,
+  "round5": {
+   "resumes_parsed": 11719,
+   "students": 6002,
+   "elite_students": 471,
+   "elite_definition": "an Experience or Research entry names an intern, new-grad or PhD-student role at FAANG/NVIDIA/Apple, a top AI lab, a top quant firm, a bulge-bracket or elite-boutique bank, a top asset manager, SpaceX/Anduril/a defense prime/Palantir, or Stripe/Databricks/Ramp/Scale AI/Figma; programs, insight weeks, clubs and firm names in objectives or tools do not count (spot check: 80-85% precision)",
+   "elite_by_segment": {
+    "swe": 233,
+    "bigtech_swe": 106,
+    "ml_research": 65,
+    "applied_ml": 59,
+    "hardware_eng": 42,
+    "robotics_hardware": 25,
+    "startup_firms": 29,
+    "data": 22,
+    "quant": 20,
+    "banking_and_asset_mgmt": 4
+   },
+   "elite_by_region": {
+    "us": 210,
+    "india": 101,
+    "europe": 42,
+    "east_asia": 36,
+    "canada": 26,
+    "uk": 17
+   },
+   "contrast_students": 4167
+  }
  },
  "contrast": {
   "general_population_resume_atlas": {
@@ -53,7 +80,12 @@
  "not_shipped": {
   "product_design": "no product/design posting in the eval set yet, so not shipped until measured",
   "defense": "round 2: with the U.S. citizenship line the profile won 42-6, but the line alone (plain prompt) won 25-7 and the profile without the line lost 10-22, so only the line shipped",
-  "hardware_validation": "round 3: a test/validation variant lost 0-8; round 4 rebuilt it (validation identity first, design-team roles in experience, no invented follow-ups) and it still went 40-54 over 6 rounds (revised version 22-26, GM 6-18), so validation and test titles keep robotics/hardware or their field profile"
+  "hardware_validation": "round 3: a test/validation variant lost 0-8; round 4 rebuilt it (validation identity first, design-team roles in experience, no invented follow-ups) and it still went 40-54 over 6 rounds (revised version 22-26, GM 6-18), so validation and test titles keep robotics/hardware or their field profile",
+  "round5_quality_bars": "round 5: a repeated-opener flag at 4+ bullets (or over 25%) and a measured-results target of 0.4 (flag below 0.15) went 42-43 over 3 rounds, not a clear win; the 3+ and 0.5 rules stay",
+  "round5_swe_shape": "round 5: 3-4 bullets on the lead role and 2-3 elsewhere, 3-4 skills lines, no summary/certifications, open source and founder roles kept went 24-24 over 3 rounds on 4 SWE postings",
+  "round5_startup": "round 5: elite startup bullet lengths (100-173) and 2-3 bullets per role lost 1-7 (elite n=29)",
+  "round5_ml_research": "round 5: a forced Awards section lost 8-15 over 2 rounds (judges called a two-line Awards section a stub); Experience before Publications lost 3-20 over 2 rounds, so Publications stays right under Education",
+  "round5_hardware_eng": "round 5: elite bullet lengths (87-147) plus an Education-first, coursework convention lost 5-15"
  },
  "top_firm_vs_rest_students": {
   "students_top_firm": {
@@ -268,8 +300,8 @@
    ],
    "norms": {
     "bullet_chars": [
-     93,
-     165
+     88,
+     164
     ],
     "max_chars": 215,
     "bullets_per_role": "2-4",
@@ -295,7 +327,7 @@
     "Conducted",
     "Managed"
    ],
-   "basis": "numbers from 119 public student/new-grad resumes of people at top firms (1974 public resumes match this profile)",
+   "basis": "numbers from 233 elite student/new-grad resumes of people who landed top-firm software roles (1974 public resumes match this profile)",
    "stats": {
     "n": 1974,
     "n_students": 1212,
@@ -561,6 +593,29 @@
      "money_metric": 0.08,
      "deal": 0.21
     }
+   },
+   "n": 233,
+   "elite": {
+    "n": 233,
+    "bullet_chars_p25_50_75_90": [
+     88,
+     114,
+     164,
+     211
+    ],
+    "bullets_per_role_p25_50_75": [
+     2,
+     2,
+     3
+    ],
+    "roles_median": 4,
+    "quant_share": 0.309,
+    "education_first_share": 0.622,
+    "has_summary": 0.167,
+    "has_awards": 0.313,
+    "open_source": 0.288,
+    "startup": 0.185,
+    "coursework_shown": 0.305
    }
   },
   "bigtech_swe": {
@@ -589,7 +644,7 @@
    ],
    "norms": {
     "bullet_chars": [
-     90,
+     88,
      164
     ],
     "max_chars": 215,
@@ -616,7 +671,7 @@
     "Owned",
     "Conducted"
    ],
-   "basis": "numbers from 95 public student/new-grad resumes of people at top firms (205 public resumes match this profile)",
+   "basis": "numbers from 106 elite student/new-grad resumes of people who landed big-tech SWE roles (233 elite SWE resumes in all)",
    "stats": {
     "n": 205,
     "n_students": 95,
@@ -878,6 +933,29 @@
      "money_metric": 0.08,
      "deal": 0.2
     }
+   },
+   "n": 106,
+   "elite": {
+    "n": 106,
+    "bullet_chars_p25_50_75_90": [
+     85,
+     109,
+     164,
+     212
+    ],
+    "bullets_per_role_p25_50_75": [
+     2,
+     2,
+     3
+    ],
+    "roles_median": 4.0,
+    "quant_share": 0.293,
+    "education_first_share": 0.651,
+    "has_summary": 0.151,
+    "has_awards": 0.274,
+    "open_source": 0.226,
+    "startup": 0.104,
+    "coursework_shown": 0.33
    }
   },
   "quant_trading": {
@@ -931,7 +1009,7 @@
     "Implemented",
     "Wrote"
    ],
-   "basis": "only 13 public resumes matched this profile, too few for statistics: conventions and bullet norms are from public recruiting guides",
+   "basis": "only 13 public resumes and 11 elite ones matched this profile, too few for statistics: conventions and bullet norms are from public recruiting guides",
    "stats": {
     "n": 13,
     "n_students": 5,
@@ -942,7 +1020,8 @@
      "newgrad": 2,
      "intern": 3
     }
-   }
+   },
+   "n": 11
   },
   "asset_mgmt_markets": {
    "label": "asset management / markets",
@@ -993,7 +1072,7 @@
     "Tracked",
     "Modeled"
    ],
-   "basis": "only 12 public resumes matched this profile, too few for statistics: conventions and bullet norms are from public recruiting guides",
+   "basis": "only 12 public resumes and 2 elite ones matched this profile, too few for statistics: conventions and bullet norms are from public recruiting guides",
    "stats": {
     "n": 12,
     "n_students": 4,
@@ -1004,7 +1083,8 @@
      "experienced": 8,
      "newgrad": 1
     }
-   }
+   },
+   "n": 2
   },
   "robotics_hardware": {
    "label": "robotics / hardware",
@@ -1059,7 +1139,7 @@
     "Published",
     "Migrated"
    ],
-   "basis": "numbers from 32 public student/new-grad resumes of people at top firms (476 public resumes match this profile)",
+   "basis": "numbers from 32 public student/new-grad resumes of people at top firms (476 public resumes match this profile; only 25 elite ones, too few to replace them)",
    "stats": {
     "n": 476,
     "n_students": 278,
@@ -1285,7 +1365,8 @@
      "money_metric": 0.09,
      "deal": 0.22
     }
-   }
+   },
+   "n": 25
   },
   "startup": {
    "label": "startup / founding engineer",
@@ -1340,7 +1421,7 @@
     "Improved",
     "Added"
    ],
-   "basis": "numbers from 161 public student/new-grad resumes (322 public resumes match this profile)",
+   "basis": "numbers from 161 public student/new-grad resumes (322 public resumes match this profile; only 29 elite startup-firm ones, too few to replace them)",
    "stats": {
     "n": 322,
     "n_students": 161,
@@ -1607,7 +1688,8 @@
      "money_metric": 0.07,
      "deal": 0.25
     }
-   }
+   },
+   "n": 29
   },
   "data": {
    "label": "data / analytics",
@@ -1659,7 +1741,7 @@
     "Applied",
     "Reduced"
    ],
-   "basis": "numbers from 106 public student/new-grad resumes (187 public resumes match this profile)",
+   "basis": "numbers from 106 public student/new-grad resumes (187 public resumes match this profile; only 22 elite ones, too few to replace them)",
    "stats": {
     "n": 187,
     "n_students": 106,
@@ -1911,11 +1993,12 @@
      "money_metric": 0.02,
      "deal": 0.23
     }
-   }
+   },
+   "n": 22
   },
   "investment_banking": {
    "label": "investment banking",
-   "basis": "conventions synthesized from public recruiting guides (university career centers, firm career pages and postings); only 7 public resumes matched, too few for statistics",
+   "basis": "conventions synthesized from public recruiting guides (university career centers, firm career pages and postings); only 7 public resumes and 2 elite ones matched, too few for statistics",
    "lead_with": "Education first (school, degree and expected graduation, GPA on the degree line, honors and a short finance coursework line), then banking, private equity and other finance roles, newest first, each opening with the deal or model the candidate built",
    "force_order": [
     "education",
@@ -1983,11 +2066,12 @@
     "tense",
     "repeat_phrase",
     "thin_roles"
-   ]
+   ],
+   "n": 2
   },
   "ml_research": {
    "label": "ML / AI research",
-   "basis": "conventions synthesized from public recruiting guides (university career centers, firm career pages and postings); section and bullet norms also from 53 public student/new-grad ML resumes",
+   "basis": "conventions synthesized from public recruiting guides (university career centers, firm career pages and postings); section and bullet norms also from 53 public student/new-grad ML resumes, checked against 65 elite ones",
    "lead_with": "research: the publications and preprints (venue, year and status exactly as the vault states) right under Education, then the research lab role whose first bullet states the problem, the method and the result against a baseline; industry ML internships follow with their measured result",
    "force_order": [
     "education",
@@ -2301,11 +2385,35 @@
      "money_metric": 0.09,
      "deal": 0.08
     }
+   },
+   "n": 65,
+   "elite": {
+    "n": 65,
+    "bullet_chars_p25_50_75_90": [
+     91,
+     116,
+     181,
+     228
+    ],
+    "bullets_per_role_p25_50_75": [
+     1,
+     2,
+     3
+    ],
+    "roles_median": 5,
+    "quant_share": 0.377,
+    "education_first_share": 0.554,
+    "has_summary": 0.246,
+    "has_awards": 0.677,
+    "open_source": 0.292,
+    "startup": 0.138,
+    "coursework_shown": 0.308,
+    "publications_right_after_education_share": 0.35
    }
   },
   "quant_research_dev": {
    "label": "quant research",
-   "basis": "conventions synthesized from public recruiting guides (university career centers, firm career pages and postings); only 3 public resumes matched, too few for statistics",
+   "basis": "conventions synthesized from public recruiting guides (university career centers, firm career pages and postings); only 3 public resumes and 9 elite ones matched, too few for statistics",
    "lead_with": "a headline whose first tag is the quantitative-research identity in the vault's words, Education with GPA and the hardest math, probability and statistics coursework; then the most quantitative research role, its first bullet stating the data, the method and the result as the vault states it; a full Awards section of competition placements closes the page",
    "skills": "Languages (Python, C++, plus OCaml, R or q/kdb+ only if in the vault); Libraries (NumPy, pandas, scikit-learn, statsmodels); Quant methods (regression, time series, Monte Carlo, stochastic processes) when the bullets back them",
    "conventions": [
@@ -2395,7 +2503,8 @@
       "Placed"
      ]
     }
-   ]
+   ],
+   "n": 9
   },
   "defense": {
    "label": "defense tech",
@@ -2724,11 +2833,12 @@
      "money_metric": 0.08,
      "deal": 0.15
     }
-   }
+   },
+   "elite_n": 47
   },
   "hardware_eng": {
    "label": "embedded / firmware",
-   "basis": "conventions synthesized from public hardware recruiting guides (university ECE career centers, firm career pages and postings for embedded, firmware, ASIC and verification internships); bullet norms from the robotics/hardware profile's public student resumes",
+   "basis": "conventions synthesized from public hardware recruiting guides (university ECE career centers, firm career pages and postings for embedded, firmware, ASIC and verification internships); bullet norms from the robotics/hardware profile's public student resumes, checked against 42 elite chip and embedded ones",
    "lead_with": "firmware on named hardware: the MCU or SoC (STM32, AURIX, nRF52, C2000), the RTOS or stack (FreeRTOS, Zephyr, AUTOSAR), the bus or peripheral (CAN, SPI, I2C, DMA, interrupts) and a measured real-time result (latency, loop rate, sleep current, memory), plus board bring-up and debug with an oscilloscope or logic analyzer",
    "order": [
     "education",
@@ -2838,11 +2948,34 @@
      ]
     }
    ],
-   "shipped": true
+   "shipped": true,
+   "n": 42,
+   "elite": {
+    "n": 42,
+    "bullet_chars_p25_50_75_90": [
+     87,
+     107,
+     147,
+     195
+    ],
+    "bullets_per_role_p25_50_75": [
+     2,
+     3,
+     4
+    ],
+    "roles_median": 4.0,
+    "quant_share": 0.275,
+    "education_first_share": 0.738,
+    "has_summary": 0.119,
+    "has_awards": 0.31,
+    "open_source": 0.262,
+    "startup": 0.167,
+    "coursework_shown": 0.452
+   }
   },
   "hardware_board": {
    "label": "electrical / board hardware",
-   "basis": "conventions synthesized from public hardware recruiting guides (university ECE career centers, firm career pages and postings for electrical, avionics, power electronics and validation internships) and the round-3 blind review's judges' reasons; bullet norms from the robotics/hardware profile's public student resumes",
+   "basis": "conventions synthesized from public hardware recruiting guides (university ECE career centers, firm career pages and postings for electrical, avionics, power electronics and validation internships) and the round-3 blind review's judges' reasons; bullet norms from the robotics/hardware profile's public student resumes, checked against 42 elite hardware ones",
    "lead_with": "the boards and circuits the candidate designed, brought up or tested: what the board does (power distribution, motor control, battery monitoring, sensor interface, flight computer), the EDA tool (Altium, KiCad), the bench instruments used and a measured spec (efficiency, current, temperature range, first-spin bring-up). Paid hardware internships lead, newest first",
    "order": [
     "education",
@@ -2905,7 +3038,124 @@
     "tense",
     "tools"
    ],
-   "shipped": true
+   "shipped": true,
+   "n": 42,
+   "elite": {
+    "n": 42,
+    "bullet_chars_p25_50_75_90": [
+     87,
+     107,
+     147,
+     195
+    ],
+    "bullets_per_role_p25_50_75": [
+     2,
+     3,
+     4
+    ],
+    "roles_median": 4.0,
+    "quant_share": 0.275,
+    "education_first_share": 0.738,
+    "has_summary": 0.119,
+    "has_awards": 0.31,
+    "open_source": 0.262,
+    "startup": 0.167,
+    "coursework_shown": 0.452
+   }
+  }
+ },
+ "elite_vs_contrast_students": {
+  "elite": {
+   "n": 471,
+   "bullet_chars_p25_50_75_90": [
+    90,
+    112,
+    163,
+    213
+   ],
+   "bullets_per_role_p25_50_75": [
+    2,
+    2,
+    3
+   ],
+   "roles_median": 4,
+   "digit_share": 0.386,
+   "quant_share": 0.319,
+   "weak_opener_share": 0.035,
+   "education_first_share": 0.628,
+   "has_summary": 0.191,
+   "has_awards": 0.384,
+   "has_publications": 0.282,
+   "competition": 0.418,
+   "open_source": 0.268,
+   "startup": 0.163,
+   "has_certifications": 0.083,
+   "has_languages": 0.155,
+   "top_opener_repeat_ge3_share": 0.484
+  },
+  "contrast": {
+   "n": 4167,
+   "bullet_chars_p25_50_75_90": [
+    78,
+    107,
+    151,
+    200
+   ],
+   "bullets_per_role_p25_50_75": [
+    2,
+    3,
+    4
+   ],
+   "roles_median": 3,
+   "digit_share": 0.318,
+   "quant_share": 0.258,
+   "weak_opener_share": 0.037,
+   "education_first_share": 0.558,
+   "has_summary": 0.283,
+   "has_awards": 0.359,
+   "has_publications": 0.211,
+   "competition": 0.371,
+   "open_source": 0.154,
+   "startup": 0.095,
+   "has_certifications": 0.16,
+   "has_languages": 0.203,
+   "top_opener_repeat_ge3_share": 0.398
+  },
+  "measured_share_per_resume_p25_50_75": {
+   "elite": [
+    0.11,
+    0.27,
+    0.48
+   ],
+   "contrast": [
+    0.06,
+    0.19,
+    0.39
+   ]
+  }
+ },
+ "regions": {
+  "india": {
+   "label": "India",
+   "n": 101,
+   "awards_section": true,
+   "basis": "elite Indian student resumes (n=101) compared with other Indian student resumes",
+   "conventions": [
+    "Keep the CGPA exactly as the vault states it, on its /10 scale (shown on 74% of elite Indian pages); never convert it.",
+    "An Achievements/Awards section with competitive-exam ranks, coding-contest ranks and ratings, and scholarships, each with the field size the vault gives (55% of elite pages vs 44%).",
+    "More roles, fewer projects: every real internship and research role goes before class or hackathon projects; keep 2-3 projects at most (elite median 3 roles; projects section on 69% vs 89%).",
+    "Certifications (online courses, cloud certificates) are the first thing to cut (19% vs 26%)."
+   ]
+  },
+  "europe": {
+   "label": "continental Europe",
+   "n": 42,
+   "basis": "elite European student resumes (n=42) compared with other European student resumes; weak evidence",
+   "conventions": [
+    "Spoken languages take one line in Skills ('Languages: German (native), English (C2)'), never a section of their own.",
+    "No Summary or Objective block (17% of elite pages vs 35%); the page opens with Education or Experience.",
+    "Working-student (Werkstudent) and research-assistant (HiWi) roles are real experience: keep them as roles with measured bullets."
+   ]
   }
  }
 }

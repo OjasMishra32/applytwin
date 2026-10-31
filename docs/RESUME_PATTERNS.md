@@ -4,7 +4,9 @@
 trading, asset management/markets, robotics/hardware, startups/founding engineer, data and general software (round 1), and
 investment banking, ML/AI research and quant research/dev (round 2), and hardware engineering for embedded/firmware and
 chip design/verification titles (round 3), and electrical/board hardware for electrical, avionics and power-electronics
-titles (round 4). The defense-tech and product/design profiles are in
+titles (round 4). Since round 5, each profile's `basis` and `n` say how many elite resumes (people who actually landed
+top-firm intern or new-grad roles) back it, and jobs in India or continental Europe add a regional overlay on top of their
+profile (see "Round 5: elite corpus"). The defense-tech and product/design profiles are in
 the file with `"shipped": false`: built but not used, because they have not won a blind review (see "Measured effect").
 Postings of those kinds keep the plain prompt. `APPLYTWIN_TRY_PROFILES=all` (or a comma list of ids) switches unshipped
 profiles on for an eval run. The tailor uses the file in two places:
@@ -291,3 +293,86 @@ electronics, Blue Origin avionics, GM electrical validation, Marvell post-silico
   section lost both judgments (that behavior was then removed).
 - Every other split is generation noise on identical code: quant trading 0-8, Goldman 2-6, Wellington 2-6, Evercore 7-1,
   Qualcomm 8-0, Figure 8-0, NVIDIA 1-6.
+
+### Round 5: elite corpus
+
+**The rule.** Norms now come only from resumes of people who actually landed top-firm intern or new-grad roles (the
+"elite set"); every other resume is a contrast, never a norm. A resume is elite when an Experience or Research entry names
+an intern, new-grad or PhD-student role at FAANG/NVIDIA/Apple, a top AI lab, a top quant firm, a bulge-bracket or
+elite-boutique bank, a top asset manager, SpaceX/Anduril/a defense prime/Palantir, or Stripe/Databricks/Ramp/Scale
+AI/Figma. Programs, insight weeks, virtual experiences, clubs, and a firm named only in an objective, a tool or a project
+title don't count. A manual spot check put precision at 80-85%.
+
+**Sources, at the aggregate level.** Public GitHub resume sources only (authenticated code and repository search, under
+the published rate limits; files fetched from `raw.githubusercontent.com`): LaTeX, Typst, JSON Resume, YAML and HTML.
+About 52,000 files gave 11,719 resumes after removing template copies and duplicates; 6,002 are students or new grads and
+471 of them are elite. Hugging Face resume datasets were reviewed and skipped (unclear provenance). Nothing behind a login,
+no LinkedIn, no paid sources. Raw files and the repository lists were deleted after aggregation. The repo keeps only counts,
+shares and percentiles, with no names, contacts, links, repository names or bullet text.
+
+Elite n by segment: SWE 233 (big-tech 106), ML research 65, applied ML 59, India 101, hardware 42, Europe 42, startup
+firms 29. Quant (20), data (22), banking and asset management (4) and the UK (17) are too small, so nothing numeric was
+proposed for them.
+
+What separates elite student pages from the contrast (n=471 vs 4,167):
+- Bullets are a little longer (median 112 vs 107 characters).
+- More roles with fewer bullets each (median 4 roles vs 3).
+- Measured results are more common but not the majority: the per-resume median is 27% vs 19%.
+- Open source (27% vs 15%) and founder roles (16% vs 10%) are more common.
+- Summaries (19% vs 28%) and certifications (8% vs 16%) are rarer.
+- Half the elite pages (48%) open three or more bullets with the same verb.
+
+Every shipped profile's `basis` and `n` in `resume_patterns.json` now state its elite count. Where the segment is big
+enough (SWE, big-tech SWE, ML research, hardware), an `elite` block holds its percentiles. Software and big-tech bullet
+lengths moved to the elite 88-164 characters. Quant, banking, asset management, data, startup and robotics keep their
+earlier numbers, and their `basis` says the elite set is too small to replace them.
+
+**Eval.** The harness is the one from rounds 2-4: each arm tailors each posting twice per round, and a recruiter persona
+for that firm judges each old/new pair twice with the order swapped. The absolute grader also scores every page. "Old" is
+`main`. Each change was tested alone on its own postings: 4 SWE, 2 startup, 3 ML research, 5 chip/embedded and 4
+international. The international postings were new: Google Bengaluru and Microsoft IDC for an Indian-campus vault, Google
+Zurich and Amazon Berlin for a German vault (both vaults synthetic). Win counts are judgments, and each pair counts twice,
+so the sign test is optimistic. Pairs where a page fell back to the built-in writer or failed to render (machine
+overload) are excluded, and one overloaded international round was discarded.
+
+| change | rounds | blind wins new-old | sign test | absolute, old to new | decision |
+|---|---|---|---|---|---|
+| regional overlays (India, continental Europe) | 5 | 53-26 | p = 0.003 | 7.55 to 7.58 | shipped |
+| quality pass: repeated opener at 4+ (or >25%), measured-results flag only below 15% | 3 | 42-43 | p = 1 | 7.76 to 7.75 | not shipped |
+| SWE shape: 3-4 bullets on the lead role, 2-3 elsewhere, 3-4 skills lines, no summary/certifications | 3 | 24-24 | p = 1 | 6.79 to 7.04 | not shipped |
+| startup: elite bullet length (100-173), 2-3 per role | 1 | 1-7 | p = 0.07 | 7.00 to 7.50 | not shipped |
+| ML research: Awards section forced when the vault has awards | 2 | 8-15 | p = 0.21 | 7.67 to 7.17 | not shipped |
+| ML research: Experience before Publications (against `main`'s order) | 2 | 3-20 | p < 0.001 | 7.58 to 7.33 (vs `main`) | not shipped |
+| hardware_eng: elite bullet length (87-147), Education first with coursework | 1 | 5-15 | p = 0.04 | 7.90 to 8.20 | not shipped |
+
+- **Regional overlays, by posting:** Google Bengaluru 14-6, Microsoft IDC 12-7, Google Zurich 14-6, Amazon Berlin 13-7.
+  India alone 26-13, continental Europe alone 27-13.
+  - A job in India or continental Europe (EU/EEA and Switzerland) keeps its profile and gets a short regional block in
+    the prompt. Routing lives in `regions.resume_region()`; the overlay text lives in `resume_patterns.json` under
+    "regions".
+  - **India (elite n=101):** keep the CGPA on its /10 scale, and keep an Achievements section with exam and contest ranks.
+    Real roles go before projects, and certifications are cut first. The vault's awards are shown as their own section
+    when it has two or more.
+  - **Europe (elite n=42):** spoken languages take one Skills line, there is no Summary, and working-student and HiWi
+    roles count as real experience.
+  - The UK, Canada and East Asia get no overlay (too few elite resumes).
+- **ML research.** The order with Publications right under Education is the plurality on elite pages, not the majority
+  (35%). It still beat Experience-first in both directions (3-20), so it stays.
+  - A first version of the Awards rule rarely fired, because the planner's two picks deduplicated to one, which then
+    folded into Education. It went 16-8, but that result can't be credited to an Awards section.
+  - The fixed rule always showed one, and judges called the resulting two-line section a stub (8-15).
+- **The quality-pass change** did change the code path: in the round that logged it, the revision call ran on 8 of 11
+  `main` pages and 7 of 14 new ones. It moved nothing in either direction.
+- **Weak-n changes lost outright.** Startup (n=29) and hardware (n=42) needed a clear margin, and both lost. The hardware
+  judges preferred `main`'s pages for putting the most on-target project first and keeping Skills on the posting's tools.
+
+**Regression check** (`main` against the final branch) on big-tech SWE, quant trading, quant research, startup, banking,
+asset management, ML research, chip design/verification, embedded and electrical/board, 2 rounds:
+- **Result:** 41-37 (n=78), absolute 7.96 vs 7.99.
+- **Extra round:** three ML research postings went 6-6.
+- **By posting:** startup 7-1, banking 6-2, quant research 6-2, Google 4-4, Jane Street 4-4, Apple 4-4, DeepMind 4-4,
+  Tesla 3-4, Wellington 3-5, NVIDIA 0-7. The NVIDIA judges called the pages "near-identical"; they split on a filler line
+  the page-filler added and on bullet order. In the quality-pass rounds, the same posting went 7-5 with no hardware change.
+- **Rewording the `basis` lines.** A first version rewrote every `basis` line from scratch ("elite set: 65 student resumes
+  of people who landed top-lab ... roles"), and the `basis` is printed in the prompt. Its regression went 32-53, including
+  1-18 on ML research postings. Keeping each earlier sentence and adding the elite count brought it back to even.

@@ -962,6 +962,22 @@ _hb = [_tp.pattern_profile({'company': c, 'title': t}, j, learn.field_for({'titl
 res.append(ok(_hb[:4] == ['hardware_board'] * 4 and _hb[4] == 'robotics_hardware' and _hb[5] != 'hardware_board'
               and _hb[6] == 'hardware_eng' and _hb[7] == 'robotics_hardware' and 'variants' not in _pj['profiles']['hardware_board'],
               f'electrical / board postings -> electrical/board profile ({_hb})'))
+# round 5 (elite corpus): every shipped profile states its elite n; a job in India or continental Europe adds that region's
+# overlay to the prompt on top of its profile (UK and US get none); India's overlay shows the vault's awards as a section
+_shipped = [k for k, p in _pj['profiles'].items() if p.get('shipped', True)]
+_ov = {loc: (_tp.region_overlay({'location': loc}) or {}).get('id') for loc in
+       ('Bengaluru, Karnataka, India', 'Zurich, Switzerland', 'Berlin, Germany', 'London, UK', 'New York, NY', '')}
+_pin = _tp.prompt({'basics': {}, 'experience': []}, {'title': 'Software Engineering Intern', 'company': 'Google', 'location': 'Hyderabad, India'}, 'C++ data structures', {})
+_pus = _tp.prompt({'basics': {}, 'experience': []}, {'title': 'Software Engineering Intern', 'company': 'Google', 'location': 'Mountain View, CA'}, 'C++ data structures', {})
+_vaw = {'awards': ['ICPC Regional, Rank 18', 'JEE Advanced, AIR 412', 'KVPY Fellowship']}
+_pl_in = _tp._awards_rule({'awards': [2], 'order': ['education', 'experience']}, _vaw, {'region': _tp.region_overlay({'location': 'Pune, India'})})
+_pl_us = _tp._awards_rule({'awards': [2], 'order': ['education']}, _vaw, {'region': None, 'pattern': _pj['profiles']['ml_research']})
+res.append(ok(all(isinstance(_pj['profiles'][k].get('n'), int) and 'elite' in _pj['profiles'][k].get('basis', '') for k in _shipped)
+              and _ov == {'Bengaluru, Karnataka, India': 'india', 'Zurich, Switzerland': 'europe', 'Berlin, Germany': 'europe',
+                          'London, UK': None, 'New York, NY': None, '': None}
+              and 'JOBS IN INDIA ALSO DO' in _pin and 'BIG-TECH' in _pin and 'ALSO DO' not in _pus
+              and _pl_in['awards'] == [2, 0, 1] and _pl_in['order'][-1] == 'awards' and _pl_us['awards'] == [2],
+              f'elite basis on shipped profiles; regional overlays ({_ov}); India awards section ({_pl_in.get("awards")})'))
 # a rewrite can't add a hardware tool its role never lists (an interviewer tests every one); spellings of one part family match
 _o = 'Built a UVM environment for an AHB-to-APB bridge; closed coverage from 71% to 98%.'
 _w1 = _tp.check_rewrite(_o, 'Built a UVM environment for an AXI bridge in Xcelium, closing coverage from 71% to 98%.', '', '', _o)

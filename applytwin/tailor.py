@@ -329,6 +329,42 @@ def _variant(prof, title):
     return prof
 
 
+def region_overlay(job):
+    """The regional overlay for this posting's country (resume_patterns.json "regions": India, continental Europe), or None.
+    It is laid over whatever profile the posting gets (a Google job in Bengaluru keeps big-tech SWE and adds India's)."""
+    from . import regions
+    key = regions.resume_region(job)
+    ov = (patterns().get('regions') or {}).get(key) if key else None
+    return dict(ov, id=key) if ov else None
+
+
+def region_brief(ov):
+    """The regional overlay as a short prompt block."""
+    if not ov or not ov.get('conventions'):
+        return ''
+    return (f"WHAT STRONG RESUMES FOR JOBS IN {ov.get('label', ov.get('id', '')).upper()} ALSO DO ({ov.get('basis', '')}; style "
+            "only):\n" + '\n'.join('- ' + c for c in ov['conventions'][:6]) + '\n')
+
+
+def _awards_rule(plan, v, ctx):
+    """A regional overlay with "awards_section" (India: exam ranks, contest ratings, scholarships) shows the vault's awards as
+    their own section when the vault has two or more: elite pages there carry one. The plan's picks lead and the vault's other awards follow,
+    because an award already stated in education or in a bullet is removed when the page is built (two picks often leave
+    one, which then folds into education)."""
+    want = (ctx.get('region') or {}).get('awards_section')
+    aw = v.get('awards') or []
+    if not want or len(aw) < 2 or not isinstance(plan, dict):
+        return plan
+    picks = [p for p in plan.get('awards') or [] if isinstance(p, (int, str))]
+    ints = [p for p in picks if isinstance(p, int)]
+    if ints and min(ints) >= 1 and max(ints) == len(aw):   # counted from 1
+        picks = [p - 1 if isinstance(p, int) else p for p in picks]
+    plan = dict(plan, awards=picks + [i for i in range(len(aw)) if i not in picks])
+    if isinstance(plan.get('order'), list) and 'awards' not in plan['order']:
+        plan['order'] = plan['order'] + ['awards']
+    return plan
+
+
 def pattern_brief(prof):
     """The profile as a short prompt block: what strong pages for this target lead with, how their bullets read, what to avoid."""
     if not prof:
@@ -477,6 +513,8 @@ def prompt(v, job, jd, ctx=None):
     if 'pattern' not in ctx:   # agents asking for the prompt directly get the same per-target norms as Autopilot
         ctx = dict(ctx)
         ctx['pattern_id'], ctx['pattern'] = pattern_profile(job, jd, ctx.get('field'))
+    if 'region' not in ctx:
+        ctx = dict(ctx, region=region_overlay(job))
     rules = ctx.get('rules') or {}
     you = ''
     if ctx.get('notes'):
@@ -532,7 +570,7 @@ RULES (hard):
 - Order sections for this reader. Ideal order for this field: {', '.join(rules.get('order', []))}.
 - What hiring managers in this field look for first: {rules.get('emphasize', 'the posting requirements and measurable results')}.
 {you}
-{pattern_brief(ctx.get('pattern'))}
+{pattern_brief(ctx.get('pattern'))}{region_brief(ctx.get('region'))}
 
 OUTPUT: only a JSON object, written in THIS order (decide the strategy first, then build the page from it):
 {{"requirements": ["requirement 1 (what this hiring manager screens for first)", "requirement 2", "requirement 3"],
@@ -1636,6 +1674,7 @@ def _tailor(v, job, jd, mode, plan, style, out_dir, track):
     from . import learn, render, store
     ctx = learn.context_for(job)
     ctx['pattern_id'], ctx['pattern'] = pattern_profile(job, jd, ctx.get('field'))
+    ctx['region'] = region_overlay(job)
     style = style or ctx['template']
     if plan is None:
         if mode in ('auto', 'api'):
@@ -1659,6 +1698,7 @@ def _tailor(v, job, jd, mode, plan, style, out_dir, track):
             track.plan_ready(plan, v)
     else:
         mode = 'agent'
+    plan = _awards_rule(plan, v, ctx)
     res, rep = apply(v, plan, jd)
     _house_rules(res, ctx)
     flags = pattern_flags(res, ctx.get('pattern')) if FLAG_FIX else []
@@ -1678,6 +1718,7 @@ def _tailor(v, job, jd, mode, plan, style, out_dir, track):
         try:
             plan2 = call_llm(fix, timeout=200, think=False)
             if plan2:
+                plan2 = _awards_rule(plan2, v, ctx)
                 res2, rep2 = apply(v, plan2, jd)
                 _house_rules(res2, ctx)
                 flags2 = pattern_flags(res2, ctx.get('pattern')) if flags else []

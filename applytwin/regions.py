@@ -789,6 +789,14 @@ def apply_conventions(res, job, prof=None):
     return conv
 
 
+def resume_region(job):
+    """Which regional resume overlay a posting gets: 'india' for a job in India, 'europe' for continental Europe (EU/EEA and
+    Switzerland), else None. The UK, Canada and the rest have too few elite resumes in the corpus to set norms of their own.
+    The overlays themselves (what strong pages there do) live in resume_patterns.json under "regions"."""
+    k = job_country(job)
+    return 'india' if k == 'IN' else 'europe' if k in EEA else None
+
+
 def file_label(job):
     """'CV' or 'Resume', for the PDF's file name (Jane_Doe_CV.pdf for a London job)."""
     return conventions(job_country(job))['doc']
