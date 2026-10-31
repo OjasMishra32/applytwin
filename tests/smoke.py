@@ -577,5 +577,57 @@ res.append(ok(_cyc['fit'] == 0, f'settings changed mid-scan apply to what that s
 from applytwin import telemetry as _tm
 res.append(ok(not _tm.enabled() and _tm.ping() is False and len(_tm.install_id()) == 36, 'install count is off in tests and uses only a random ID'))
 
+# the local web server: other websites (cross-site requests), DNS rebinding and path tricks get nothing
+import http.client, threading  # noqa: E401,E402
+from http.server import ThreadingHTTPServer  # noqa: E402
+from applytwin import server  # noqa: E402
+_srv = ThreadingHTTPServer(('127.0.0.1', 0), server.H)
+threading.Thread(target=_srv.serve_forever, daemon=True).start()
+PORT = _srv.server_address[1]
+
+
+def req(method, path, body=None, **headers):
+    c = http.client.HTTPConnection('127.0.0.1', PORT, timeout=60)
+    c.putrequest(method, path, skip_host=True, skip_accept_encoding=True)
+    headers.setdefault('Host', f'localhost:{PORT}')
+    for k, v in headers.items():
+        c.putheader(k.replace('_', '-'), v)
+    data = (body or '').encode()
+    c.putheader('Content-Length', str(len(data)))
+    c.endheaders(data or None)
+    r = c.getresponse()
+    return r.status, r.read()
+
+
+JSON, dump, me = 'application/json', '{"text": "pwned by another site"}', f'http://localhost:{PORT}'
+before = api.get_dump()
+res.append(ok(req('POST', '/api/dump', dump, Content_Type='text/plain')[0] == 403, 'POST with a text/plain body (no-cors fetch) refused'))
+res.append(ok(req('POST', '/api/dump', 'text=x', Content_Type='application/x-www-form-urlencoded')[0] == 403, 'HTML form POST refused'))
+res.append(ok(req('POST', '/api/dump', dump, Content_Type=JSON, Origin='https://evil.example')[0] == 403, 'POST from another website refused'))
+res.append(ok(req('POST', '/api/dump', dump, Content_Type=JSON, Origin='null')[0] == 403, 'POST from a sandboxed (null) origin refused'))
+res.append(ok(req('POST', '/api/dump', dump, Content_Type=JSON, Origin='http://localhost:3000')[0] == 403, 'POST from another local server refused'))
+res.append(ok(req('POST', '/api/dump', dump, Content_Type=JSON, Referer='https://evil.example/x')[0] == 403, 'POST with a foreign Referer refused'))
+res.append(ok(req('POST', '/api/dump', dump, Content_Type=JSON, Origin=me, Sec_Fetch_Site='cross-site')[0] == 403, 'POST marked cross-site refused'))
+res.append(ok(api.get_dump() == before, 'refused requests changed nothing'))
+res.append(ok(req('GET', '/api/state', Host='evil.example')[0] == 403, 'GET with a DNS-rebinding Host header refused'))
+res.append(ok(req('GET', '/', Host=f'attacker.test:{PORT}')[0] == 403, 'page with a DNS-rebinding Host refused'))
+res.append(ok(req('POST', '/api/dump', dump, Content_Type=JSON, Host=f'attacker.test:{PORT}', Origin=f'http://attacker.test:{PORT}')[0] == 403,
+              'POST through DNS rebinding (Host and Origin both the attacker) refused'))
+res.append(ok(req('GET', '/api/state', Origin='https://evil.example')[0] == 403, 'API GET from another website refused'))
+res.append(ok(req('POST', '/api/inbox/1/resolve', '{}', Content_Type=JSON, Origin=me)[0] == 200, "the app's own JSON POST works"))
+res.append(ok(req('POST', '/api/inbox/1/resolve', '{}', Content_Type=JSON, Host=f'127.0.0.1:{PORT}')[0] == 200,
+              'a local JSON POST without Origin (CLI, scripts) works'))
+res.append(ok(req('GET', '/', Sec_Fetch_Site='cross-site')[0] == 200, 'coming back from Google sign-in still opens the app'))
+res.append(ok(req('GET', '/file?path=' + store.path('profile.json'))[0] == 403, '/file refuses data files outside resumes/'))
+res.append(ok(req('GET', '/file?path=' + store.path('resumes', '..', 'auth.json'))[0] == 403, '/file refuses ../ out of resumes/'))
+res.append(ok(req('GET', '/preview?job=../../x')[0] in (400, 500) and b'Traceback' not in req('GET', '/preview?job=../../x')[1],
+              '/preview refuses a traversal job id'))
+st, body = req('GET', '/api/auth/login?redirect=https://evil.example/')
+res.append(ok(st == 500 and b'authorize' not in body, 'Google sign-in refuses to return to another site'))
+res.append(ok(b'authorize' in req('GET', '/api/auth/login?redirect=' + me + '/')[1], 'Google sign-in back to this app works'))
+st, body = req('POST', '/api/run', '{"agent": "bash", "n": 1}', Content_Type=JSON, Origin=me)
+res.append(ok(st == 500 and b'unknown agent' in body, 'Autopilot runs only Claude Code or Codex'))
+_srv.shutdown()
+
 print(f'\n{sum(res)}/{len(res)} passed')
 sys.exit(0 if all(res) else 1)

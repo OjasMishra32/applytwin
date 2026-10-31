@@ -12,6 +12,16 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from . import api, cloud, store
 
 WEB = os.path.join(store.APP, 'web')
+LOCAL = ('localhost', '127.0.0.1', '[::1]')
+MAX_BODY = 40 * 1024 * 1024   # a resume upload is a few MB; never read an unbounded body into memory
+
+
+def _login_redirect(url):
+    """Google/Supabase may only send you back to this app on this computer, never to another site."""
+    u = urllib.parse.urlparse(url or '')
+    if u.scheme != 'http' or (u.hostname or '') not in ('localhost', '127.0.0.1', '::1') or u.username or u.password:
+        raise ValueError('Sign-in can only return to ApplyTwin on this computer.')
+    return url
 
 
 def _q(qs, k, d=None):
@@ -49,7 +59,7 @@ GET = {
     r'/api/auth': lambda m, qs, b: cloud.status(),
     r'/api/inbox': lambda m, qs, b: api.inbox_poll(),
     r'/api/jobs/([\w-]+)/thread': lambda m, qs, b: {"thread": api.thread(m.group(1))},
-    r'/api/auth/login': lambda m, qs, b: {"url": cloud.login_url(_q(qs, 'redirect', 'http://localhost:4747/'))},
+    r'/api/auth/login': lambda m, qs, b: {"url": cloud.login_url(_login_redirect(_q(qs, 'redirect', 'http://localhost:4747/')))},
 }
 _UNKNOWN = set()
 
@@ -145,15 +155,20 @@ class H(BaseHTTPRequestHandler):
         (cross-site requests) or reach it through DNS rebinding."""
         host = (self.headers.get('Host') or '').lower()
         name = host[:host.find(']') + 1] if host.startswith('[') else host.split(':')[0]
-        if name not in ('localhost', '127.0.0.1', '[::1]'):
+        if name not in LOCAL:
             return False
         # opening a page (including Google sending you back after sign-in, which Chrome marks cross-site) is fine; only the
         # API and files must come from ApplyTwin's own pages
         path = urllib.parse.urlparse(self.path).path
-        if not post and not path.startswith(('/api/', '/file')):
+        if not post and not path.startswith(('/api/', '/file', '/preview')):
             return True
+        # the page must be ApplyTwin itself: same scheme, host and port (another local server, e.g. some dev site on
+        # localhost:3000, is a different origin and must not drive it either)
         origin = self.headers.get('Origin')
-        if origin is not None and urllib.parse.urlparse(origin).hostname not in ('localhost', '127.0.0.1', '::1'):
+        if origin is None and self.headers.get('Referer'):
+            r = urllib.parse.urlparse(self.headers['Referer'])
+            origin = f'{r.scheme}://{r.netloc}'
+        if origin is not None and origin.lower() != f'http://{host}':
             return False
         if self.headers.get('Sec-Fetch-Site') == 'cross-site':
             return False
@@ -186,15 +201,17 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, open(p, 'rb').read(), mimetypes.guess_type(p)[0] or 'application/octet-stream')
         rel = 'index.html' if u.path in ('/', '') else u.path.lstrip('/')
         f = os.path.realpath(os.path.join(WEB, rel))
-        if not f.startswith(os.path.realpath(WEB)) or not os.path.isfile(f):
+        if not f.startswith(os.path.realpath(WEB) + os.sep) or not os.path.isfile(f):
             f = os.path.join(WEB, 'index.html')
         self._send(200, open(f, 'rb').read(), mimetypes.guess_type(f)[0] or 'text/plain')
 
     def do_POST(self):
         if not self._trusted(post=True):
             return self._send(403, {"error": "forbidden"})
-        n = int(self.headers.get('Content-Length') or 0)
         try:
+            n = int(self.headers.get('Content-Length') or 0)
+            if not 0 <= n <= MAX_BODY:
+                raise ValueError('body too large')
             body = json.loads(self.rfile.read(n) or b'{}')
         except ValueError:
             return self._send(400, {"error": "bad json"})

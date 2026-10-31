@@ -37,6 +37,9 @@ function keepCurrent() {
   return () => { clearInterval(t); document.removeEventListener('visibilitychange', vis); removeEventListener('pointerdown', touch); removeEventListener('keydown', touch) }
 }
 
+/* Set when this tab sends you to Google; read once when you come back with tokens. */
+const loginStarted = () => { try { const v = sessionStorage.getItem('applytwin_login'); sessionStorage.removeItem('applytwin_login'); return !!v } catch { return true } }
+
 export default function App() {
   const parse = () => { const raw = location.hash.slice(1); if (raw.includes('access_token=')) return { page: 'home' }; const [p, arg] = (raw || 'home').split('/'); return { page: PAGES[p] ? p : 'home', arg } }
   const [route, setRoute] = useState(parse)
@@ -61,6 +64,11 @@ export default function App() {
       history.replaceState(null, '', location.pathname + '#home')
       toast.error("Sign-in didn't finish", { description: (q.get('error_description') || q.get('error') || '').replace(/\+/g, ' ') + ' Try again.' })
       api('/api/auth').then(r => { setAuth(r); setAuthReady(true) }).catch(() => setAuthReady(true))
+    } else if (h.includes('access_token=') && !loginStarted()) {
+      // tokens this tab didn't ask for (a link to localhost:4747/#access_token=...) would sign you into someone else's
+      // account and sync your vault to it: ignore them
+      history.replaceState(null, '', location.pathname + '#home')
+      api('/api/auth').then(r => { setAuth(r); setAuthReady(true) }).catch(() => setAuthReady(true))
     } else if (h.includes('access_token=')) {
       const q = new URLSearchParams(h.slice(1))
       history.replaceState(null, '', location.pathname + '#home')
@@ -69,7 +77,7 @@ export default function App() {
         .catch(e => { setAuthReady(true); toast.error('Sign-in failed: ' + e.message) })
     } else api('/api/auth').then(r => { setAuth(r); setAuthReady(true) }).catch(() => setAuthReady(true))
   }, [refresh])
-  const signIn = async () => { const r = await api('/api/auth/login?redirect=' + encodeURIComponent(location.origin + '/')); location.href = r.url }
+  const signIn = async () => { try { sessionStorage.setItem('applytwin_login', '1') } catch {} const r = await api('/api/auth/login?redirect=' + encodeURIComponent(location.origin + '/')); location.href = r.url }
   const signOut = async () => { setAuth(await api('/api/auth/logout', {})); toast('Signed out') }
   useEffect(() => {   // first time only: once setup is finished, an empty resume never sends you back into it
     if (state && !state.profile?.onboarded && (!location.hash || location.hash === '#home') && !(state.vault?.experience?.length || state.vault?.projects?.length)) location.hash = 'welcome'

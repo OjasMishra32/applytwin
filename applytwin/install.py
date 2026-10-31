@@ -19,19 +19,24 @@ APPLYTWIN_BIN = os.path.join(APP, 'bin', 'applytwin')
 
 
 def notify(title, msg):
-    msg = msg.replace('"', "'")[:200]
+    # title and message can come from a job page via the agent: they go in as data (argv / environment), never into
+    # AppleScript or PowerShell source, where a quote would let them run commands
+    title, msg = str(title)[:120], str(msg)[:200]
     try:
         if platform.system() == 'Darwin':
-            subprocess.run(['osascript', '-e', f'display notification "{msg}" with title "{title}" sound name "Glass"'], capture_output=True)
+            subprocess.run(['osascript', '-e', 'on run argv', '-e',
+                            'display notification (item 2 of argv) with title (item 1 of argv) sound name "Glass"', '-e', 'end run',
+                            title, msg], capture_output=True)
         elif platform.system() == 'Windows':
             ps = ("[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] > $null;"
                   "$t = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent(1);"
-                  f"$x = $t.GetElementsByTagName('text'); $x.Item(0).AppendChild($t.CreateTextNode('{title.replace(chr(39), '')}')) > $null;"
-                  f"$x.Item(1).AppendChild($t.CreateTextNode('{msg.replace(chr(39), '')}')) > $null;"
+                  "$x = $t.GetElementsByTagName('text'); $x.Item(0).AppendChild($t.CreateTextNode($env:APPLYTWIN_NOTE_TITLE)) > $null;"
+                  "$x.Item(1).AppendChild($t.CreateTextNode($env:APPLYTWIN_NOTE_MSG)) > $null;"
                   "[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('ApplyTwin').Show([Windows.UI.Notifications.ToastNotification]::new($t))")
-            subprocess.run(['powershell', '-NoProfile', '-Command', ps], capture_output=True, creationflags=0x08000000)
+            subprocess.run(['powershell', '-NoProfile', '-Command', ps], capture_output=True, creationflags=0x08000000,
+                           env={**os.environ, 'APPLYTWIN_NOTE_TITLE': title, 'APPLYTWIN_NOTE_MSG': msg})
         elif shutil.which('notify-send'):
-            subprocess.run(['notify-send', title, msg], capture_output=True)
+            subprocess.run(['notify-send', '--', title, msg], capture_output=True)
     except Exception:
         pass
 
