@@ -1,124 +1,160 @@
 # ApplyTwin
 
-[![Star ApplyTwin](https://img.shields.io/github/stars/OjasMishra32/applytwin?style=social)](https://github.com/OjasMishra32/applytwin)
+ApplyTwin is a free app for your computer that finds internships, writes a one-page resume for each posting and fills out the application for you.
 
-> **Free for every student.** If ApplyTwin helps you, please ⭐ star this repo. It's how other students find it.
-
-**Your job search on autopilot.** ApplyTwin finds internships and jobs across thousands of company career pages,
-builds a fact-checked resume tuned to each posting, and lets your own Claude Code or Codex fill out the
-applications in your browser, on the plan you already pay for. No API keys.
-
-**Website:** https://apply.twinly.tech · **Your account (any device):** https://apply.twinly.tech/app
-
-Your data stays on your computer unless you sign in with Google, which backs up your profile and syncs every
-application (with the exact resume sent) to your account so you can see it anywhere.
-
-Built from a real search: 1,500+ applications across Greenhouse, Lever, Ashby, Workday, SmartRecruiters,
-iCIMS and LinkedIn, with everything learned there turned into code and agent playbooks.
-
-## What it does
-
-| | |
-|---|---|
-| **Finds jobs** | One scan reads the community trackers (SimplifyJobs, vanshb03, SpeedyApply, Northwestern FinTech quant, Zapply, Simplify off-season), The Muse (every field), Hacker News "Who is hiring", remote boards (RemoteOK, Remotive, Himalayas, Jobicy, Arbeitnow), the SmartRecruiters live feed, and 650+ Greenhouse, Lever, Ashby, Workday, SmartRecruiters, Workable and Recruitee boards across tech, finance, consulting, healthcare, energy, consumer and media. Every board a tracker links to is discovered and read whole. Each posting is scored for fit: role (any field, typed freely), level, cycle, location, graduation window, sponsorship, and how much of the posting your experience covers. |
-| **Knows what you applied to** | Import a CSV from Simplify, Huntr, Teal, Notion or a Google Sheet; the same role at the same company is never applied to twice, however a board titles it. |
-| **Career Vault** | Dump everything: every job, project, paper, award and skill, with as many versions of each bullet as you like. Your agent turns old resumes, LinkedIn exports and notes into the vault. |
-| **Tailors every resume** | For each posting, ApplyTwin picks your most relevant roles and bullets, orders them for that reader, mirrors the posting's exact terms only where your vault proves them, and fits one page. A **fact guard** rejects any rewrite that adds a number, tool, scale or claim that the same entry doesn't contain. |
-| **8 resume templates** | Jake's Classic, Harvard Traditional, Finance One-Pager, Awesome Modern, Banking, Sans Minimal, Compact Engineering, Accent Bar. All are single-column real text, so every ATS parses them. |
-| **ATS check** | Keyword coverage of the posting's hard skills (requirements section weighted 2x) plus a lint for the things recruiters skim for: quantified bullets, action verbs, length, contact line, one page, clean text extraction. |
-| **Answer bank** | One truthful answer for each of the ~40 questions every application asks, matched to any wording. The agent only asks you about genuinely new questions, once. |
-| **Applies for you** | Your Claude Code or Codex runs the loop: claim the job, tailor, open the form, follow ApplyTwin's playbook for that ATS, answer from the bank, upload the PDF, then submit (if you allow it) or stop on the review screen for you. |
-| **Guardrails** | Never types passwords or codes, never solves CAPTCHAs or creates accounts, never accepts arbitration agreements, never invents facts. Daily limit and per-company caps. |
+It runs on the Claude Code or Codex plan you already pay for. There are no API keys and no new subscription.
 
 ## Install
 
+Mac or Linux, paste this into Terminal:
+
 ```bash
-curl -fsSL apply.twinly.tech/install | bash        # Mac and Linux, in Terminal
+curl -fsSL apply.twinly.tech/install | bash
 ```
+
+Windows, paste this into PowerShell:
 
 ```powershell
-irm apply.twinly.tech/install.ps1 | iex            # Windows, in PowerShell
+irm apply.twinly.tech/install.ps1 | iex
 ```
 
-That's it. It installs ApplyTwin in `~/.applytwin-app` (`%USERPROFILE%\.applytwin-app` on Windows), connects it to Claude Code and Codex, checks your setup and opens
-the app at http://localhost:4747. Run it again any time to update.
+Before you run it you need Python 3.9 or newer, Node.js, and Claude Code or Codex. The installer checks for each one and tells you what is missing.
 
-**After that it runs like a normal app.** It starts by itself when you log in, so it's always at
-http://localhost:4747. Open it from the ApplyTwin icon (Applications / Spotlight on Mac, the Start menu on Windows,
-your app menu on Linux), that address, or by typing `applytwin` in a terminal. Your jobs refresh twice a day and the
-app updates itself.
+### What happens after you paste it
 
-**No API keys.** ApplyTwin runs on the Claude Code or Codex plan you already pay for: resume tailoring, imports and the
-apply loop all go through your own `claude` or `codex` command line. You need:
+1. **It installs.** ApplyTwin goes into `~/.applytwin-app` (`%USERPROFILE%\.applytwin-app` on Windows), connects itself to Claude Code and Codex, and runs a setup check.
+2. **The app opens in your browser at http://localhost:4747.** That page is ApplyTwin, running on your own computer.
+3. **Sign in with Google there.** Your setup, answers and applications are saved to your account, so a new laptop picks up where you left off.
+4. **Add your resume.** Drop in the one you have (PDF, Word, LaTeX or text) and answer the usual application questions once.
+5. **Press Start** on the Autopilot page. It applies in its own browser window and pings you when it needs you.
 
-- Python 3.9+ and Node.js (Node lets your twin drive a browser)
-- Claude Code (`npm i -g @anthropic-ai/claude-code`, then `claude` and `/login`) or Codex (`npm i -g @openai/codex`, then `codex login`)
+> **The app is http://localhost:4747.** The website apply.twinly.tech is where you get the install line. Your account page at [apply.twinly.tech/app](https://apply.twinly.tech/app) shows the applications your app has synced, from any device. You sign in, add your resume and press Start on localhost:4747.
 
-Check everything with `applytwin doctor`. From a clone of this repo instead: `./install.sh`.
+From then on ApplyTwin runs like a normal app. It starts by itself when you log in, so http://localhost:4747 always works. You can also open it from the ApplyTwin icon (Applications or Spotlight on Mac, the Start menu on Windows, your app menu on Linux) or by typing `applytwin` in a new terminal. Jobs refresh on their own and the app updates itself. To update by hand, run the install line again or `applytwin update`.
 
-## Use it
+## How it works
 
-In **Claude Code** or **Codex**:
+**It finds jobs.** ApplyTwin reads the career sites of more than 600 companies (Greenhouse, Lever, Ashby, Workday and SmartRecruiters boards), plus the community internship trackers, The Muse, Hacker News "Who is hiring" and remote job boards. Each posting gets a fit score based on your roles, level, location, graduation date, sponsorship needs and how much of the posting your experience covers. Your dream companies go to the front of the queue.
 
-- `set me up with applytwin`: imports your resumes and LinkedIn, builds your vault, asks about your preferences
+**It tailors a resume for each posting.** You keep everything you have done in one place, the Career Vault. For each job, ApplyTwin picks your most relevant roles and bullets, orders them for that reader and fits them on one page. A fact check rejects any rewrite that adds a number, tool or claim the original entry doesn't have. Your numbers, titles, employers, degrees and awards stay exactly as you wrote them. There are 8 templates, all single column with real text, so applicant tracking systems can read them.
+
+**It fills the application.** Your own Claude Code or Codex opens the form in a browser, follows ApplyTwin's playbook for that application system, answers from your saved answers and uploads the tailored PDF. Then it stops on the review screen so you press Submit. If you turn on "Submit applications on its own" in Settings, it submits for you.
+
+**It remembers what you applied to.** The same role at the same company is never applied to twice. You can import a CSV of past applications from Simplify, Huntr, Teal, Notion or a Google Sheet.
+
+**It asks you only when it has to.** New questions it hasn't seen before come to you once, and it saves your answer for next time.
+
+## What it will never do
+
+- Type your passwords or verification codes
+- Solve a CAPTCHA
+- Create an account in your name
+- Accept a legal agreement
+- Change a number, title, employer, degree or award on your resume
+
+When it hits one of these, it stops and sends you a notification.
+
+## FAQ
+
+**Do I need an API key?**
+No. ApplyTwin runs on the Claude Code or Codex subscription you already have. If you can use either one in a terminal, you can use ApplyTwin.
+
+**Is apply.twinly.tech the app?**
+No. The app runs on your computer at http://localhost:4747. apply.twinly.tech is the website, and apply.twinly.tech/app shows your synced applications.
+
+**Where does my data live?**
+On your computer, in a folder called `~/.applytwin`. Signing in backs up your setup so a new laptop picks up where you left off.
+
+**Will it submit applications without me?**
+Only if you turn that on. Otherwise it fills every form and stops on the review screen, so you press Submit.
+
+**Does it work on Windows?**
+Yes. Mac, Windows and Linux. On Windows, paste the PowerShell command.
+
+**Is it only for software jobs?**
+No. It knows what a strong resume looks like in your field, from nursing and finance to design, research and engineering.
+
+**Why do I sign in with Google?**
+So your setup, answers and applications are saved to your account. ApplyTwin never posts, emails or signs up for anything as you.
+
+**Does it track me?**
+It counts installs with a random ID, your OS, the ApplyTwin version and which agent you use, once a day. Never your name, email, resume, jobs or applications. Turn it off in Settings (Count my install) or set `APPLYTWIN_NO_TELEMETRY=1`.
+
+**What does it cost?**
+Nothing. ApplyTwin is free.
+
+## Troubleshooting
+
+Start with the setup check. It lists anything that is missing and how to fix it:
+
+```bash
+applytwin doctor
+```
+
+**http://localhost:4747 doesn't open, or says it can't connect.**
+The first start can take a minute, so wait and reload. If it still won't load, start it yourself with `applytwin app` (on Mac or Linux, open a new terminal first so the command is found). If port 4747 is taken, ApplyTwin uses the next free port and prints the address. You can also pick one: `applytwin app --port 5050`. On Mac and Windows the app's log is `server.log` in the `.applytwin` folder in your home folder.
+
+**Claude Code or Codex isn't signed in.**
+Open the Autopilot page in the app and press **Install and sign in**. It installs the agent if needed and opens Claude's or ChatGPT's own sign-in page. From a terminal instead:
+
+```bash
+npm install -g @anthropic-ai/claude-code   # then run: claude   and type /login
+npm install -g @openai/codex               # then run: codex login
+```
+
+Any paid plan works. After signing in, run `applytwin install-agents` so ApplyTwin is connected to it.
+
+**Windows says "running scripts is disabled on this system".**
+That is PowerShell's script policy blocking npm's commands. Type `claude.cmd`, `codex.cmd` or `npm.cmd` instead of `claude`, `codex` or `npm`, or run them from Command Prompt. If you'd rather change the policy for your own user account, run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.
+
+**Python is missing, or too old.**
+ApplyTwin needs Python 3.9 or newer. On Mac or Linux, get it from https://www.python.org/downloads/. On Windows:
+
+```powershell
+winget install Python.Python.3.12
+```
+
+Then close the window, open a new one and paste the install line again.
+
+**Node.js is missing.**
+Your twin needs Node.js to drive a browser. Get the LTS version from https://nodejs.org (on Windows, `winget install OpenJS.NodeJS.LTS`).
+
+**`applytwin: command not found`.**
+Open a new terminal window. The installer adds the command to your PATH, and windows that were already open don't see it yet.
+
+## Use it from Claude Code or Codex
+
+ApplyTwin also works from a chat with your agent. Try:
+
+- `set me up with applytwin`
 - `twin: scan and show my top 20`
 - `twin: tailor my resume for <job id or URL> and explain the choices`
 - `twin: apply to my top 10`
 - `twin: review my resume like a recruiter`
 
-The agent needs a browser it can drive: Claude in Chrome or computer use for Claude Code, or the browser /
-computer-use tools in Codex.
+The agent needs a browser it can drive: Claude in Chrome or computer use for Claude Code, or the browser tools in Codex.
 
-In the **app** (`./bin/applytwin app`): Home (scan, stats, setup checklist), Jobs (every match with fit, keyword
-coverage and one-click tailored resumes), Resume Studio (vault editor with live preview, template gallery and
-resume check), Answers, Applications, Profile & Search (filters and agent permissions), Agents (setup).
+The command line works without any agent: `applytwin scan`, `applytwin jobs`, `applytwin tailor JOB_ID`, `applytwin ats JOB_ID`, `applytwin templates`, `applytwin watch --every 120`. Run `applytwin help` for the full list.
 
-The **CLI** works without any agent: `applytwin scan`, `applytwin jobs`, `applytwin tailor JOB_ID`, `applytwin render --template
-harvard`, `applytwin ats JOB_ID`, `applytwin watch --every 120` (desktop notification the moment a match posts).
+## Contributing
 
-## How tailoring works
+Bug reports and ideas are welcome in [Issues](https://github.com/OjasMishra32/applytwin/issues). If an application form trips it up, tell us the company and the application system (Workday, Greenhouse and so on).
 
-1. The posting's hard skills are extracted from a 250+ term lexicon, with the requirements section weighted 2x.
-2. **Agent mode** (best): your Claude/Codex gets `applytwin_tailor_prompt`, which contains your vault, the posting
-   and the rules in [docs/RESUME_GUIDE.md](docs/RESUME_GUIDE.md), and returns a plan (which entries, which bullets,
-   truthful rewrites, skills order).
-3. **API mode**: set `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` and the app does the same on its own.
-4. **Heuristic mode** (no AI): ranks entries and bullets by keyword overlap and impact.
-5. The fact guard checks every rewrite. The renderer shrinks type slightly, then trims the least relevant bullets
-   until the resume fits one page.
+To run it from a clone:
 
-## Your data
+```bash
+git clone https://github.com/OjasMishra32/applytwin.git
+cd applytwin
+./install.sh               # connects Claude Code and Codex, then opens http://localhost:4747
+python3 tests/smoke.py     # tests
+```
 
-Everything lives in `~/.applytwin` (set `APPLYTWIN_HOME` to move it): `profile.json`, `resume.json` (the vault),
-`answers.json`, `applytwin.db` (jobs and applications) and `resumes/` (every tailored PDF). Add companies to scan in
-`~/.applytwin/companies.json` (start from `data/companies.json`).
-
-**Install count.** Once a day the app sends a random ID made on your computer, your OS, the ApplyTwin version and which
-agent you use, so we know how many people use it. Never your name, email, resume, jobs or applications. Turn it off in
-Settings (Count my install) or set `APPLYTWIN_NO_TELEMETRY=1`.
-
-## The app
-
-`./bin/applytwin app` opens it at http://localhost:4747. First run walks you through it: drop your resume (PDF, Word,
-LaTeX or text; no AI needed to parse it), answer five questions (role type, roles, dream companies, locations, work
-authorization), and it builds your queue live. Then: **Home** (your matches, live feed), **Jobs** (every match with
-keyword coverage and a one-click tailored resume), **Resume** (edit your vault right on the page; Write / Check /
-Style), **Answers**, **Applications** (drag cards when you hear back; your twin learns from it), **Autopilot** (your
-queue, dream companies first, and a Start button that runs Claude Code or Codex through it), ⌘K for everything.
-
-Every tailored resume is also written as LaTeX (`.tex`, Jake's Resume layout). Pick the **LaTeX** template to have
-the PDF typeset by your TeX engine (tectonic, lualatex, xelatex or pdflatex).
-
-## For developers
-
-Python standard library only (`pypdf` is optional, for PDF text checks). `applytwin/` has the store, sources,
-match, ats, tailor, render, answers, api, server, mcp and cli modules; `web/` is vanilla JS. Skills are in
-`skills/`, ATS playbooks in `playbooks/`, agent instructions in [AGENTS.md](AGENTS.md).
-Run `python3 tests/smoke.py`.
+The Python side uses only the standard library. `applytwin/` holds the store, job sources, matching, tailoring, rendering, the local server and the MCP server. The app's interface is React in `ui/` and builds into `web/` with `cd ui && npm install && npm run build`; `npm run dev` serves it on port 5173 against a running app. Agent skills are in `skills/`, playbooks for each application system in `playbooks/`, and agent instructions in [AGENTS.md](AGENTS.md). Resume writing rules are in [docs/RESUME_GUIDE.md](docs/RESUME_GUIDE.md).
 
 ## License
 
-Copyright (c) 2026 Ojasva Mishra. ApplyTwin is free to use under the [PolyForm Strict License 1.0.0](LICENSE): you may
-install and run it for any noncommercial purpose, but you may not copy, modify, redistribute or sell it, or build other
-works from it. For any other use, ask first.
-Bundled third-party code (`applytwin/_vendor/pypdf`) stays under its own BSD license.
+Copyright (c) 2026 Ojasva Mishra. ApplyTwin is free to use under the [PolyForm Strict License 1.0.0](LICENSE). You may install and run it for any noncommercial purpose. You may not copy, modify, redistribute or sell it, or build other works from it. For any other use, ask first. Bundled third-party code (`applytwin/_vendor/pypdf`) stays under its own BSD license.
+
+## If it helps you
+
+ApplyTwin is free and has no ads. If it saved you some time, please [star the repo](https://github.com/OjasMishra32/applytwin). It's how other students find it.
