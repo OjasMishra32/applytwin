@@ -30,6 +30,7 @@ PREAMBLE = r"""\documentclass[letterpaper,11pt]{article}
 \setlength{\tabcolsep}{0in}
 \titleformat{\section}{\vspace{-4pt}\scshape\raggedright\large}{}{0em}{}[\color{black}\titlerule \vspace{-5pt}]
 \ifdefined\pdfgentounicode\pdfgentounicode=1\fi
+\ifdefined\pdfinterwordspaceon\pdfinterwordspaceon\fi  % pdfTeX: real space characters between words, so no parser glues "ms)by"
 \newcommand{\resumeItem}[1]{\item\small{{#1 \vspace{-2pt}}}}
 \newcommand{\resumeSubheading}[4]{\vspace{-2pt}\item
   \begin{tabular*}{0.97\textwidth}[t]{l@{\extracolsep{\fill}}r}
@@ -56,7 +57,9 @@ def url(u):
 
 
 def esc(s):
-    return ''.join(SPECIAL.get(c, c) for c in (s or ''))
+    # f{}i: an empty group stops TeX forming the ff/fi/fl/ffi ligatures, which XeTeX (tectonic) writes into the PDF as
+    # single U+FB0x characters, so 'efficient' wouldn't match a parser's keyword search
+    return re.sub(r'f(?=[fil])', 'f{}', ''.join(SPECIAL.get(c, c) for c in (s or '')))
 
 
 def tex(s):
@@ -80,6 +83,8 @@ def dates(e):
 
 
 def build_tex(r, k=1.0):
+    from .render import clean
+    r = clean(r)   # pasted ligature glyphs, soft hyphens and zero-width spaces out of the text
     b = r.get('basics', {})
     contact = [esc(x) for x in (b.get('phone'), b.get('email'), b.get('location')) if x]
     for l in b.get('links', []):
@@ -102,13 +107,14 @@ def build_tex(r, k=1.0):
             body.append(r'\resumeSubHeadingListStart')
             for e in data:
                 from .render import degree_line
-                deg = degree_line(e)
-                if e.get('gpa'):
-                    deg += f"; GPA: {e['gpa']}"
+                deg = '; '.join(x for x in (degree_line(e), e.get('minor') and 'Minor in ' + e['minor'],
+                                            e.get('gpa') and 'GPA: ' + e['gpa']) if x)
                 body.append(r'\resumeSubheading{%s}{%s}{%s}{%s}' % (esc(e.get('school')), esc(e.get('location')), esc(deg), dates(e)))
-                extra = [x for x in (e.get('honors') or []) + ([('Coursework: ' + ', '.join(e['coursework']))] if e.get('coursework') else [])]
+                # honors share one line (as in the HTML templates) instead of one bullet each
+                extra = ([r' $\cdot$ '.join(tex(h) for h in e['honors'])] if e.get('honors') else []) + \
+                        ([r'\textbf{Relevant coursework:} ' + esc(', '.join(e['coursework']))] if e.get('coursework') else [])
                 if extra:
-                    body += [r'\resumeItemListStart'] + [r'\resumeItem{%s}' % tex(x) for x in extra] + [r'\resumeItemListEnd']
+                    body += [r'\resumeItemListStart'] + [r'\resumeItem{%s}' % x for x in extra] + [r'\resumeItemListEnd']
             body.append(r'\resumeSubHeadingListEnd')
         elif sec in ('experience', 'leadership', 'volunteering'):
             body.append(r'\resumeSubHeadingListStart')
@@ -131,18 +137,18 @@ def build_tex(r, k=1.0):
             body.append(r'\begin{itemize}[leftmargin=0.15in, label={}]\small{\item{')
             body.append(r' \\ '.join(r'\textbf{%s}{: %s}' % (esc(s.get('label', '')), esc(', '.join(s.get('items', [])))) for s in data))
             body.append(r'}}\end{itemize}')
-        else:  # research, awards, certifications
-            body.append(r'\begin{itemize}[leftmargin=0.15in]')
+        else:  # research, awards, certifications: bullets lined up with the experience bullets, same size and spacing
+            body.append(r'\begin{itemize}[leftmargin=\dimexpr0.15in+\leftmarginii\relax, label=\labelitemii, topsep=0pt]')
             for x in data:
                 if isinstance(x, str):
-                    body.append(r'\item\small{%s}' % tex(x))
+                    body.append(r'\resumeItem{%s}' % tex(x))
                 else:
                     t = tex(x.get('title', ''))
                     if x.get('url'):
                         t = r'\href{%s}{%s}' % (url(x['url']), t)
-                    body.append(r'\item\small{%s%s%s}' % ((tex(x['role']) + ': ') if x.get('role') else '', t,
-                                                           (r'. \textbf{%s}' % tex(x['venue'])) if x.get('venue') else ''))
-            body.append(r'\end{itemize}')
+                    body.append(r'\resumeItem{%s%s%s}' % ((tex(x['role']) + ': ') if x.get('role') else '', t,
+                                                          (r'. \textbf{%s}' % tex(x['venue'])) if x.get('venue') else ''))
+            body.append(r'\end{itemize}\vspace{-4pt}')
     # \small and the headings are relative to the class size, so shrink by changing the class size (11pt -> 10pt), and at
     # the last step also tighten the space between items
     pre = PREAMBLE if k >= 0.99 else PREAMBLE.replace('[letterpaper,11pt]', '[letterpaper,10pt]')
@@ -151,33 +157,42 @@ def build_tex(r, k=1.0):
     return pre + '\n\\begin{document}\n' + '\n'.join(body) + '\n\\end{document}\n'
 
 
-def engine():
-    for e in ('tectonic', 'lualatex', 'xelatex', 'pdflatex'):
-        p = shutil.which(e)
+# pdfLaTeX first, as on Overleaf: with glyphtounicode and \pdfinterwordspaceon its text layer has real spaces and plain
+# letters, which every parser reads; tectonic (XeTeX) next, then LuaLaTeX and XeLaTeX
+ENGINES = ('pdflatex', 'tectonic', 'lualatex', 'xelatex')
+
+
+def engines():
+    out = []
+    for e in ENGINES:
+        p = shutil.which(e) or next((os.path.join(d, e) for d in ('/Library/TeX/texbin', '/opt/homebrew/bin', '/usr/local/bin')
+                                     if os.path.exists(os.path.join(d, e))), None)
         if p:
-            return e, p
-    for d in ('/Library/TeX/texbin', '/opt/homebrew/bin', '/usr/local/bin'):
-        for e in ('lualatex', 'pdflatex', 'xelatex', 'tectonic'):
-            p = os.path.join(d, e)
-            if os.path.exists(p):
-                return e, p
-    return None, None
+            out.append((e, p))
+    return out
+
+
+def engine():
+    return (engines() or [(None, None)])[0]
 
 
 def compile_tex(src, out_pdf):
     from .store import NOWIN   # no console window flashing up per compile on Windows
-    name, exe = engine()
-    if not exe:
+    found = engines()
+    if not found:
         raise RuntimeError('No LaTeX engine found (install tectonic or TeX Live, or pick another template)')
-    with tempfile.TemporaryDirectory() as td:
-        f = os.path.join(td, 'resume.tex')
-        open(f, 'w', encoding='utf-8').write(src)
-        cmd = [exe, f] if name == 'tectonic' else [exe, '-interaction=nonstopmode', '-halt-on-error', 'resume.tex']
-        for _ in range(1 if name == 'tectonic' else 2):
-            subprocess.run(cmd, cwd=td, capture_output=True, timeout=180, **NOWIN)
-        pdf = os.path.join(td, 'resume.pdf')
-        if not os.path.exists(pdf):
-            raise RuntimeError('LaTeX failed to compile')
-        os.makedirs(os.path.dirname(os.path.abspath(out_pdf)), exist_ok=True)
-        shutil.copy(pdf, out_pdf)
-    return out_pdf
+    for name, exe in found:   # a minimal TeX install can miss a package one engine needs: try the next engine
+        with tempfile.TemporaryDirectory() as td:
+            f = os.path.join(td, 'resume.tex')
+            open(f, 'w', encoding='utf-8').write(src)
+            cmd = [exe, f] if name == 'tectonic' else [exe, '-interaction=nonstopmode', '-halt-on-error', 'resume.tex']
+            try:   # one pass: there are no cross-references, so a second run changes nothing
+                rc = subprocess.run(cmd, cwd=td, capture_output=True, timeout=180, **NOWIN).returncode
+            except (OSError, subprocess.SubprocessError):
+                continue
+            pdf = os.path.join(td, 'resume.pdf')
+            if rc == 0 and os.path.exists(pdf) and os.path.getsize(pdf) > 0:
+                os.makedirs(os.path.dirname(os.path.abspath(out_pdf)), exist_ok=True)
+                shutil.copy(pdf, out_pdf)
+                return out_pdf
+    raise RuntimeError('LaTeX failed to compile')

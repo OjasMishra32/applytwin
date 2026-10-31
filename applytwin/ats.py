@@ -161,6 +161,43 @@ def resume_text(r):
     return plain('\n'.join(p for p in parts if p))
 
 
+_HEAD_WORD = {'volunteering': 'volunteer', 'certifications': 'licenses'}
+_ODD = re.compile('[\ufb00-\ufb4f\ufffd\ue000-\uf8ff\u0000-\u0008\u000b\u000c\u000e-\u001f]')
+
+
+def text_layer_issues(pdf_text, resume=None):
+    """What a resume parser would trip on in the PDF's text layer (as pypdf extracts it, much like the parsers inside
+    Greenhouse, Lever and Workday): ligature or private-use glyphs, words broken onto separate lines (some fonts write
+    word spaces as line breaks), an email that doesn't come out as typed, and section headings missing or out of order."""
+    out, t = [], pdf_text or ''
+    odd = sorted(set(_ODD.findall(t)))
+    if odd:
+        out.append('odd characters in the text layer: ' + ' '.join('U+%04X' % ord(c) for c in odd[:5]))
+    lines = [l for l in t.splitlines() if l.strip()]
+    heads = {'education', 'experience', 'projects', 'skills', 'awards', 'leadership', 'research', 'certifications', 'publications'}
+    single = [l for l in lines if len(l.split()) == 1 and not l.strip().isupper() and l.strip().lower() not in heads]
+    if len(lines) >= 15 and len(single) > 0.25 * len(lines):
+        out.append(f'words split onto separate lines ({len(single)} of {len(lines)} lines hold one word)')
+    b = (resume or {}).get('basics') or {}
+    flat = re.sub(r'\s+', '', t)
+    if b.get('email') and b['email'].strip() not in flat:
+        out.append('the email address does not extract as typed')
+    if resume:
+        pos, last = [], -1
+        for sec in resume.get('order') or []:
+            if not resume.get(sec):
+                continue
+            word = ((resume.get('titles') or {}).get(sec) or _HEAD_WORD.get(sec, sec)).split()[0]
+            m = re.search(r'(?im)^\s*' + re.escape(word), t[last + 1:] if last >= 0 else t)
+            if not m:
+                pos.append(word)
+                continue
+            last = (last + 1 if last >= 0 else 0) + m.start()
+        if pos:
+            out.append('section headings not found in reading order: ' + ', '.join(pos))
+    return out
+
+
 def requirement_text(jd):
     """The part of the posting under requirements/qualifications headers (weighted 2x)."""
     out, on = [], False
@@ -247,8 +284,9 @@ def lint(resume, pages=None, pdf_text=None):
         yrs = _years_out(resume)
         add('pages', pages == 1 or (pages == 2 and yrs > 8), f'{pages} page(s): students and new grads keep it to one')
     if pdf_text is not None:
-        lig = re.search('[ﬀ-ﬆ]', pdf_text)
-        add('parse', not lig and len(pdf_text) > 400, 'PDF text extracts cleanly (no ligatures, real text not images)')
+        issues = text_layer_issues(pdf_text, resume) + ([] if len(pdf_text) > 400 else ['almost no text (an image, not real text?)'])
+        add('parse', not issues, 'PDF text extracts cleanly (no ligatures, words and headings intact, real text not images)'
+            + (': ' + '; '.join(issues) if issues else ''))
         add('dates', len(set(re.findall(r'\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.? 20\d\d\b', pdf_text))) > 0,
             'Dates written as Month Year', warn=True)
     return out
