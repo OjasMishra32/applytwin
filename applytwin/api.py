@@ -627,6 +627,34 @@ def applications(limit=500, history=False):
     return rows
 
 
+def export_applications(fmt='csv'):
+    """Everything you've applied to (and everything waiting on you), for your own spreadsheet or tracker."""
+    import csv
+    import io
+    from datetime import datetime
+    jobs = {j['id']: j for j in store.rows('select id, location, ats, source, apply_url from jobs')}
+    rows, seen = [], set()
+    for a in applications(limit=100000, history=True):   # newest first: one row per job, at its latest status
+        if a['job_id'] in seen:
+            continue
+        seen.add(a['job_id'])
+        j = jobs.get(a['job_id']) or {}
+        rows.append({"company": a['company'] or '', "role": a['title'] or '', "status": a['status'] or '',
+                     "date": datetime.fromtimestamp(a['at']).strftime('%Y-%m-%d %H:%M') if a.get('at') else '',
+                     "location": j.get('location') or '', "url": a['url'] or j.get('apply_url') or '',
+                     "site": j.get('ats') or j.get('source') or '', "notes": a['notes'] or '',
+                     "resume": os.path.basename(a['resume_path'] or '')})
+    if fmt == 'json':
+        return json.dumps(rows, indent=2).encode(), 'application/json', 'applytwin-applications.json'
+    out = io.StringIO()
+    w = csv.writer(out)
+    w.writerow(['Company', 'Role', 'Status', 'Date', 'Location', 'Link', 'Site', 'Notes', 'Resume'])
+    for r in rows:
+        # a cell starting with = + - @ is a formula to Excel and Sheets: a job title can't be allowed to run as one
+        w.writerow(["'" + v if v[:1] in ('=', '+', '-', '@', '\t', '\r') else v for v in map(str, r.values())])
+    return ('\ufeff' + out.getvalue()).encode('utf-8'), 'text/csv', 'applytwin-applications.csv'   # BOM: Excel reads it as UTF-8
+
+
 def stats():
     r = store.rows("select status, count(*) n from jobs group by status")
     a = store.rows("select status, count(*) n from applications group by status")
@@ -1136,11 +1164,13 @@ def message(job_id, text):
     text = (text or '').strip()
     if not text:
         return {"thread": thread(job_id)}
-    if job_id == HELP:   # the general help chat: always the agent, with a picture of their setup
+    if job_id == HELP:   # the general help chat: its own agent right away, never waiting behind an Autopilot run
         _say(HELP, 'you', text)
-        r = _run_or_queue(HELP, help_prompt(text))
-        _say(HELP, 'twin', "Queued. I'll look at this right after the run I'm on." if r.get('queued') else
-             "Looking into it now. I'll reply here in a minute or two.")
+        try:
+            start_help()
+            _say(HELP, 'twin', "Looking into it now. I'll answer here in a minute.")
+        except Exception as e:
+            _say(HELP, 'twin', f"I can't answer right now: {e}")
         return {"thread": thread(HELP)}
     _say(job_id, 'you', text)
     kind = intent(text)
@@ -1159,6 +1189,87 @@ def message(job_id, text):
                               "Queued. I'm in the middle of a run and will do this right after, then reply here." if r.get('queued')
                               else ("Submitting it now. I'll reply here when it's done." if submit else "On it. I'll reply here when it's done.")))
     return {"thread": thread(job_id)}
+
+
+_help = {"proc": None}
+_HELP_LOCK = threading.Lock()
+
+
+def start_help():
+    """Answer the Help chat with a second, short agent session that runs beside any Autopilot run. It gets ApplyTwin's
+    tools but no browser, so it never fights the run for the twin's browser. A newer message replaces one still being
+    worked on: the new session sees the whole conversation, so nothing is lost."""
+    import shutil
+    import subprocess
+    agent = _agent()
+    exe = shutil.which(agent) or agents.exe(agent)
+    if not exe or not os.path.exists(str(exe)):
+        raise RuntimeError('Claude Code or Codex needs to be installed first (Settings shows how).')
+    if not agents.status(agent)['signed_in']:
+        raise RuntimeError(f"{'Claude Code' if agent == 'claude' else 'Codex'} is signed out. Press Sign in on the Autopilot page.")
+    busy = bool(_run['proc'] and _run['proc'].poll() is None)
+    prompt = help_prompt(_help_latest()) + (
+        "\n\nAn Autopilot run is going right now in the twin's browser: don't open a browser, don't start a run, and "
+        "don't claim or apply to jobs. Answer from ApplyTwin's tools and data." if busy else
+        "\n\nAnswer from ApplyTwin's tools and data; don't open a browser or start an Autopilot run.")
+    if agent == 'claude':
+        cmd = [exe, '-p', '--allowedTools', 'mcp__plugin_applytwin_applytwin,mcp__applytwin,Read', '--permission-mode', 'acceptEdits',
+               '--output-format', 'text']
+    else:
+        cmd = [exe, 'exec', '--skip-git-repo-check', '-s', 'workspace-write', '-c', 'approval_policy=never', *agents.codex_model_args(),
+               '--output-last-message', store.path('help.last'), '-']   # its log is full of tool chatter; this is just the answer
+    with _HELP_LOCK:
+        old = _help['proc']
+        if old and old.poll() is None:
+            _kill(old)
+        logf = store.path('help.log')
+        try:
+            os.remove(store.path('help.last'))
+        except OSError:
+            pass
+        f = open(logf, 'w', encoding='utf-8')
+        proc = subprocess.Popen(cmd, stdout=f, stderr=subprocess.STDOUT, stdin=subprocess.PIPE, cwd=store.HOME, text=True, encoding='utf-8',
+                                errors='replace', env={**os.environ, 'APPLYTWIN_RUN_ID': f'help-{int(time.time())}'},
+                                **(store.NOWIN if os.name == 'nt' else {'start_new_session': True}))
+        f.close()
+        proc.stdin.write(prompt)
+        proc.stdin.close()
+        _help['proc'] = proc
+    threading.Thread(target=_watch_help, args=(proc, logf, time.time()), daemon=True).start()
+    return {"started": True}
+
+
+def _help_latest():
+    mine = [r['text'] for r in thread(HELP) if r['role'] == 'you']
+    return mine[-1] if mine else ''
+
+
+def _watch_help(proc, logf, started):
+    """If the agent answered with applytwin_reply, that's in the chat already; otherwise post what it printed."""
+    try:
+        proc.wait(timeout=600)
+    except Exception:
+        _kill(proc)
+        if _help['proc'] is proc:
+            _say(HELP, 'twin', "That took too long, so I stopped. Try asking again, or in fewer words.")
+        return
+    if _help['proc'] is not proc:   # replaced by a newer message
+        return
+    if store.rows("select 1 from thread where job_id=? and role='twin' and at>? and text not like 'Looking into it now%'", (HELP, started)):
+        return
+    out = ''
+    for f in (store.path('help.last'), logf):
+        try:
+            out = open(f, encoding='utf-8', errors='replace').read().strip()
+        except OSError:
+            continue
+        if out:
+            break
+    low = out.lower()
+    if not out or proc.returncode and ('not logged in' in low or 'login' in low and 'please' in low):
+        _say(HELP, 'twin', "I couldn't get an answer from your agent. Check that it's signed in on the Autopilot page, then ask again.")
+    else:
+        _say(HELP, 'twin', out[-1800:])
 
 
 def _run_or_queue(job_id, prompt):

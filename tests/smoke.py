@@ -627,6 +627,8 @@ res.append(ok(st == 500 and b'authorize' not in body, 'Google sign-in refuses to
 res.append(ok(b'authorize' in req('GET', '/api/auth/login?redirect=' + me + '/')[1], 'Google sign-in back to this app works'))
 st, body = req('POST', '/api/run', '{"agent": "bash", "n": 1}', Content_Type=JSON, Origin=me)
 res.append(ok(st == 500 and b'unknown agent' in body, 'Autopilot runs only Claude Code or Codex'))
+_xr = req('GET', '/export')
+res.append(ok(_xr[0] == 200 and b'Company,Role' in _xr[1], f'/export downloads the CSV ({str(_xr)[:120]})'))
 _srv.shutdown()
 
 # open-issue fixes (2026-10-31, second pass)
@@ -871,6 +873,47 @@ res.append(ok(_prof == ['asset_mgmt_markets', None, 'quant_trading', 'bigtech_sw
 _fl = _tp.pattern_flags({'experience': [{'bullets': ['Worked on the backend for the payments team.', 'Built a cache in Go, cutting p99 latency 30%.']}]})
 res.append(ok(any('weak opener' in f for f in _fl) and not any('Built' in f for f in _fl) and 'ASSET MANAGEMENT' in _tp.prompt(api.get_vault(), {'title': 'Equity Research Summer Associate', 'company': 'Wellington Management'}, 'stocks', {}),
               'recruiter-norms check flags filler openers; the plan prompt carries the posting\'s profile'))
+
+# Help answers right away even mid-run: its own short agent session beside Autopilot, never queued behind it
+import shutil as _sh
+import tempfile as _tf
+_fd = _tf.mkdtemp()
+if os.name == 'nt':
+    _fake = os.path.join(_fd, 'claude.cmd')
+    open(_fake, 'w').write('@echo off\r\nmore > nul\r\necho Your vault has 2 roles and nothing is broken.\r\n')
+else:
+    _fake = os.path.join(_fd, 'claude')
+    open(_fake, 'w').write('#!/bin/sh\ncat > /dev/null\necho "Your vault has 2 roles and nothing is broken."\n')
+    os.chmod(_fake, 0o755)
+_busy = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])
+_saved = (api._agent, api.agents.status, _sh.which, api._run['proc'])
+api._agent, api.agents.status, _sh.which = (lambda: 'claude'), (lambda n, fresh=False: {'signed_in': True, 'label': 'Claude Code'}), (lambda n, *a, **k: _fake)
+api._run['proc'] = _busy
+try:
+    _fq = len(store.load('followups.json', []))
+    _ht = api.message('help', 'is my setup ok?')['thread']
+    _hp = api._help['proc']
+    _hp.wait(timeout=30)
+    for _ in range(40):
+        if any('nothing is broken' in r['text'] for r in api.thread('help')):
+            break
+        time.sleep(0.25)
+    _ans = [r['text'] for r in api.thread('help') if r['role'] == 'twin']
+finally:
+    api._agent, api.agents.status, _sh.which, api._run['proc'] = _saved
+    _busy.kill()
+res.append(ok(len(store.load('followups.json', [])) == _fq and _ans[0].startswith('Looking into it now') and 'nothing is broken' in _ans[-1],
+              f'Help answers during a run instead of queuing ({_ans})'))
+# export: one row per job at its latest status, as CSV a spreadsheet opens, with formula-looking cells defused
+store.execute("insert or replace into jobs(id, company, title, location, url, status) values('exp1', 'Acme', '=HYPERLINK(1)', 'Remote', 'https://acme.test/1', 'applied')")
+store.log_application('exp1', 'Needs User', 'sign in')
+store.log_application('exp1', 'Applied', 'done')
+_cb, _ct, _cn = api.export_applications()
+_csv = _cb.decode('utf-8-sig')
+_jb = json.loads(api.export_applications('json')[0])
+_er = [r for r in _jb if r['company'] == 'Acme']
+res.append(ok(_ct == 'text/csv' and _cn.endswith('.csv') and _csv.startswith('Company,Role,Status') and "'=HYPERLINK(1)" in _csv
+              and len(_er) == 1 and _er[0]['status'] == 'Applied' and _er[0]['url'] == 'https://acme.test/1', f'export CSV/JSON of applications ({_er})'))
 
 print(f'\n{sum(res)}/{len(res)} passed')
 sys.exit(0 if all(res) else 1)

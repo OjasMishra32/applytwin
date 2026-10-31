@@ -127,9 +127,11 @@ class H(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
 
-    def _send(self, code, body, ctype='application/json'):
+    def _send(self, code, body, ctype='application/json', filename=None):
         data = body if isinstance(body, bytes) else (json.dumps(body, default=str) if ctype == 'application/json' else body).encode()
         self.send_response(code)
+        if filename:   # a download, not a page
+            self.send_header('Content-Disposition', f'attachment; filename="{filename}"')
         self.send_header('Content-Type', ctype + ('; charset=utf-8' if ctype.startswith(('text', 'application/json')) else ''))
         self.send_header('Content-Length', str(len(data)))
         self.send_header('Cache-Control', 'no-store')
@@ -190,6 +192,9 @@ class H(BaseHTTPRequestHandler):
                     print(f'Unknown request: GET {u.path} (an old tab? reload it)', flush=True)
                 self._send(404, {"error": not_found()})
             return
+        if u.path == '/export':   # your applications as a spreadsheet (or JSON) for your own tracker
+            data, ctype, name = api.export_applications('json' if _q(qs, 'format') == 'json' else 'csv')
+            return self._send(200, data, ctype, filename=name)
         if u.path == '/preview':
             try:
                 return self._send(200, api.preview_html(_q(qs, 'template', 'classic'), _q(qs, 'job')), 'text/html')

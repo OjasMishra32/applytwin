@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 import { api, fileUrl } from '../lib/api'
 import { useApp, Page } from '../App'
 import { Avatar, Title, spring } from '../components/ui'
-import { Mail, Upload } from 'lucide-react'
+import { Download, Mail, Upload } from 'lucide-react'
 
 const COLS = [['Needs User', 'Needs you'], ['Applied', 'Applied'], ['Interview', 'Interview'], ['Offer', 'Offer'],
   ['Rejected', 'Rejected'], ['Failed', "Didn't go through"], ['Skipped', 'Skipped']]
@@ -42,11 +42,15 @@ export default function Board() {
   const EmailBtn = () => (
     <button onClick={fromEmail} className="inline-flex h-10 items-center gap-1.5 rounded-full bg-white/[.08] px-5 text-[14px] font-medium text-ink hover:bg-white/[.13]">
       <Mail className="size-4" />Find them in my email</button>)
+  const ExportBtn = () => (
+    <a href="/export" download title="A spreadsheet of every application: company, role, status, date, link. Opens in Excel, Google Sheets, Notion or any tracker."
+      className="inline-flex h-10 items-center gap-1.5 rounded-full bg-white/[.08] px-5 text-[14px] font-medium text-ink hover:bg-white/[.13]">
+      <Download className="size-4" />Export CSV</a>)
   const empty = apps && apps.length === 0
   return (
     <div className="relative"><Page>
       <Title sub="Every application your twin sends lands here. Drag a card to a new column when you hear back."
-        right={!empty && <div className="flex flex-wrap gap-2"><EmailBtn /><ImportBtn /></div>}>
+        right={!empty && <div className="flex flex-wrap gap-2"><EmailBtn /><ImportBtn /><ExportBtn /></div>}>
         Applications</Title>
       {empty ? (
         <div className="card mt-2 px-8 py-12 text-center">
