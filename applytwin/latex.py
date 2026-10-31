@@ -86,7 +86,7 @@ def build_tex(r, k=1.0):
     from .render import clean
     r = clean(r)   # pasted ligature glyphs, soft hyphens and zero-width spaces out of the text
     b = r.get('basics', {})
-    contact = [esc(x) for x in (b.get('phone'), b.get('email'), b.get('location')) if x]
+    contact = [esc(x) for x in (b.get('phone'), b.get('email'), b.get('location'), b.get('status')) if x]
     for l in b.get('links', []):
         label = l.get('label') or re.sub(r'^https?://(www\.)?', '', l.get('url', '')).rstrip('/')
         contact.append(r'\href{%s}{\underline{%s}}' % (url(l.get('url', '')), esc(label)))

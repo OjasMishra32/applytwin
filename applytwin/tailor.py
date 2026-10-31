@@ -141,10 +141,11 @@ def strength(b, kws=()):
             + (_kw_score(t, kws) if kws else 0) - (6 if weak(t) else 0))
 
 
-def _upgrade(bl, src, avoid, kws, least=1):
-    """Swap each weak bullet for the entry's strongest unused one (a real, unchosen vault bullet), never adding length."""
+def _upgrade(bl, src, avoid, kws, least=1, taken=()):
+    """Swap each weak bullet for the entry's strongest unused one (a real, unchosen vault bullet), never adding length.
+    taken: vault indexes already on the page, reworded or not (a rewrite of bullet 0 plus bullet 0 itself is one fact twice)."""
     used = set(bl)
-    spare = sorted((b for i, b in enumerate(src.get('bullets', [])) if b not in used and f"{src['id']}.{i}" not in avoid
+    spare = sorted((b for i, b in enumerate(src.get('bullets', [])) if b not in used and i not in taken and f"{src['id']}.{i}" not in avoid
                     and not weak(b) and not any(_closest([b], x)[1] > 0.5 for x in bl)),
                    key=lambda b: -strength(b, kws))
     out = []
@@ -280,12 +281,33 @@ def pattern_profile(job, jd='', field=''):
         hit = (d.get('firms') and re.search(d['firms'], who)) or (d.get('title') and re.search(d['title'], title)) or \
             (d.get('body') and len(re.findall(d['body'], body)) >= d.get('body_min', 1))
         if not hit or (d.get('need_title') and not re.search(d['need_title'], title)) or \
+                (d.get('need_text') and len(re.findall(d['need_text'], title + ' ' + body)) < d.get('need_text_min', 1)) or \
                 (d.get('unless_title') and re.search(d['unless_title'], title)):
             continue
         # a target whose profile is not shipped (it lost the blind review) keeps the plain prompt instead of a neighbor's profile
-        return (pid, profs[pid]) if pid in profs else (None, None)
+        return (pid, _variant(profs[pid], title)) if _live(pid, profs) else (None, None)
     pid = (P.get('by_field') or {}).get(field)
-    return (pid, profs[pid]) if pid in profs and pid not in vetoed else (None, None)
+    return (pid, _variant(profs[pid], title)) if _live(pid, profs) and pid not in vetoed else (None, None)
+
+
+def _live(pid, profs):
+    """A profile is used once it has won the blind review ("shipped": false marks one still being measured). Eval runs can
+    switch measured-but-unshipped profiles on: APPLYTWIN_TRY_PROFILES=all, or a comma list of ids."""
+    if pid not in profs:
+        return False
+    if profs[pid].get('shipped', True):
+        return True
+    want = os.environ.get('APPLYTWIN_TRY_PROFILES', '')
+    return want == 'all' or pid in want.split(',')
+
+
+def _variant(prof, title):
+    """Some targets read differently by role ("Quantitative Researcher" vs "Software Engineer (C++)" at the same firm): the
+    first variant whose title pattern matches is laid over the profile."""
+    for var in prof.get('variants') or []:
+        if re.search(var.get('when_title', '$^'), title):
+            return {**{k: v for k, v in prof.items() if k != 'variants'}, **{k: v for k, v in var.items() if k != 'when_title'}}
+    return prof
 
 
 def pattern_brief(prof):
@@ -297,7 +319,10 @@ def pattern_brief(prof):
              "structure only: never borrow a fact, number or tool from here):"]
     if prof.get('lead_with'):
         lines.append('- Top third leads with: ' + prof['lead_with'])
-    if prof.get('order'):
+    if prof.get('force_order'):
+        lines.append('- Section order (the page is laid out this way, put your "order" in it): ' + ' > '.join(prof['force_order']) +
+                     ', then the rest')
+    elif prof.get('order'):
         lines.append('- Typical section order: ' + ' > '.join(prof['order']))
     if n:
         lines.append(f"- Bullets: about {n.get('bullet_chars', [90, 150])[0]}-{n.get('bullet_chars', [90, 150])[1]} characters (one line, at "
@@ -307,10 +332,10 @@ def pattern_brief(prof):
         lines.append('- Openers they use (vary them, none more than twice): ' + ', '.join(prof['verbs'][:14]))
     if prof.get('skills'):
         lines.append('- Skills: ' + prof['skills'])
-    for c in prof.get('conventions', [])[:6]:
+    for c in prof.get('conventions', [])[:8]:
         lines.append('- ' + c)
     if prof.get('avoid'):
-        lines.append('- Avoid: ' + '; '.join(prof['avoid'][:6]))
+        lines.append('- Avoid: ' + '; '.join(prof['avoid'][:7]))
     if prof.get('exemplars'):
         lines.append('- Bullet shapes that work here (invented examples, for shape only):')
         lines += ['    ' + x for x in prof['exemplars'][:4]]
@@ -318,7 +343,55 @@ def pattern_brief(prof):
 
 
 WEAK_OPEN = re.compile(r'^\W*(responsible for|worked on|helped|assisted|participated|involved in|tasked with|duties|various|utilized|'
-                       r'used|learned|gained|exposed|familiar|was |were |had )', re.I)
+                       r'used|learned|gained|exposed|familiar|was |were |had |did |made the )', re.I)
+# base-form verbs: one of these opening a bullet under a role that has ended reads as a tense slip ("Teach" on last year's TA job)
+PRESENT_VERBS = set('''teach tutor build lead manage develop design write run own create analyze maintain support coordinate organize
+mentor grade research model implement drive conduct prepare present draft screen track monitor test train deploy optimize improve
+reduce increase oversee direct host plan launch collaborate partner engineer architect automate evaluate review assist serve
+operate perform deliver ship establish facilitate advise'''.split())
+_STOP2 = set('with from that this into over their across using based used each also more than were have for and the'.split())
+
+
+def _role_ended(e):
+    end = str(e.get('end') or e.get('dates') or '')
+    return bool(end.strip()) and not re.search(r'present|current|now|ongoing', end, re.I)
+
+
+def _profile_flags(res, checks):
+    """Detail checks a profile turns on (banking screens attention to detail): tense slips on finished roles, the same phrase
+    in two bullets of one entry, roles cut to a single bullet, and bullets that restate a paper already listed."""
+    out = []
+    for sec in ENTRY_SECS:
+        for e in res.get(sec, []):
+            bl = [ats.plain(b) for b in e.get('bullets', [])]
+            name = e.get('org') or e.get('name') or ''
+            if 'tense' in checks and _role_ended(e):
+                for t in bl:
+                    w = (re.match(r'\W*([A-Za-z]+)', t) or [None, ''])[1].lower()
+                    if w in PRESENT_VERBS or (w.endswith('s') and w[:-1] in PRESENT_VERBS):
+                        out.append(f'present tense on a finished role ({name}): "{t[:80]}" should open with a past-tense verb')
+            if 'repeat_phrase' in checks and len(bl) > 1:
+                seen = {}
+                for i, t in enumerate(bl):
+                    ws = [w for w in re.findall(r'[a-z]{4,}', t.lower()) if w not in _STOP2]
+                    for pair in set(zip(ws, ws[1:])):
+                        seen.setdefault(pair, set()).add(i)
+                rep = [' '.join(p) for p, ix in seen.items() if len(ix) > 1]
+                if rep:
+                    out.append(f'"{rep[0]}" appears in two bullets of {name}: say it once')
+            if 'thin_roles' in checks and sec == 'experience' and len(bl) == 1:
+                out.append(f'{name} shows a single bullet: give it a second true bullet from the vault, or cut the role for stronger material')
+            if 'paper_repeat' in checks:
+                for p in res.get('research') or []:
+                    tw = {w for w in re.findall(r'[a-z]{4,}', str(p.get('title', '')).lower()) if w not in _STOP2}
+                    venue = re.sub(r'\s*\(.*?\)', '', str(p.get('venue', ''))).strip().lower()
+                    for t in bl:
+                        low = t.lower()
+                        if (len(tw) >= 3 and len(tw & set(re.findall(r'[a-z]{4,}', low))) >= 0.6 * len(tw)) or \
+                                (len(venue) > 8 and venue[:24] in low):
+                            out.append(f'"{t[:80]}" restates a paper the research section lists: use the line for the method, '
+                                       'scale or result instead')
+    return out
 
 
 def pattern_flags(res, prof=None):
@@ -356,6 +429,8 @@ def pattern_flags(res, prof=None):
         if share < target:
             flags.append(f'only {round(share * 100)}% of bullets carry a number or scale; strong {(prof or {}).get("label", "")} pages are at '
                          f'{round(target * 100)}%+: where the vault has a number for a kept bullet, use that bullet or surface its number')
+    if (prof or {}).get('checks'):
+        flags += _profile_flags(res, prof['checks'])
     return flags
 
 
@@ -826,7 +901,7 @@ def apply(v, plan, jd=''):
                     continue
                 if b not in bl and not any(_closest([b], x)[1] > 0.5 for x in bl):
                     bl.append(b)
-            e2['bullets'] = _one_per_fact(_upgrade(bl, e, avoid, kws, least))
+            e2['bullets'] = _one_per_fact(_upgrade(bl, e, avoid, kws, least, taken=used))
             e2['_used'] = sorted(used | {i for i, b in enumerate(e.get('bullets', [])) if b in e2['bullets']})
             lst.append(e2)
         out[sec] = lst
@@ -1050,11 +1125,70 @@ def _recency(e):
 
 def _house_rules(res, ctx):
     """Field conventions a screener checks at a glance. Banking and finance read strict reverse-chronological order (a
-    recent role listed below an older one looks like a formatting error), so relevance never reorders their roles."""
-    if ctx.get('field') in ('finance', 'consulting'):
+    recent role listed below an older one looks like a formatting error), so relevance never reorders their roles. The
+    posting's profile can fix the section order (ML research: publications under education) and name headings (banking:
+    "Leadership & Activities", "Skills & Interests")."""
+    prof = ctx.get('pattern') or {}
+    if ctx.get('field') in ('finance', 'consulting') or prof.get('chronological'):
         for sec in ('experience', 'leadership'):
             if res.get(sec):
                 res[sec] = sorted(res[sec], key=lambda e: _when_end(e), reverse=True)
+    if prof.get('force_order') and res.get('order'):
+        lead = [s for s in prof['force_order'] if s in res['order']]
+        res['order'] = lead + [s for s in res['order'] if s not in lead]
+    if prof.get('titles'):
+        t = dict(res.get('titles') or {})
+        for sec, name in prof['titles'].items():
+            if sec == 'skills' and name == 'auto':   # "Skills & Interests" (or "Skills, Activities & Interests") as the page has them
+                labs = ' '.join(s.get('label', '') for s in res.get('skills', [])).lower()
+                parts = ['Skills'] + [w for w, rx in (('Activities', r'activit'), ('Interests', r'interest|hobb')) if re.search(rx, labs)]
+                name = parts[0] if len(parts) == 1 else ', '.join(parts[:-1]) + ' & ' + parts[-1]
+            t.setdefault(sec, name)   # a heading the user named in their vault stays theirs
+        res['titles'] = t
+
+
+US_PERSON = re.compile(r'security clearance|\bu\.?s\.? (citizen|person)|\bitar\b|export[- ]controlled|'
+                       r'(secret|ts/sci|dod|government|federal) clearance', re.I)
+# the blind review can switch the line off to measure it: APPLYTWIN_STATUS_LINE=0
+STATUS_LINE = os.environ.get('APPLYTWIN_STATUS_LINE', '1') != '0'
+
+
+def _status_line(res, jd):
+    """Defense and other export-controlled postings (clearance, ITAR, "U.S. person") screen on citizenship first: when the
+    posting asks and the user's profile says they are a U.S. citizen (or a permanent resident, for "U.S. person" roles),
+    the contact line says so. Only what the profile states: never a clearance, never a guess."""
+    if not STATUS_LINE or not US_PERSON.search(jd or ''):
+        return
+    from . import store
+    cit = str(store.profile().get('citizenship') or '').strip().lower()
+    if not cit or re.search(r"\bnot?\b|non-?citizen", cit):
+        return
+    if re.match(r'(u\.?s\.?|us|united states|american)\b.*citizen|^citizen', cit):
+        res['basics']['status'] = 'U.S. Citizen'
+    elif re.search(r'permanent resident|green card', cit) and re.search(r'u\.?s\.? person', jd, re.I):
+        res['basics']['status'] = 'U.S. Permanent Resident (U.S. Person)'
+
+
+def _same_punctuation(res):
+    """Every bullet ends the same way: a page where some bullets close with a period and some don't reads as careless."""
+    bl = [b for sec in ENTRY_SECS for e in res.get(sec, []) for b in e.get('bullets', []) if isinstance(b, str) and b.strip()]
+    if len(bl) < 3:
+        return
+    dots = sum(b.rstrip().endswith('.') for b in bl)
+    end_dot = dots * 2 > len(bl)
+    for sec in ENTRY_SECS:
+        for e in res.get(sec, []):
+            out = []
+            for b in e.get('bullets', []):
+                if isinstance(b, str):
+                    s = b.rstrip()
+                    if end_dot and re.search(r'[\w)%*]$', s) and not s.endswith('.'):
+                        s += '.'
+                    elif not end_dot and s.endswith('.') and not s.endswith('..') and not re.search(r'\b(etc|Inc|Co|Ltd|Jr|Sr|vs)\.$', s):
+                        s = s[:-1]
+                    b = s
+                out.append(b)
+            e['bullets'] = list(dict.fromkeys(out))   # two lines that differed only by a final period are one line
 
 
 def _when_end(e):
@@ -1466,6 +1600,8 @@ def _tailor(v, job, jd, mode, plan, style, out_dir, track):
     if mode in ('api', 'agent') and rep['rewrites']:   # Autopilot's own plans get the same honesty check
         track.stage('audit')
         audit(res, rep)
+    _same_punctuation(res)   # after the audit: it matches rewrites by their exact text
+    _status_line(res, jd)
     track.stage('fit')
     out_dir = out_dir or store.path('resumes', job.get('id', 'general'))
     from . import regions
@@ -1481,6 +1617,9 @@ def _tailor(v, job, jd, mode, plan, style, out_dir, track):
         if added:
             rep['added'] = added
             res = base
+            if (ctx.get('pattern') or {}).get('chronological'):   # banking reads strictly newest first, added roles too
+                _house_rules(res, ctx)   # (elsewhere an added role stays last: an ongoing side role must not jump above the internship)
+            _same_punctuation(res)
             first_cut = r['dropped']
             r = render.render(res, style, pdf, worth=worth)
             r['dropped'] = first_cut + [x for x in r['dropped'] if x not in first_cut]   # what the first fit cut stays reported
