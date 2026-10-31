@@ -51,12 +51,20 @@ def extract_text(name='', data=None, text=None):
                     f.flush()
                     return subprocess.run(['pdftotext', '-layout', f.name, '-'], capture_output=True, text=True, encoding='utf-8', errors='replace').stdout, None
             raise RuntimeError('Reading PDFs needs pypdf: run  python3 -m pip install pypdf  (or paste the text instead)')
+        except Exception:   # damaged, password-protected or not really a PDF: say so, not pypdf's internals
+            raise RuntimeError("ApplyTwin couldn't open that PDF (it may be damaged or password-protected). Export it again, "
+                               "or paste the text instead.")
     if low.endswith('.docx') or raw[:2] == b'PK':
-        with zipfile.ZipFile(io.BytesIO(raw)) as z:
-            x = z.read('word/document.xml').decode('utf8', 'replace')
+        try:
+            with zipfile.ZipFile(io.BytesIO(raw)) as z:
+                x = z.read('word/document.xml').decode('utf8', 'replace')
+        except (zipfile.BadZipFile, KeyError):   # a .pptx, .xlsx, .pages or a broken download
+            raise RuntimeError("That file isn't a Word (.docx) document ApplyTwin can read. Save it as a PDF or .docx, or paste the text instead.")
         x = re.sub(r'</w:p>', '\n', x)
         return re.sub(r'<[^>]+>', '', x), None
     s = raw.decode('utf8', 'replace')
+    if raw[:4096].count(b'\0') > 8 or s[:4096].count('\ufffd') > 40:   # an image, an old .doc, a .pages file: not text
+        raise RuntimeError("ApplyTwin can't read that kind of file. Use a PDF, Word (.docx) or text file, or paste the text instead.")
     if low.endswith('.tex') or '\\documentclass' in s:
         return tex_to_text(s), s
     return s, None
@@ -406,6 +414,9 @@ def clean_location(loc, name=''):
 def import_resume(name='', data=None, text=None):
     from . import match, tailor
     txt, source_tex = extract_text(name, data, text)
+    if len(re.sub(r'\s+', '', txt or '')) < 40:   # a scanned (image-only) PDF has no text: never report "Found your details" for nothing
+        raise RuntimeError("ApplyTwin found no text in that file. If it's a scan or a picture of your resume, export it as a PDF from "
+                           "Word or Google Docs, or paste the text instead.")
     if source_tex:
         with open(store.path('source.tex'), 'w', encoding='utf-8') as f:
             f.write(source_tex)

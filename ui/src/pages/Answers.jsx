@@ -11,12 +11,18 @@ export default function Answers() {
   const [q, setQ] = useState('')
   const [test, setTest] = useState(null)
   const [nq, setNq] = useState({ question: '', answer: '' })
+  const [adding, setAdding] = useState(false)
   const add = async () => {
-    if (!nq.question.trim() || !nq.answer.trim()) return
-    await api('/api/answer', nq); setNq({ question: '', answer: '' }); setBank(await api('/api/answers')); toast.success('Added to your answers')
+    if (!nq.question.trim() || !nq.answer.trim() || adding) return
+    setAdding(true)
+    try { await api('/api/answer', nq); setNq({ question: '', answer: '' }); setBank(await api('/api/answers')); toast.success('Added to your answers') }
+    catch (e) { toast.error("Couldn't add it", { description: e.message }) }
+    setAdding(false)
   }
-  useEffect(() => { api('/api/answers').then(setBank) }, [])
-  const save = async nb => { setBank(nb); await api('/api/answers', nb) }
+  const load = () => api('/api/answers').then(setBank).catch(e => { setBank([]); toast.error("Couldn't load your answers", { description: e.message }) })
+  useEffect(() => { load() }, [])
+  // "Saved" only once it really is; a failed save says so and shows what's actually stored
+  const save = async nb => { setBank(nb); try { await api('/api/answers', nb); toast.success('Saved') } catch (e) { toast.error("Couldn't save that answer", { description: e.message }); load() } }
   const [asking, setAsking] = useState(false)
   const ask = async () => {
     if (!q.trim() || asking) return
@@ -48,14 +54,14 @@ export default function Answers() {
               <div key={r.key + i} className="grid items-center gap-x-4 gap-y-1.5 px-5 py-3 md:grid-cols-[1.1fr_1fr_72px]">
                 <div className="text-[14px] text-fg">{r.question}</div>
                 <input defaultValue={r.answer} placeholder="Your answer" className="h-9 w-full rounded-[8px] bg-transparent px-2.5 text-[14px] text-white outline-none transition-colors placeholder:text-faint hover:bg-white/[.05] focus:bg-white/[.06] focus:ring-2 focus:ring-signal md:-ml-2.5" onKeyDown={e => e.key === 'Enter' && e.currentTarget.blur()} onBlur={e => {
-                  if (e.target.value !== r.answer) { const nb = [...bank]; nb[i] = { ...r, answer: e.target.value, source: 'user' }; save(nb); toast.success('Saved') } }} />
+                  if (e.target.value !== r.answer) { const nb = [...bank]; nb[i] = { ...r, answer: e.target.value, source: 'user' }; save(nb) } }} />
                 <span className="hidden justify-self-end md:block"><Badge tone={r.source === 'user' ? 'sky' : 'gray'}>{r.source === 'user' ? 'Edited' : 'Setup'}</Badge></span>
               </div>))}
           </div>)}
         <div className="grid items-center gap-x-4 gap-y-2 border-t border-line bg-white/[.015] px-5 py-3 md:grid-cols-[1.1fr_1fr_72px]">
           <input value={nq.question} onChange={e => setNq({ ...nq, question: e.target.value })} placeholder="Add a question…" className="h-9 w-full rounded-[8px] bg-white/[.05] px-2.5 text-[14px] text-white outline-none placeholder:text-faint focus:ring-2 focus:ring-signal" />
           <input value={nq.answer} onChange={e => setNq({ ...nq, answer: e.target.value })} onKeyDown={e => e.key === 'Enter' && add()} placeholder="Its answer" className="h-9 w-full rounded-[8px] bg-white/[.05] px-2.5 text-[14px] text-white outline-none placeholder:text-faint focus:ring-2 focus:ring-signal" />
-          <Button size="sm" className="justify-self-end" onClick={add} disabled={!nq.question.trim() || !nq.answer.trim()}><Plus className="size-4" />Add</Button>
+          <Button size="sm" className="justify-self-end" onClick={add} loading={adding} disabled={!nq.question.trim() || !nq.answer.trim()}><Plus className="size-4" />Add</Button>
         </div>
       </div>
     </Page></div>

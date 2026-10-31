@@ -57,7 +57,7 @@ POST = {
     r'/api/profile': lambda m, qs, b: api.update_profile(b),
     r'/api/vault': lambda m, qs, b: api.save_vault(b),
     r'/api/vault/restore': lambda m, qs, b: api.restore_vault(b.get('file')),
-    r'/api/answers': lambda m, qs, b: (store.update('answers.json', lambda cur: b, []), {"ok": True})[1],
+    r'/api/answers': lambda m, qs, b: api.save_answers(b),
     r'/api/answer': lambda m, qs, b: api.save_answer(b['question'], b['answer'], b.get('key')),
     r'/api/answer/test': lambda m, qs, b: api.answer_questions(b.get('questions', []), notify_user=False),   # just trying
     r'/api/dump': lambda m, qs, b: api.save_dump(b.get('text', '')),
@@ -88,6 +88,28 @@ POST = {
 }
 
 
+def human_error(e):
+    """What the page shows when a request fails: a sentence a student can act on, never "'url'" or a blank toast
+    (an empty message made the page treat a failure as success)."""
+    import sqlite3
+    import socket
+    import urllib.error
+    msg = str(e).strip()
+    if isinstance(e, KeyError):
+        return f"That request was missing \"{e.args[0] if e.args else '?'}\". Reload the page and try again."
+    if isinstance(e, sqlite3.OperationalError) and 'locked' in msg:
+        return 'Your job list is busy (your agent or another ApplyTwin window is saving). Try again in a few seconds.'
+    if isinstance(e, PermissionError):
+        return "ApplyTwin couldn't save a file because another program has it open. Close it (or wait a moment) and try again."
+    if isinstance(e, (urllib.error.URLError, socket.timeout, TimeoutError, ConnectionError)):
+        return "Couldn't reach the internet (or the site didn't answer in time). Check your connection and try again."
+    if isinstance(e, ValueError) and msg.startswith(('invalid literal', 'could not convert')):
+        return 'A number in that request is not valid. Fix it and try again.'
+    if not msg or isinstance(e, (TypeError, AttributeError, IndexError, NameError, UnboundLocalError, ZeroDivisionError)):
+        return f"Something went wrong inside ApplyTwin ({type(e).__name__}). Reload the page and try again; the details are in the terminal running it."
+    return msg
+
+
 class H(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
@@ -115,7 +137,7 @@ class H(BaseHTTPRequestHandler):
                     return self._send(200, fn(m, qs, body))
                 except Exception as e:
                     traceback.print_exc()
-                    return self._send(500, {"error": str(e)})
+                    return self._send(500, {"error": human_error(e)})
         return None
 
     def _trusted(self, post=False):

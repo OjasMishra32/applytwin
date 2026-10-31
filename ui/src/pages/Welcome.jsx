@@ -21,15 +21,19 @@ const ARRANGE = [['onsite', 'On-site'], ['hybrid', 'Hybrid'], ['remote', 'Remote
 const SPRING = { type: 'spring', stiffness: 260, damping: 30 }
 
 export default function Welcome() {
-  const { profile, refresh, go, setState } = useApp()
+  const { profile, vault, refresh, go, setState } = useApp()
   const [i, setI] = useState(0)
   const [dir, setDir] = useState(1)
   const [p, setP] = useState(() => structuredClone(profile))
-  const [imp, setImp] = useState(null)
+  // back in setup after a reload or a closed tab: the resume you already gave counts, no second upload needed
+  const [imp, setImp] = useState(() => (vault?.experience?.length || vault?.projects?.length)
+    ? { name: vault.basics?.name, counts: Object.fromEntries(['experience', 'research', 'projects', 'leadership', 'skills'].map(k => [k, (vault[k] || []).length])) } : null)
   const [busy, setBusy] = useState(false)
+  const [pasted, setPasted] = useState(null)   // window.prompt() flattens line breaks, which the resume reader needs
   const [agents, setAgents] = useState(null)
   const [scan, setScan] = useState(null)
   const [queue, setQueue] = useState(null)
+  const empty = !!queue && !queue.total
   const [tick, setTick] = useState(0)
   useEffect(() => { if (!busy) return; const t = setInterval(() => setTick(x => x + 1), 3500); return () => clearInterval(t) }, [busy])
   const READING = ['Reading your resume…', 'Finding your experience…', 'Pulling out projects and research…', 'Spotting your skills…', 'Filling in your answers…', 'Almost done…']
@@ -37,9 +41,10 @@ export default function Welcome() {
   const s = p.search || {}
   const ss = (k, v) => setP(x => ({ ...x, search: { ...x.search, [k]: v } }))
   const sa = (k, v) => setP(x => ({ ...x, apply: { ...x.apply, [k]: v } }))
-  const now = new Date(), year = +((s.season || '').match(/20\d\d/) || [now.getFullYear() + (now.getMonth() >= 7 ? 1 : 0)])[0]   // from August, next summer's cycle
-  const terms = [`Summer ${year}`, `Fall ${year}`, `Winter ${year + 1}`, `Spring ${year + 1}`, `Summer ${year + 1}`]
+  const now = new Date(), year = now.getFullYear() + (now.getMonth() >= 7 ? 1 : 0)   // from August, next summer's cycle
   const picked = (s.season || '').split(',').map(x => x.trim()).filter(Boolean)
+  // the list never shifts under you (picking Winter used to move every tile a year on); a saved term outside it still shows, so you can unpick it
+  const terms = [...new Set([`Summer ${year}`, `Fall ${year}`, `Winter ${year + 1}`, `Spring ${year + 1}`, `Summer ${year + 1}`, ...picked])]
   const intern = ['internship', 'co-op'].includes(s.kind)
   const groupLeft = g => missing((qs || []).filter(q => q.group === g), p).length
   const loadAgents = useCallback(() => api('/api/agents').then(setAgents).catch(() => setAgents(a => a || {})), [])
@@ -49,7 +54,7 @@ export default function Welcome() {
   const upload = async body => {
     setBusy(true)
     try {
-      const r = await api('/api/import', body); setImp(r)
+      const r = await api('/api/import', body); setImp(r); setPasted(null)
       if (r.vault) setState(st => ({ ...st, vault: r.vault }))
       const fresh = (await api('/api/state')).profile
       setP(x => ({ ...structuredClone(fresh), search: { ...fresh.search, roles: fresh.search.roles?.length ? fresh.search.roles : (r.suggest_roles || []) } }))
@@ -89,8 +94,8 @@ export default function Welcome() {
     { id: 'apply', ok: true, cta: 'Continue' },
     { id: 'agent', ok: true, cta: 'Find my jobs' },
     { id: 'scan', ok: false, cta: null },
-    { id: 'done', ok: true, cta: 'Start applying' },
-  ], [imp, busy, s, p, qs])
+    { id: 'done', ok: true, cta: empty ? 'Adjust my search' : 'Start applying' },
+  ], [imp, busy, s, p, qs, empty])
   const cur = screens[i]
   const next = () => { setDir(1); setI(x => Math.min(screens.length - 1, x + 1)) }
   const back = () => { setDir(-1); setI(x => Math.max(0, x - 1)) }
@@ -103,7 +108,7 @@ export default function Welcome() {
       setP(x => ({ ...x, earliest_start: `${START[term] || 'May'} ${yr}` })); setDerived(['earliest_start'])
     }
     if (cur.id === 'agent') { next(); return build() }
-    if (cur.id === 'done') { api('/api/profile', { onboarded: true }).catch(() => {}); return go('agents') }
+    if (cur.id === 'done') { api('/api/profile', { onboarded: true }).catch(() => {}); return go(empty ? 'settings' : 'agents') }   // an empty queue has nothing to start on
     if (i > 1) await save()
     next()
   }
@@ -133,12 +138,17 @@ export default function Welcome() {
               {[['experience', 'jobs'], ['research', 'research'], ['projects', 'projects'], ['leadership', 'leadership'], ['skills', 'skill groups']]
                 .filter(([k]) => imp.counts?.[k]).map(([k, l], j) => (
                   <motion.span key={k} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ ...SPRING, delay: .15 + j * .06 }}
-                    className="rounded-full bg-white/[.08] px-3.5 py-1.5 text-[14px] text-white"><b className="font-semibold">{imp.counts[k]}</b> {l}</motion.span>))}
+                    className="rounded-full bg-white/[.08] px-3.5 py-1.5 text-[14px] text-white"><b className="font-semibold">{imp.counts[k]}</b> {imp.counts[k] === 1 ? l.replace(/s$/, "") : l}</motion.span>))}
             </div>
             {imp.filled?.length > 0 && <div className="mt-4 text-[14px] text-[#64d2ff]">{imp.filled.length} application answers filled in from it</div>}
             <button onClick={() => setImp(null)} className="mt-4 text-[13px] text-muted hover:text-white">Use a different file</button>
           </motion.div>
-          : <Drop onFile={f => upload({ name: f.name, data: f.data })} onText={() => { const t = prompt('Paste your resume or LinkedIn text'); if (t) upload({ text: t }) }} />}
+          : pasted !== null ? <div><textarea autoFocus rows={10} value={pasted} onChange={e => setPasted(e.target.value)} placeholder="Paste your resume, your LinkedIn About + Experience, notes…"
+              onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && pasted.trim()) upload({ text: pasted }) }}
+              className="w-full rounded-[18px] bg-white/[.06] p-4 text-[15px] text-white outline-none ring-1 ring-white/10 placeholder:text-white/40 focus:ring-2 focus:ring-signal" />
+            <div className="mt-3 flex justify-end gap-2"><button onClick={() => setPasted(null)} className="h-10 rounded-full px-4 text-[14px] text-white/70 hover:text-white">Back</button>
+              <button onClick={() => upload({ text: pasted })} disabled={!pasted.trim()} className="h-10 rounded-full bg-signal px-5 text-[14px] font-semibold text-white disabled:opacity-40">Read it</button></div></div>
+          : <Drop onFile={f => upload({ name: f.name, data: f.data })} onText={() => setPasted('')} />}
       </div>
     </Center>,
     kind: <Center>
@@ -232,8 +242,10 @@ export default function Welcome() {
     done: <Center>
       <motion.div initial={{ scale: .5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', stiffness: 300, damping: 16 }}
         className="mx-auto grid size-20 place-items-center rounded-full bg-good text-white"><Check className="size-10" strokeWidth={3} /></motion.div>
-      <H><NumberTicker value={queue?.total || 0} /> roles ready.</H>
-      <Sub>{queue?.dream ? `${queue.dream} at your dream companies, first in line. ` : ''}Every one gets its own resume. Press Start and your twin takes it from here.</Sub>
+      {empty ? <><H>No roles in your queue yet.</H>
+        <Sub>{scan?.done < scan?.sources ? 'Your twin is still reading job boards in the background; matches show up in Jobs as they come in. ' : ''}Widening your roles, terms or places finds more, and new roles arrive as companies post them.</Sub></>
+      : <><H><NumberTicker value={queue?.total || 0} /> roles ready.</H>
+      <Sub>{queue?.dream ? `${queue.dream} at your dream companies, first in line. ` : ''}Every one gets its own resume. Press Start and your twin takes it from here.</Sub></>}
     </Center>,
   }
   const group = qs && ['You', 'School', 'Work authorization', 'Standard questions', 'Voluntary self-identification'].includes(cur.id)

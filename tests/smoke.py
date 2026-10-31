@@ -411,6 +411,72 @@ Data Intern, Jan 2025 – May 2025
 _orgs = [e.get('org') for e in _imp2['experience']]
 res.append(ok(_epic == 'new' and _st['errors'] == 0 and _bom and _share and _coop and _orgs[:2] == ['Stripe', 'Acme'],
               f'review regressions stay fixed (board {_epic}, rescan errors {_st["errors"]}, bom {_bom}, share {_share}, co-op {_coop}, import {_orgs})'))
+# first-run and error-handling regressions (2026-10-31)
+from applytwin import update as _up, server as _sv, cloud as _cl2, importer as _imp3
+import base64 as _b64, sqlite3 as _sq, zipfile as _zf, io as _io
+_wt = tempfile.mkdtemp()
+open(os.path.join(_wt, '.git'), 'w').write('gitdir: /elsewhere/.git/worktrees/x\n')   # a git worktree: .git is a file
+_app0 = _up.APP
+_up.APP = _wt
+_wt_ok = _up.is_checkout() and _up.check()['managed'] is False
+_up.APP = _app0
+_errs = [_sv.human_error(KeyError('url')), _sv.human_error(RuntimeError('')), _sv.human_error(AttributeError("'NoneType' object has no attribute 'get'")),
+         _sv.human_error(_sq.OperationalError('database is locked')), _sv.human_error(ValueError("invalid literal for int() with base 10: 'abc'"))]
+_err_ok = all(e and "'" not in e[:20] and 'NoneType' not in e for e in _errs) and 'url' in _errs[0] and 'busy' in _errs[3]
+_bank0 = len(store.answers())
+_refused = 0
+for _bad in ({}, [], None, [{'answer': 'x'}]):
+    try:
+        api.save_answers(_bad)
+    except RuntimeError:
+        _refused += 1
+_ans_ok = _refused == 4 and len(store.answers()) == _bank0 and api.save_answers(store.answers())['count'] == _bank0
+_vault0 = json.dumps(store.resume(), sort_keys=True)
+_buf = _io.BytesIO()
+with _zf.ZipFile(_buf, 'w') as _z:
+    _z.writestr('ppt/slides/slide1.xml', '<p/>')   # a .pptx dropped as a resume
+_imp_msgs = []
+for _nm, _data, _txt in (('scan.pdf', None, '   \n  '), ('deck.docx', _b64.b64encode(_buf.getvalue()).decode(), None),
+                         ('photo.png', _b64.b64encode(b'\x89PNG\r\n\x1a\n' + bytes(range(256)) * 20).decode(), None),
+                         ('broken.pdf', _b64.b64encode(b'%PDF-1.4 garbage').decode(), None)):
+    try:
+        _imp3.import_resume(_nm, _data, _txt)
+        _imp_msgs.append(None)
+    except RuntimeError as e:
+        _imp_msgs.append(str(e))
+_imp_ok = all(m and 'paste the text' in m for m in _imp_msgs) and json.dumps(store.resume(), sort_keys=True) == _vault0
+_gone = []
+for _f in (lambda: api.render_resume(job_id='no-such-job'), lambda: api.preview_html('classic', 'no-such-job')):
+    try:
+        _f()
+    except RuntimeError as e:
+        _gone.append('no longer in your list' in str(e))
+os.environ['APPLYTWIN_SKIP_SIGNIN'] = '1'
+_gate_ok = _cl2.status()['required'] is False
+res.append(ok(_wt_ok and _err_ok and _ans_ok and _imp_ok and _gone == [True, True] and _gate_ok,
+              f'worktrees never self-update ({_wt_ok}), errors read as sentences ({_err_ok}), answers never wiped ({_ans_ok}), '
+              f'unreadable resumes say so ({_imp_ok}), gone jobs ({_gone}), dev runs skip sign-in ({_gate_ok})'))
+# a setting changed while a scan runs (picking a term during setup) applies to the jobs that scan stores after the change
+_prof0 = store.profile()['search'].get('season') or ''
+api.update_profile({'search': {'season': 'Summer 2030'}})
+_orig_scan2 = _srcs.scan
+
+
+def _midscan(*a, **k):
+    os.environ['APPLYTWIN_NO_RESCORE'] = '1'   # as if the settings rescore already ran before this job was stored
+    api.update_profile({'search': {'season': 'Summer 2031'}})
+    os.environ.pop('APPLYTWIN_NO_RESCORE')
+    store.execute("insert or replace into jobs(id,source,company,title,url,apply_url,ats,found_at,fit,status) values('cyc1','greenhouse','CycCo',"
+                  "'Software Engineer Intern - Summer 2030','https://x.com/1','','greenhouse',0,90,'new')")   # scored with the old term
+    return {"new": 1, "matched": 1, "fetched": 1}
+
+
+_srcs.scan = _midscan
+api.scan()
+_srcs.scan = _orig_scan2
+_cyc = store.rows("select fit, fit_why from jobs where id='cyc1'")[0]
+api.update_profile({'search': {'season': _prof0}})
+res.append(ok(_cyc['fit'] == 0, f'settings changed mid-scan apply to what that scan found ({_cyc})'))
 from applytwin import telemetry as _tm
 res.append(ok(not _tm.enabled() and _tm.ping() is False and len(_tm.install_id()) == 36, 'install count is off in tests and uses only a random ID'))
 

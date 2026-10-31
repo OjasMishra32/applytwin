@@ -170,9 +170,11 @@ function JobSheet({ id, onClose, onChange }) {
     setBuilding(false)
   }
   const mark = async st => {
-    if (st === 'applied') { await api(`/api/jobs/${id}/log`, { status: 'Applied', notes: 'marked in app' }); toast.success('Logged as applied', { description: 'Nice. Your twin will remember what worked.' }) }
-    else if (st === 'skipped') await api(`/api/jobs/${id}/skip`, {})   // also clears it from Needs you
-    else await api(`/api/jobs/${id}/status`, { status: st })
+    try {
+      if (st === 'applied') { await api(`/api/jobs/${id}/log`, { status: 'Applied', notes: 'marked in app' }); toast.success('Logged as applied', { description: 'Nice. Your twin will remember what worked.' }) }
+      else if (st === 'skipped') await api(`/api/jobs/${id}/skip`, {})   // also clears it from Needs you
+      else await api(`/api/jobs/${id}/status`, { status: st })
+    } catch (e) { return toast.error("Couldn't update that job", { description: e.message }) }   // stay open so nothing looks done that isn't
     onChange(); onClose()
   }
   const hard = (rep?.matched || []).filter(m => m.hard), miss = (rep?.missing || []).filter(m => m.hard)
