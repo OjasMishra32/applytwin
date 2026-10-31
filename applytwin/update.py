@@ -22,7 +22,7 @@ def _get(url, timeout=8):
 
 
 def is_checkout():
-    return os.path.isdir(os.path.join(APP, '.git'))
+    return os.path.exists(os.path.join(APP, '.git'))   # a dir in a clone, a file in a worktree or submodule
 
 
 def installed():

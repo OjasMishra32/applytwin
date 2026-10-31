@@ -99,6 +99,15 @@ def get_answers():
     return store.answers()
 
 
+def save_answers(bank):
+    """The whole answer bank from the Answers page. Anything but a list of answers is refused: a stray {} or [] used to
+    replace every answer you'd written with the defaults."""
+    if not isinstance(bank, list) or not bank or not all(isinstance(r, dict) and r.get('question') for r in bank):
+        raise RuntimeError('That save would have erased your answers, so nothing was changed. Reload the page and try again.')
+    store.update('answers.json', lambda cur: bank, [])
+    return {"ok": True, "count": len(bank)}
+
+
 def save_answer(question, answer, key=None):
     bank = store.update('answers.json', lambda cur: ans.upsert(cur or store.answers(), question, answer, key), [])
     return {"ok": True, "count": len(bank)}
@@ -146,6 +155,11 @@ def scan(sources_list=None, background=False):
         try:
             _scan['stats'] = sources.scan(sources_list, on_progress=lambda s: _scan.update(stats=s))
             store.save('last_scan.json', {"at": time.time(), "stats": _scan['stats']})
+            # the scan scored with the profile as it was when it started; setup or Settings changed it since (picking a term
+            # mid-scan left last cycle's roles in the queue), so score again before anyone reads the queue
+            pf = store.path('profile.json')
+            if os.path.exists(pf) and os.path.getmtime(pf) >= _scan['started']:
+                rescore(force=True)
         finally:
             _scan.update(running=False, finished=time.time())
     if background:
@@ -455,6 +469,8 @@ def _start_build(job_id):
         try:
             with _builders:
                 j = get_job(job_id)
+                if not j:
+                    raise RuntimeError('That job is no longer in your list (it may have closed). Reload the page.')
                 slot['result'] = tailor.tailor(get_vault(), j, j.get('description', ''), mode='auto')
         except Exception as e:
             slot['error'] = str(e)
@@ -620,6 +636,8 @@ def preview_html(template='classic', job_id=None, plan=None):
         res = json.load(open(saved, encoding='utf-8'))['resume']
     elif job_id:
         j = get_job(job_id)
+        if not j:
+            raise RuntimeError('That job is no longer in your list (it may have closed). Reload the page.')
         res, _ = tailor.apply(v, plan or tailor.heuristic_plan(v, j.get('description', ''), title=j.get('title', ''),
                                                              ctx=learn.context_for(j)), j.get('description', ''))
     else:
@@ -634,6 +652,8 @@ def render_resume(template=None, job_id=None, one_page=True):
     name = (re.sub(r'[^\w]+', '_', v['basics'].get('name') or 'Resume' or '', flags=re.UNICODE).strip('_') or 'Resume') + '_Resume.pdf'
     if job_id:
         j = get_job(job_id)
+        if not j:
+            raise RuntimeError('That job is no longer in your list (it may have closed). Reload the page.')
         return tailor.tailor(v, j, j.get('description', ''), mode='heuristic', style=template)
     out = store.path('resumes', 'master', name)
     r = render.render(v, template, out, one_page)

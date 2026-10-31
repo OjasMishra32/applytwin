@@ -93,7 +93,8 @@ def token():
 
 def status():
     s = _session()
-    return {"signed_in": bool(s), "user": (s or {}).get('user'), "last_sync": (s or {}).get('last_sync')}
+    return {"signed_in": bool(s), "user": (s or {}).get('user'), "last_sync": (s or {}).get('last_sync'),
+            "required": not (os.environ.get('APPLYTWIN_SKIP_SIGNIN') or os.environ.get('CI'))}   # tests and dev runs skip the gate
 
 
 def logout():

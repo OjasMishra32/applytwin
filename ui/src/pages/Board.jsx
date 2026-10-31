@@ -19,7 +19,8 @@ export default function Board() {
     if (a.status === st) return
     setApps(xs => xs.map(x => x.job_id === a.job_id ? { ...x, status: st } : x))
     if (st === 'Offer') burst()
-    await api(`/api/jobs/${a.job_id}/log`, { status: st, notes: `moved to ${st}` })
+    try { await api(`/api/jobs/${a.job_id}/log`, { status: st, notes: `moved to ${st}` }) }
+    catch (e) { setApps(xs => xs.map(x => x.job_id === a.job_id ? { ...x, status: a.status } : x)); return toast.error("Couldn't move it", { description: e.message }) }   // put the card back
     toast.success(st === 'Offer' ? 'Congratulations!' : `Moved to ${st}`, { description: ['Interview', 'Offer', 'Rejected'].includes(st) ? 'Your twin learns from this.' : undefined })
   }
   const importCsv = async e => {

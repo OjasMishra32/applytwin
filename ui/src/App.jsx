@@ -74,17 +74,23 @@ export default function App() {
   useEffect(() => {   // first time only: once setup is finished, an empty resume never sends you back into it
     if (state && !state.profile?.onboarded && (!location.hash || location.hash === '#home') && !(state.vault?.experience?.length || state.vault?.projects?.length)) location.hash = 'welcome'
   }, [state])
-  const loadJobs = useCallback(() => api('/api/jobs?limit=200').then(setJobs), [])
+  const loadJobs = useCallback(() => api('/api/jobs?limit=200').then(setJobs).catch(() => {}), [])   // the state load already shows when the app is unreachable
   useEffect(() => { refresh(); loadJobs() }, [refresh, loadJobs])
   useEffect(() => keepCurrent(), [])
   useEffect(() => { const f = () => { setRoute(parse()); window.scrollTo({ top: 0 }) }; window.addEventListener('hashchange', f); return () => window.removeEventListener('hashchange', f) }, [])
   const go = (page, arg) => { location.hash = arg ? `${page}/${arg}` : page }
 
   const startScan = async () => {
-    await api('/api/scan', {})
+    try { await api('/api/scan', {}) } catch (e) { return toast.error("Couldn't start a scan", { description: e.message }) }
     const id = toast.loading('Scanning every career page…', { description: 'SimplifyJobs, SmartRecruiters, Greenhouse, Lever, Ashby, Workday' })
+    let misses = 0
     const tick = async () => {
-      const s = await api('/api/scan'); setScan(s)
+      let s
+      try { s = await api('/api/scan'); misses = 0 } catch (e) {   // a restart mid-scan: keep checking a while, never spin forever
+        if (++misses < 20) return setTimeout(tick, 3000)
+        return toast.error('Lost track of the scan', { id, description: 'It may still be running. New jobs show up in Jobs when it finishes.' })
+      }
+      setScan(s)
       const st = s.stats || {}
       if (s.running) {
         toast.loading(`Read ${(st.fetched || 0).toLocaleString()} postings`, { id, description: `${st.done || 0} of ${st.sources || '…'} sources · ${st.new || 0} new` })
@@ -106,7 +112,7 @@ export default function App() {
         <button onClick={refresh} className="mt-6 h-10 rounded-full bg-signal px-6 text-[15px] font-semibold text-white">Try again</button></div>
     </div>)
   if (!state || !authReady) return <Loading />
-  if (!auth.signed_in) return <SignInGate signIn={signIn} />
+  if (!auth.signed_in && auth.required !== false) return <SignInGate signIn={signIn} />
   const Page = PAGES[route.page]
   return (
     <Ctx.Provider value={{ ...state, refresh, go, jobs, loadJobs, startScan, scan, setState, auth, signIn, signOut }}>
