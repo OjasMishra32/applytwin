@@ -211,29 +211,94 @@ def role_hit(role, title, desc=''):
     return bool(stems) and any(re.search(r'\b' + re.escape(x), title) for x in stems) and role.lower() in desc[:2000].lower()
 
 
-def _grad_ok(text, year, month):
-    """Look for 'graduating between X and Y' style windows; return (ok, note) or (None, '')."""
-    if not year:
-        return None, ''
+SEASONS = {'spring': (3, 5), 'summer': (6, 8), 'fall': (10, 11), 'autumn': (10, 11), 'winter': (11, 12)}   # when that term's grads finish
+_WHEN = r'(?:(?:[a-z]{3,9}\.?,?\s+)|(?:\d{1,2}/))?20\d\d'
+_GCUE = r'(?:graduat\w*|grad(?:uation)? date|complet\w* (?:\w+ ){0,2}degree|degree (?:completion|conferral)|conferred|\bclass of)'
+_TAIL = r'(?!\s*(?:academic|school|fiscal) year)'   # "the 2027-2028 academic year" is not a graduation window
+GRAD_RANGE = re.compile(_GCUE + r'[^.\n;]{0,60}?(' + _WHEN + r')[^.\n;]{0,25}?\s(?:-|–|—|to|through|thru|until|and|or)\s+(' + _WHEN + r')'
+                        + _TAIL + r'|' + _GCUE + r'[^.\n;]{0,60}?(' + _WHEN + r')\s*[-–—]\s*(' + _WHEN + r')' + _TAIL, re.I)
+GRAD_BY = re.compile(_GCUE + r'[^.\n;]{0,40}?\b(by|before|no later than|prior to|on or after|after|no earlier than)\s+(' + _WHEN + r')', re.I)
+GRAD_ONE = re.compile(r'(?:' + _GCUE + r'[^.\n;0-9]{0,30}?\b(?:in|during|of|for)\s+|\bclass of\s+)(' + _WHEN + r')'
+                      r'(?!\s*(?:[-–/,&]|and\b|or\b)\s*(?:[a-z]+\.?\s+)?(?:\d{1,2}/)?20\d\d)(\s+or\s+(?:later|after|beyond)|\s+or\s+(?:earlier|before|sooner))?' + _TAIL, re.I)
+
+
+def _when(tok, end=False):
+    """'Dec 2027' / 'Fall 2027' / '12/2027' / '2027' -> months since year 0 (the first, or with end, the last month it can mean)."""
+    y = int(re.search(r'20\d\d', tok).group())
+    w = re.match(r'\s*([a-z]+)', tok, re.I)
+    n = re.match(r'\s*(\d{1,2})/', tok)
+    if n and 1 <= int(n.group(1)) <= 12:
+        return y * 12 + int(n.group(1)) - 1
+    if w and w.group(1)[:3].lower() in MONTHS:
+        return y * 12 + MONTHS.index(w.group(1)[:3].lower())
+    if w and w.group(1).lower() in SEASONS:
+        return y * 12 + SEASONS[w.group(1).lower()][1 if end else 0]
+    return y * 12 + (11 if end else 0)
+
+
+def month_label(m):
+    return f"{MONTHS[m % 12].title()} {m // 12}"
+
+
+def grad_window(text):
+    """The graduation window a posting asks for: (first month, last month, its words), months counted from year 0, either
+    end None when open; or None if it names none. Reads 'graduating Dec 2027 - Aug 2028', 'expected graduation between
+    December 2027 and June 2028', 'graduation date Fall 2027 or Spring 2028', '12/2027 - 08/2028', 'graduate by May 2028',
+    'graduating in 2028 or later' and 'Class of 2028'."""
+    text = text or ''
+    m = GRAD_RANGE.search(text)
+    if m:
+        a, b = (m.group(1), m.group(2)) if m.group(1) else (m.group(3), m.group(4))
+        lo, hi = _when(a), _when(b, end=True)
+        if lo <= hi and hi - lo <= 72:   # a real window, not two unrelated years
+            return lo, hi, f'{a.strip()} - {b.strip()}'
+    m = GRAD_BY.search(text)
+    if m:
+        word, tok = m.group(1).lower(), m.group(2)
+        if word in ('after', 'no earlier than', 'on or after'):
+            return _when(tok), None, f'{word} {tok.strip()}'
+        return None, _when(tok, end=True) + 3, f'{word} {tok.strip()}'   # a few months' grace, as recruiters read "by"
+    m = GRAD_ONE.search(text)
+    if m:
+        tok, more = m.group(1), (m.group(2) or '').strip().lower()
+        y = int(re.search(r'20\d\d', tok).group())
+        w = re.match(r'\s*([a-z]+)', tok, re.I)
+        if w and w.group(1).lower() in SEASONS:
+            lo, hi = _when(tok), _when(tok, end=True)
+        else:   # 'graduating in May 2028', 'Class of 2028': judged by the year (December grads often count as the next class)
+            lo, hi = (y - 1) * 12 + 11, y * 12 + 11
+        if re.search(r'later|after|beyond', more):
+            hi = None
+        elif more:
+            lo = None
+        return lo, hi, f"{tok.strip()}{' ' + more if more else ''}"
+    return None
+
+
+def user_grad(year, month):
+    """The user's graduation month (months from year 0), or None if they haven't said. No month: May."""
     try:
-        y = int(year)
-    except ValueError:
+        y = int(str(year).strip())
+    except (TypeError, ValueError):
+        return None
+    mo = str(month or '').strip().lower()
+    if mo.isdigit() and 1 <= int(mo) <= 12:
+        return y * 12 + int(mo) - 1
+    if mo in SEASONS:
+        return y * 12 + SEASONS[mo][1]
+    return y * 12 + (MONTHS.index(mo[:3]) if mo[:3] in MONTHS else 4)
+
+
+def _grad_ok(text, year, month):
+    """(True or False, note) when the posting names a graduation window, else (None, ''). The note says exactly why."""
+    me = user_grad(year, month)
+    w = grad_window(text) if me is not None else None
+    if not w:
         return None, ''
-    m_idx = MONTHS.index(month[:3].lower()) if month and month[:3].lower() in MONTHS else 4
-    me = y * 12 + m_idx
-    pat = re.compile(r'(?:graduat\w*|degree|completion)[^.\n]{0,60}?(?:(%s)[a-z]*\.?,? )?(20\d\d)[^.\n]{0,25}?'
-                     r'(?:and|to|through|-|–|or)\s*(?:(%s)[a-z]*\.?,? )?(20\d\d)' % ('|'.join(MONTHS), '|'.join(MONTHS)), re.I)
-    m = pat.search(text)
-    if m:
-        a = int(m.group(2)) * 12 + (MONTHS.index(m.group(1)[:3].lower()) if m.group(1) else 0)
-        b = int(m.group(4)) * 12 + (MONTHS.index(m.group(3)[:3].lower()) if m.group(3) else 11)
-        return a <= me <= b, f'grad window {m.group(2)}-{m.group(4)}'
-    m = re.search(r'graduat\w*[^.\n]{0,40}?(?:by|before|no later than|prior to)\s+(?:(%s)[a-z]*\.?,? )?(20\d\d)'
-                  % '|'.join(MONTHS), text, re.I)
-    if m:
-        b = int(m.group(2)) * 12 + (MONTHS.index(m.group(1)[:3].lower()) if m.group(1) else 11)
-        return me <= b + 3, f'grad by {m.group(2)}'
-    return None, ''
+    lo, hi, words = w
+    if (lo is not None and me < lo) or (hi is not None and me > hi):
+        return False, f'graduation window {words}; you graduate {month_label(me)}'
+    return True, f'grad window {words}'
 
 
 ONLY = re.compile(r'((?:\b[A-Z][\w&.\-]*\s+){1,4}?)(?:students?|candidates?)\s+only')
@@ -276,6 +341,27 @@ def level_gate(job, prof):
     if lv == 'undergrad' and MS_ONLY.search(desc) and not OPEN_TO_UNDERGRAD.search(desc):
         return "master's students only"
     return ''
+
+
+def knockouts(job, prof):
+    """Hard requirements in the full posting that rule the user out, each as a ready-to-log Skipped reason. Only clear cases:
+    when unsure, the agent applies."""
+    text = f"{job.get('title', '')}\n{job.get('description') or ''}"
+    out = []
+    ok, note = _grad_ok(text, prof.get('grad_year'), prof.get('grad_month'))
+    if ok is False:
+        out.append(note[0].upper() + note[1:])
+    why = level_gate(job, prof)
+    if why:
+        out.append(why[0].upper() + why[1:])
+    if prof.get('needs_sponsorship') and NO_SPONSOR.search(text):
+        out.append('No visa sponsorship (or US citizenship / clearance required) and you need sponsorship')
+    else:
+        cit = (prof.get('citizenship') or '').lower()
+        us_citizen = re.match(r'\s*(u\.?s\.?|us|united states|american)\b.*citizen|^\s*citizen', cit) and not re.search(r'\bnot\b|non-?citizen', cit)
+        if cit and not us_citizen and CITIZEN.search(text):
+            out.append('US citizenship or security clearance required')
+    return out
 
 
 def fit(job, prof, vault_terms=None):
@@ -398,7 +484,7 @@ def fit(job, prof, vault_terms=None):
             score -= 20
     ok, note = _grad_ok(text, prof.get('grad_year'), prof.get('grad_month'))
     if ok is False:
-        return 5, note + ' (you are outside it)'
+        return 5, note
     if ok:
         score += 10
         why.append(note)

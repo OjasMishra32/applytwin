@@ -96,6 +96,11 @@ def default_bank(p):
         ('disability', 'Disability status', r'disab', s.get('disability', '')),
         ('pronouns', 'Pronouns', r'pronoun', s.get('pronouns', '')),
         ('sms', 'Do you consent to SMS / text messages?', r'\bsms\b|text messag', _yn(p.get('sms_ok'))),
+        # an AI-led or AI-scored interview step (HireVue, Paradox, "AI interviewer"): consenting keeps the application alive
+        ('ai_interview', 'Do you consent to an AI-assisted interview?',
+         r'\b(ai|artificial intelligence)\b[^?]{0,60}\binterview|\binterview[^?]{0,60}\b(ai|artificial intelligence)\b|hirevue|'
+         r'\b(ai|artificial intelligence)[- ](powered|assisted|led|enabled|based)\b[^?]{0,40}(assessment|screen)',
+         'No' if p.get('ai_review_ok') is False else 'Yes'),
         ('ai_review', 'May AI tools help review your application?', r'automated tools|\bai\b.*(review|process)', _yn(p.get('ai_review_ok'))),
         ('arbitration', 'Do you agree to the arbitration agreement?', r'arbitrat|class[- ]action waiver|jury trial|waive', ''),
         ('privacy', 'Do you acknowledge the privacy policy / certify your answers?', r'privacy (policy|notice)|certify|acknowledge|attest|i agree',
@@ -128,6 +133,22 @@ def open_ended(question):
     return bool(OPEN_ENDED.search(question or ''))
 
 
+# Facts nobody but the user has: never filled from a near match (a recommender's name is not the user's name). Only an
+# answer the user saved for this question is used; otherwise the agent asks, or leaves an optional field blank.
+NEVER_GUESS = re.compile(r'date of birth|birth ?date|\bdob\b|social security|\bssn\b|'
+                         r'\b(recommender|referrer|referee|reference|emergency contact|supervisor|employee who referred|person who referred)'
+                         r'[^?]{0,25}\b(name|e-?mail|phone|contact|title)\b|'
+                         r'\b(name|e-?mail|phone)\b[^?]{0,25}\b(recommender|referrer|referee|reference|emergency contact|supervisor|'
+                         r'employee who referred|person who referred|who referred)|^\s*who referred you', re.I)
+ASK_HOW = ("Only the user knows this. Never guess or reuse another answer. If the field is optional, leave it blank; if it is "
+           "required, applytwin_notify the user and log Needs User with this exact question.")
+
+# "How did you hear about us?" options differ on every form: the closest truthful one (the role was found on the company's
+# own careers site or a job board), never "Referral" or "Career fair"
+HEAR_PICKS = [r'company (careers? )?(web)?site|careers? (site|page|website)|company website|(our|corporate) website', r'^website$|web ?site',
+              r'job board|online job|internet|online|web search|search engine|google', r'job (site|posting)|posting', r'^other\b']
+
+
 def match(question, bank, options=None):
     """Best answer for one question. options = the dropdown/radio choices, if any (we pick the closest)."""
     q = (question or '').strip()
@@ -136,6 +157,18 @@ def match(question, bank, options=None):
     if re.match(r'\s*(why|please (describe|explain|tell)|describe|explain|tell us|what (interest|excite|draw|motivat))', q, re.I) and open_ended(q) \
             and not re.search(r'linkedin|github|portfolio|website|url|link|race|ethnic|gender|veteran|disab|authori[sz]|sponsor|visa|citizen', q, re.I):
         return {"question": q, "answer": None, "confidence": 0, "key": None, "action": "write", "how": WRITE_RULES}
+    if not options and NEVER_GUESS.search(q):
+        qt = _tokens(q)
+        for row in bank:
+            if row.get('source') == 'user' and row.get('answer') not in (None, '') and (
+                    (row.get('question') or '').strip().lower() == q.lower() or
+                    qt and len(qt & _tokens(row.get('question'))) / len(qt | _tokens(row.get('question'))) >= 0.6):
+                return {"question": q, "answer": row['answer'], "confidence": 0.9, "key": row.get('key')}
+        if re.search(r'referr', q, re.I) and next((r.get('answer') for r in bank if r.get('key') == 'referral'), '') == 'No':
+            return {"question": q, "answer": None, "confidence": 0.9, "key": 'referral',
+                    "action": "leave it blank: the user was not referred (if the form requires it, type N/A)"}
+        return {"question": q, "answer": None, "confidence": 0, "key": None, "action": "ask the user, then applytwin_save_answer",
+                "how": ASK_HOW}
     k = {r.get('key'): r.get('answer') for r in bank}
     if re.search(r'authori[sz]ed|eligible|permitted', q, re.I) and re.search(r'sponsor', q, re.I) and k.get('work_auth') and k.get('sponsorship'):
         # "authorized to work WITHOUT sponsorship": yes only if both are true
@@ -177,6 +210,12 @@ def match(question, bank, options=None):
         return {"question": q, "answer": None, "confidence": round(conf, 2), "key": best.get('key') if best else None,
                 "action": "ask the user, then applytwin_save_answer"}
     ans = best['answer']
+    if options and best.get('key') == 'hear' and best.get('source') != 'user':
+        opts = [o for o in options if o and o.strip().lower() not in ('select', 'select one', '--', 'please select')]
+        hit = next((o for pat in HEAR_PICKS for o in opts if re.search(pat, o.strip(), re.I)), None)
+        return {"question": q, "answer": hit, "confidence": round(conf, 2) if hit else 0, "key": 'hear',
+                **({} if hit else {"action": "pick the closest truthful option by hand (where the posting was found); never "
+                                             "'Referral' or 'Career fair' unless the user said so"})}
     if options:
         ans = pick_option(ans, options)
     return {"question": q, "answer": ans, "confidence": round(conf, 2), "key": best.get('key')}
