@@ -330,6 +330,35 @@ def companies():
 NOWIN = {'creationflags': 0x08000000} if os.name == 'nt' else {}
 
 
+def refresh_path():
+    """Windows: pick up programs installed after the app started (Node.js, Claude Code, Codex). The app runs from login for
+    days and a process keeps the PATH it started with, so "I installed it" still said "not installed" until a restart."""
+    if os.name != 'nt':
+        return
+    try:
+        import winreg
+        found = []
+        for root, key in ((winreg.HKEY_LOCAL_MACHINE, r'SYSTEM\CurrentControlSet\Control\Session Manager\Environment'),
+                          (winreg.HKEY_CURRENT_USER, 'Environment')):
+            try:
+                with winreg.OpenKey(root, key) as k:
+                    found += str(winreg.QueryValueEx(k, 'Path')[0]).split(';')
+            except OSError:
+                pass
+        cur = os.environ.get('PATH', '')
+        have = {x.strip().rstrip('\\').lower() for x in cur.split(';') if x.strip()}
+        add = []
+        for x in found:
+            x = os.path.expandvars(x.strip())   # entries like %APPDATA%\npm
+            if x and x.rstrip('\\').lower() not in have:
+                have.add(x.rstrip('\\').lower())
+                add.append(x)
+        if add:
+            os.environ['PATH'] = ';'.join(([cur] if cur else []) + add)
+    except Exception:
+        pass
+
+
 SCHEMA = """
 create table if not exists jobs(
   id text primary key, source text, company text, title text, location text,

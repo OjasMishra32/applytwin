@@ -84,7 +84,54 @@ def ensure_command():
     if os.path.basename(py).lower() == 'pythonw.exe':   # started from the Startup shortcut; the command needs a console
         py = os.path.join(os.path.dirname(py), 'python.exe')
     with open(cmd, 'w', encoding='ascii', errors='replace') as f:
-        f.write(f'@"{py}" "%~dp0bin\\applytwin" %*\r\n')
+        f.write(f'@"{cmd_path(py)}" "%~dp0bin\\applytwin" %*\r\n')
+
+
+def cmd_path(p):
+    """A path a plain-ASCII .cmd file can hold. cmd.exe reads batch files in the console's code page, so C:\\Users\\José
+    written as is comes out as Jos? and the command breaks: use its short 8.3 name, or else spell the user folders as
+    %LOCALAPPDATA% / %USERPROFILE%, which cmd expands correctly at run time."""
+    if p.isascii():
+        return p
+    try:
+        import ctypes
+        buf = ctypes.create_unicode_buffer(1024)
+        if ctypes.windll.kernel32.GetShortPathNameW(p, buf, 1024) and buf.value.isascii():
+            return buf.value
+    except Exception:   # no 8.3 names on this drive (or not Windows)
+        pass
+    for var in ('LOCALAPPDATA', 'APPDATA', 'USERPROFILE'):
+        base = os.environ.get(var)
+        if base and p.lower().startswith(base.lower().rstrip('\\') + '\\'):
+            rest = p[len(base.rstrip('\\')):]
+            if rest.isascii():
+                return f'%{var}%' + rest
+    return p
+
+
+def _leave(folder):
+    """Windows won't rename a folder that is a process's working directory, and a restart used to start the app inside
+    the app folder, so every later update failed until the next sign-in: step out of it first."""
+    try:
+        here = os.path.normcase(os.path.realpath(os.getcwd()))
+        f = os.path.normcase(os.path.realpath(folder))
+        if here == f or here.startswith(f + os.sep):
+            os.chdir(os.path.dirname(f))
+    except OSError:
+        pass
+
+
+def _rename(src, dst, tries=20):
+    """os.rename that waits out Windows antivirus / search indexing, which open freshly unpacked files for a moment
+    (PermissionError: being used by another process)."""
+    import time
+    for i in range(tries):
+        try:
+            return os.rename(src, dst)
+        except PermissionError:
+            if i == tries - 1:
+                raise
+            time.sleep(0.5)
 
 
 def apply(sha=None):
@@ -131,15 +178,18 @@ def apply(sha=None):
             f.write(sha)
         os.chmod(os.path.join(new, 'bin', 'applytwin'), 0o755)
         shutil.rmtree(old, ignore_errors=True)
-        os.rename(APP, old)
+        if os.path.exists(old):   # a file in the last old copy is still locked (Windows): set this one aside under a new name
+            old = f'{APP}.old-{os.getpid()}-{int(__import__("time").time())}'
+        _leave(APP)
+        _rename(APP, old)
         swapped = True
-        os.rename(new, APP)
+        _rename(new, APP)
         swapped = False
         shutil.rmtree(old, ignore_errors=True)
         return {"updated": True, "sha": sha[:7]}
     finally:
         if swapped and not os.path.exists(APP) and os.path.exists(old):
-            os.rename(old, APP)   # the new version didn't land: put the working one back
+            _rename(old, APP)   # the new version didn't land: put the working one back
         shutil.rmtree(tmp, ignore_errors=True)
         try:
             os.remove(lock)

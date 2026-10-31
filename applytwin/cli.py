@@ -36,8 +36,32 @@ def _p(x):
     print(json.dumps(x, indent=1, default=str, ensure_ascii=False))
 
 
+def _no_console():
+    """pythonw (the Windows Startup shortcut) has no console: sys.stdout/stderr are None, so messages and crash reports
+    went nowhere. Send them to server.log in the data folder instead."""
+    if sys.stdout is not None and sys.stderr is not None:
+        return
+    try:
+        from . import store
+        log = store.path('server.log')
+        big = os.path.exists(log) and os.path.getsize(log) > 1_000_000
+        f = open(log, 'w' if big else 'a', encoding='utf-8', errors='replace', buffering=1)
+        sys.stdout = sys.stdout or f
+        sys.stderr = sys.stderr or f
+    except OSError:
+        pass
+
+
+def _paint(code, s):
+    """Color in a terminal only: piped (the Windows installer shows this output) the escape codes print as junk."""
+    return f'\033[{code}m{s}\033[0m' if sys.stdout is not None and sys.stdout.isatty() else s
+
+
 def main():
-    for stream in (sys.stdout, sys.stderr):   # Windows consoles default to cp1252, which can't print ✓ or →
+    _no_console()
+    # Windows consoles default to cp1252, which can't print ✓ or →; and the agent sends the MCP server UTF-8 on stdin
+    # (José arrived as JosÃ©)
+    for stream in (sys.stdout, sys.stderr, sys.stdin):
         try:
             stream.reconfigure(encoding='utf-8', errors='replace')
         except (AttributeError, ValueError):
@@ -83,12 +107,12 @@ def main():
     elif cmd == 'doctor':
         d = api.doctor()
         for i in d['items']:
-            mark = '\033[32m✓\033[0m' if i['ok'] else ('\033[33m·\033[0m' if i['optional'] else '\033[31m✗\033[0m')
-            print(f"{mark} {i['label']}" + (f"  \033[2m{i['detail']}\033[0m" if i['detail'] else ''))
+            mark = _paint(32, '✓') if i['ok'] else (_paint(33, '·') if i['optional'] else _paint(31, '✗'))
+            print(f"{mark} {i['label']}" + (f"  {_paint(2, i['detail'])}" if i['detail'] else ''))
             if not i['ok'] and i['fix']:
                 print(f"    → {i['fix']}")
         print('\nReady to apply.' if d['ok'] else '\nFix the ✗ items above, then run `applytwin doctor` again.')
-        print('\033[33m★\033[0m Like ApplyTwin? Star it so other students find it: https://github.com/OjasMishra32/applytwin')
+        print(_paint(33, '★') + ' Like ApplyTwin? Star it so other students find it: https://github.com/OjasMishra32/applytwin')
         sys.exit(0 if d['ok'] else 1)
     elif cmd == 'import-history':
         _p(api.import_history(sys.argv[2]))
@@ -103,6 +127,13 @@ def main():
         agent, n = _arg('--agent', 'claude'), int(_arg('--n', 25))
         exe = shutil.which(agent) or sys.exit(f'{agent} not found on PATH')
         p = api.run_prompt(n)
+        if os.name == 'nt':
+            # claude/codex are npm .cmd wrappers there: cmd.exe cuts a long argument at its first quote or & and exec can't
+            # start a .cmd at all, so hand over a short instruction that points at the full one in a file
+            from . import store
+            with open(store.path('run-prompt.txt'), 'w', encoding='utf-8') as f:
+                f.write(p)
+            sys.exit(subprocess.call([exe, f'Read the file {store.path("run-prompt.txt")} and follow the instructions in it.']))
         os.execv(exe, [exe, p] if agent == 'claude' else [exe, p])
     elif cmd == 'install-agents':
         from .install import install

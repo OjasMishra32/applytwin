@@ -21,7 +21,11 @@ _cache = {}
 
 
 def exe(name):
-    return shutil.which(name)
+    p = shutil.which(name)
+    if not p and os.name == 'nt':   # installed after the app started: look again with the PATH as it is now
+        store.refresh_path()
+        p = shutil.which(name)
+    return p
 
 
 def _run(cmd, timeout=20):

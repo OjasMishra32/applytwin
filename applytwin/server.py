@@ -239,9 +239,10 @@ def not_found():
 
 
 def _restart_cmd():
-    """(folder, argv) to start again on the new code: `python -m applytwin <same args>` from the install folder, never the
-    old argv[0] relative to a working directory the update may have replaced or deleted."""
-    return store.APP, [os.path.abspath(sys.executable), '-m', 'applytwin'] + sys.argv[1:]
+    """(folder, argv) to start again on the new code: the install folder's bin/applytwin by absolute path <same args>,
+    never the old argv[0] relative to a working directory the update may have replaced or deleted. It runs from the data
+    folder, not the install folder: Windows can't rename a folder a process is working in, so the next update would fail."""
+    return store.HOME, [os.path.abspath(sys.executable), os.path.join(store.APP, 'bin', 'applytwin')] + sys.argv[1:]
 
 
 def _restart():

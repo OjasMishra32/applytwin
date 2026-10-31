@@ -32,7 +32,8 @@ def notify(title, msg):
                   "$t = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent(1);"
                   "$x = $t.GetElementsByTagName('text'); $x.Item(0).AppendChild($t.CreateTextNode($env:APPLYTWIN_NOTE_TITLE)) > $null;"
                   "$x.Item(1).AppendChild($t.CreateTextNode($env:APPLYTWIN_NOTE_MSG)) > $null;"
-                  "[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('ApplyTwin').Show([Windows.UI.Notifications.ToastNotification]::new($t))")
+                  "[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\\WindowsPowerShell\\v1.0\\powershell.exe').Show([Windows.UI.Notifications.ToastNotification]::new($t))")
+            # the app id is PowerShell's own: Windows drops toasts from an unregistered one (like 'ApplyTwin') without a word
             subprocess.run(['powershell', '-NoProfile', '-Command', ps], capture_output=True, creationflags=0x08000000,
                            env={**os.environ, 'APPLYTWIN_NOTE_TITLE': title, 'APPLYTWIN_NOTE_MSG': msg})
         elif shutil.which('notify-send'):
@@ -101,9 +102,9 @@ def _python():
 def _claude_direct(claude):
     """Register ApplyTwin's MCP server straight from the installed app (not Claude Code's plugin cache, which keeps a frozen
     copy from install day: none of the self-updates ever reached the agent that way) and copy the skills."""
-    subprocess.run([claude, 'mcp', 'remove', '--scope', 'user', 'applytwin'], capture_output=True, timeout=60)
+    subprocess.run([claude, 'mcp', 'remove', '--scope', 'user', 'applytwin'], capture_output=True, timeout=60, **store.NOWIN)
     r = subprocess.run([claude, 'mcp', 'add', '--scope', 'user', 'applytwin', '--', _python(), APPLYTWIN_BIN, 'mcp'],
-                       capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=60)
+                       capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=60, **store.NOWIN)
     _copy_skills(os.path.expanduser('~/.claude/skills'))
     return r
 
@@ -118,7 +119,7 @@ def _plugin_installed():
 
 def _drop_plugin(claude):
     if _plugin_installed():
-        subprocess.run([claude, 'plugin', 'uninstall', '--scope', 'user', 'applytwin@applytwin'], capture_output=True, timeout=60)
+        subprocess.run([claude, 'plugin', 'uninstall', '--scope', 'user', 'applytwin@applytwin'], capture_output=True, timeout=60, **store.NOWIN)
 
 
 def refresh_agents():

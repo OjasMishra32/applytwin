@@ -209,6 +209,32 @@ def build_html(r, style='classic', k=1.0, titles=None):
             + ''.join(head) + ''.join(out) + '</div></body></html>')
 
 
+def _win_browsers():
+    """Windows installs that aren't at the C:\\Program Files paths: Windows on another drive, a per-user Chrome or Brave,
+    found through %ProgramFiles% and the App Paths registry entries the installers write."""
+    if os.name != 'nt':
+        return []
+    out = []
+    for var in ('ProgramFiles', 'ProgramFiles(x86)', 'LOCALAPPDATA'):
+        base = os.environ.get(var)
+        if base:
+            out += [os.path.join(base, *p) for p in (('Google', 'Chrome', 'Application', 'chrome.exe'),
+                                                     ('Microsoft', 'Edge', 'Application', 'msedge.exe'),
+                                                     ('BraveSoftware', 'Brave-Browser', 'Application', 'brave.exe'))]
+    try:
+        import winreg
+        for root in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
+            for exe in ('chrome.exe', 'msedge.exe', 'brave.exe'):
+                try:
+                    with winreg.OpenKey(root, r'SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths' + '\\' + exe) as k:
+                        out.append(str(winreg.QueryValue(k, None)).strip('"'))
+                except OSError:
+                    pass
+    except ImportError:
+        pass
+    return out
+
+
 def chrome():
     env = os.environ.get('APPLYTWIN_CHROME')
     cands = [env] if env else []
@@ -221,6 +247,7 @@ def chrome():
               os.path.expandvars(r'%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe'),
               r'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe',
               r'C:\Program Files\Microsoft\Edge\Application\msedge.exe']   # Edge ships with every Windows install
+    cands += _win_browsers()
     cands += [shutil.which(x) for x in ('google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser', 'chrome', 'msedge')]
     for c in cands:
         if c and os.path.exists(c):

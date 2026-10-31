@@ -699,7 +699,8 @@ _nf2 = _sv.not_found()
 _sv._RESTARTING.clear()
 _cwd, _argv = _sv._restart_cmd()
 res.append(ok('switching' not in _nf and 'switching' in _nf2, f'unknown requests say not-found unless an update is under way ({_nf[:40]})'))
-res.append(ok(_cwd == store.APP and os.path.isabs(_argv[0]) and _argv[1:3] == ['-m', 'applytwin'], f'restart runs from the install folder ({_argv[:3]})'))
+res.append(ok(_cwd == store.HOME and os.path.isabs(_argv[0]) and _argv[1] == os.path.join(store.APP, 'bin', 'applytwin'),
+              f'restart runs the install folder\'s app from outside it (Windows can\'t swap a folder in use) ({_argv[:2]})'))
 # 5. a limit written in any spelling's posting caps the company (cache and lookup both by normalized name)
 store.execute("insert or replace into jobs(id,source,company,title,url,apply_url,ats,description,found_at,fit,status) values('capx','t','Capco Holdings, Inc.',"
               "'Intern','u','u','lever','Candidates may apply to only one role this cycle.',0,90,'new')")
@@ -739,6 +740,121 @@ open(_bp, 'wb').write(b'%PDF-1.4 garbage /Type /Page')
 _pc = _rn4.page_count(_bp)
 _lg.getLogger('pypdf').removeHandler(_h)
 res.append(ok(not _recs and _pc == 1, f'broken PDFs log nothing from pypdf ({len(_recs)} records)'))
+
+
+# ---- Windows (simulated here: os.name and a stand-in winreg) ----
+import types as _types
+from applytwin import update as _up, cli as _cli, install
+_fakereg = _types.ModuleType('winreg')
+_fakereg.HKEY_LOCAL_MACHINE, _fakereg.HKEY_CURRENT_USER = 'HKLM', 'HKCU'
+_REG = {('HKLM', r'SYSTEM\CurrentControlSet\Control\Session Manager\Environment', 'Path'): r'C:\Windows\;C:\Program Files\nodejs',
+        ('HKCU', 'Environment', 'Path'): r'C:\Users\José Ruiz\AppData\Roaming\npm;C:\Windows',
+        ('HKCU', r'SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe', None): r'"D:\Apps\Chrome\chrome.exe"'}
+
+
+class _Key:
+    def __init__(self, root, key):
+        if not any(k[:2] == (root, key) for k in _REG):
+            raise OSError('no key')
+        self.k = (root, key)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        pass
+
+
+_fakereg.OpenKey = _Key
+_fakereg.QueryValueEx = lambda k, n: (_REG[k.k + (n,)], 2)
+_fakereg.QueryValue = lambda k, n: _REG[k.k + (n,)]
+_saved = (os.name, sys.modules.get('winreg'), os.environ.get('PATH'), os.environ.get('ProgramFiles'))
+_calls = []
+_real_run = subprocess.run
+try:
+    os.name, sys.modules['winreg'] = 'nt', _fakereg
+    os.environ['PATH'] = r'C:\Windows;C:\Python312'
+    os.environ['ProgramFiles'] = r'E:\Program Files'
+    store.refresh_path()
+    _wpath = os.environ['PATH']
+    store.refresh_path()   # nothing new the second time
+    _wpath2 = os.environ['PATH']
+    _wb = render._win_browsers()
+    subprocess.run = lambda *a, **k: _calls.append((a, k))
+    api._close_twin_windows()
+finally:
+    os.name = _saved[0]
+    subprocess.run = _real_run
+    for _k, _v in (('PATH', _saved[2]), ('ProgramFiles', _saved[3])):
+        if _v is None:
+            os.environ.pop(_k, None)
+        else:
+            os.environ[_k] = _v
+    if _saved[1] is None:
+        sys.modules.pop('winreg', None)
+    else:
+        sys.modules['winreg'] = _saved[1]
+res.append(ok(_wpath == r'C:\Windows;C:\Python312;C:\Program Files\nodejs;C:\Users\José Ruiz\AppData\Roaming\npm' and _wpath2 == _wpath,
+              f'Windows: Node/Claude installed after the app started are found without a restart ({_wpath})'))
+res.append(ok(r'D:\Apps\Chrome\chrome.exe' in _wb and os.path.join(r'E:\Program Files', 'Google', 'Chrome', 'Application', 'chrome.exe') in _wb,
+              'Windows: Chrome / Edge found on another drive and through App Paths'))
+_ps = _calls[0][0][0] if _calls else ['', '', '', '']
+res.append(ok(_calls and install.BROWSER_PROFILE not in _ps[3] and _calls[0][1].get('env', {}).get('APPLYTWIN_PROF') == install.BROWSER_PROFILE,
+              "Windows: the twin's browser folder goes to PowerShell as data (a username like O'Brien can't break it)"))
+_envs = {k: os.environ.get(k) for k in ('LOCALAPPDATA', 'USERPROFILE')}
+os.environ['LOCALAPPDATA'], os.environ['USERPROFILE'] = r'C:\Users\José Ruiz\AppData\Local', r'C:\Users\José Ruiz'
+_cp = [_up.cmd_path(r'C:\Users\José Ruiz\AppData\Local\Programs\Python\Python312\python.exe'), _up.cmd_path(r'C:\Python312\python.exe')]
+for _k, _v in _envs.items():
+    os.environ.pop(_k, None) if _v is None else os.environ.__setitem__(_k, _v)
+res.append(ok(_cp == [r'%LOCALAPPDATA%\Programs\Python\Python312\python.exe', r'C:\Python312\python.exe'],
+              f'Windows: the applytwin command works for accented usernames without 8.3 names ({_cp[0]})'))
+# an update steps out of the app folder before swapping it, and waits out an antivirus lock
+_appd = os.path.realpath(tempfile.mkdtemp())
+_here = os.getcwd()
+os.makedirs(os.path.join(_appd, 'sub'))
+os.chdir(os.path.join(_appd, 'sub'))
+_up._leave(_appd)
+_left_ok = os.path.realpath(os.getcwd()) == os.path.dirname(_appd)
+os.chdir(_here)
+_tries = []
+_real_rename = os.rename
+
+
+def _flaky(a, b):
+    _tries.append(1)
+    if len(_tries) < 3:
+        raise PermissionError(32, 'being used by another process')
+    return _real_rename(a, b)
+
+
+os.rename = _flaky
+try:
+    _up._rename(_appd, _appd + '-moved')
+finally:
+    os.rename = _real_rename
+res.append(ok(_left_ok and len(_tries) == 3 and os.path.isdir(_appd + '-moved'),
+              'Windows: an update leaves the app folder first and retries a rename antivirus blocks'))
+# pythonw has no console: output goes to server.log instead of nowhere; piped output has no color codes
+_so, _se = sys.stdout, sys.stderr
+try:
+    sys.stdout = None
+    _cli._no_console()
+    print('hello from pythonw')
+    _logname = getattr(sys.stdout, 'name', '')
+    sys.stdout.flush()
+finally:
+    if sys.stdout not in (None, _so):
+        sys.stdout.close()
+    sys.stdout, sys.stderr = _so, _se
+res.append(ok(_logname == store.path('server.log') and 'hello from pythonw' in open(store.path('server.log'), encoding='utf-8').read(),
+              'Windows: pythonw output and crashes land in server.log'))
+_pp = _cli._paint(32, 'x')
+res.append(ok(_pp == ('\033[32mx\033[0m' if sys.stdout.isatty() else 'x'), 'doctor prints no escape codes when piped (Windows installer)'))
+# the MCP server reads the agent's UTF-8 even where the default encoding is a Windows code page
+_mp = subprocess.run([sys.executable, os.path.join(ROOT, 'bin', 'applytwin'), 'mcp'],
+                     input=(json.dumps({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "José"}}, ensure_ascii=False) + '\n').encode('utf-8'),
+                     capture_output=True, env={**os.environ, 'PYTHONIOENCODING': 'cp1252'}, timeout=60)
+res.append(ok('Jos\\u00e9' in _mp.stdout.decode('utf-8', 'replace'), f'MCP reads UTF-8 input under a cp1252 default ({_mp.stdout[:120]!r})'))
 
 print(f'\n{sum(res)}/{len(res)} passed')
 sys.exit(0 if all(res) else 1)

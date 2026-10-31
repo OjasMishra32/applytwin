@@ -165,6 +165,7 @@ def engine():
 
 
 def compile_tex(src, out_pdf):
+    from .store import NOWIN   # no console window flashing up per compile on Windows
     name, exe = engine()
     if not exe:
         raise RuntimeError('No LaTeX engine found (install tectonic or TeX Live, or pick another template)')
@@ -173,7 +174,7 @@ def compile_tex(src, out_pdf):
         open(f, 'w', encoding='utf-8').write(src)
         cmd = [exe, f] if name == 'tectonic' else [exe, '-interaction=nonstopmode', '-halt-on-error', 'resume.tex']
         for _ in range(1 if name == 'tectonic' else 2):
-            subprocess.run(cmd, cwd=td, capture_output=True, timeout=180)
+            subprocess.run(cmd, cwd=td, capture_output=True, timeout=180, **NOWIN)
         pdf = os.path.join(td, 'resume.pdf')
         if not os.path.exists(pdf):
             raise RuntimeError('LaTeX failed to compile')

@@ -945,19 +945,19 @@ def connect_agent(name):
     def work():
         log = open(store.path(f'connect-{name}.log'), 'w', encoding='utf-8')
         try:
-            if not shutil.which(name):
-                npm = shutil.which('npm')
+            if not agents.exe(name):
+                npm = agents.exe('npm')
                 if not npm:
                     c.update(step='failed', error="Node.js isn't installed, so it can't be installed for you. Get it from nodejs.org, "
                                                   "then press this again.")
                     return
                 r = subprocess.run([npm, 'install', '-g', NPM_PKG[name]], stdout=log, stderr=subprocess.STDOUT, timeout=600, **store.NOWIN)
                 agents._cache.pop(name, None)
-                if r.returncode != 0 or not shutil.which(name):
+                if r.returncode != 0 or not agents.exe(name):
                     c.update(step='failed', error=f"Installing {agents.NAMES[name]} didn't finish. Run: npm install -g {NPM_PKG[name]}")
                     return
             c.update(step='signing_in', at=time.time())
-            c['proc'] = subprocess.Popen([shutil.which(name), *LOGIN_CMD[name]], stdin=subprocess.DEVNULL, stdout=log,
+            c['proc'] = subprocess.Popen([agents.exe(name), *LOGIN_CMD[name]], stdin=subprocess.DEVNULL, stdout=log,
                                          stderr=subprocess.STDOUT, cwd=store.HOME, **store.NOWIN)
         except Exception as e:
             c.update(step='failed', error=str(e)[:200])
@@ -1201,8 +1201,7 @@ _RUN_LOCK = threading.Lock()
 def pick_agent(agent):
     """The agent to run: the one asked for if it's installed and signed in, otherwise whichever one is (someone with only
     Codex pressing 'Find them in my email' got 'Claude Code is not installed')."""
-    import shutil
-    ready = lambda a: bool(shutil.which(a)) and agents.status(a, fresh=True)['signed_in']
+    ready = lambda a: bool(agents.exe(a)) and agents.status(a, fresh=True)['signed_in']
     if ready(agent):
         return agent
     return next((a for a in agents.NAMES if a != agent and ready(a)), agent)
@@ -1223,9 +1222,12 @@ def _close_twin_windows():
     prof = install.BROWSER_PROFILE
     try:
         if os.name == 'nt':
+            # the folder goes in as data: a quote in it (C:\Users\O'Brien) would break the command, and [ ] are -like wildcards
             ps = ("Get-CimInstance Win32_Process -Filter \"Name='chrome.exe' or Name='msedge.exe'\" | "
-                  f"Where-Object {{ $_.CommandLine -like '*{prof}*' }} | ForEach-Object {{ Stop-Process -Id $_.ProcessId -Force }}")
-            subprocess.run(['powershell', '-NoProfile', '-Command', ps], capture_output=True, timeout=20, **store.NOWIN)
+                  "Where-Object { $_.CommandLine -and $_.CommandLine.Contains($env:APPLYTWIN_PROF) } | "
+                  "ForEach-Object { Stop-Process -Id $_.ProcessId -Force }")
+            subprocess.run(['powershell', '-NoProfile', '-Command', ps], capture_output=True, timeout=20,
+                           env={**os.environ, 'APPLYTWIN_PROF': prof}, **store.NOWIN)
         else:
             subprocess.run(['pkill', '-f', '--', f'--user-data-dir={prof}( |$)'], capture_output=True, timeout=10)
     except Exception:
