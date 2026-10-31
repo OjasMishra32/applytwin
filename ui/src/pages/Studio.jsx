@@ -7,6 +7,7 @@ import { api, fileUrl } from '../lib/api'
 import { useApp, Page } from '../App'
 import { Badge, Button, Drop, Ring, Segmented, Title, spring } from '../components/ui'
 import { Paper } from './Jobs'
+import { ImportWait } from '../components/ImportWait'
 
 const md = s => (s || '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
   .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '<span class="text-signal-ink underline decoration-sky/30 underline-offset-2">$1</span>').replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
@@ -249,7 +250,8 @@ function Import({ open, setOpen, onDone }) {
           <Dialog.Title className="text-[22px] font-bold tracking-[-0.02em] text-ink">Import your resume</Dialog.Title>
           <p className="mb-5 mt-1 text-[14px] text-muted">Old resumes, your LinkedIn, project notes. Your twin pulls it all into one vault and never invents anything.</p>
           {busy ? <div className="grid place-items-center py-14"><motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1.1, ease: 'linear' }}><Sparkles className="size-8 text-signal" /></motion.div>
-            <div className="mt-3 text-[14px] text-muted">Reading it like a recruiter…</div></div>
+            <div className="mt-3 text-[14px] text-muted">Reading it like a recruiter…</div>
+            <ImportWait className="mt-1 text-center text-[13px] text-faint" /></div>
             : out ? <div className="rounded-[18px] bg-mist p-6"><div className="flex items-center gap-2 font-medium text-ink"><CheckCircle2 className="size-5 text-good" />{out.message}</div>
               {out.counts && <div className="mt-3 flex flex-wrap gap-2">{Object.entries(out.counts).map(([k, n]) => n > 0 && <Badge key={k} tone="sky">{n} {k}</Badge>)}</div>}
               {!out.structured && <div className="mt-3 text-[13px] text-muted">To structure it fully, tell Claude Code or Codex: <span className="font-mono text-fg">twin: structure my dump</span>. Or add an API key in Settings.</div>}

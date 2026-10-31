@@ -629,5 +629,116 @@ st, body = req('POST', '/api/run', '{"agent": "bash", "n": 1}', Content_Type=JSO
 res.append(ok(st == 500 and b'unknown agent' in body, 'Autopilot runs only Claude Code or Codex'))
 _srv.shutdown()
 
+# open-issue fixes (2026-10-31, second pass)
+import re as _re, threading as _th, logging as _lg
+from applytwin import importer as _imp4, tailor as _tl4, agents as _ag4
+_files = {n: store.load(n, None) for n in ('profile.json', 'answers.json', 'resume.json', 'learnings.json')}
+# 1. signing in never overwrites setup done here: the cloud copy only fills blanks, and each changed file is backed up first
+store.save('resume.json', store.DEFAULT_RESUME)
+store.save('profile.json', {'phone': '555', 'search': {'season': 'Summer 2027', 'roles': []}, 'apply': {'daily_limit': 10}})
+store.save('answers.json', [{'key': 'why_us', 'question': 'Why us?', 'answer': 'mine', 'source': 'user'}])
+_row = {'vault': {'basics': {'name': 'Cloud Name'}, 'experience': [{'title': 'Intern', 'company': 'CloudCo', 'bullets': ['Did it']}]},
+        'profile': {'phone': '111', 'name': 'Cloud Name', 'search': {'season': 'Fall 2026', 'roles': ['SWE']}, 'apply': {'daily_limit': 40}},
+        'answers': [{'key': 'why_us', 'question': 'Why us?', 'answer': 'old', 'source': 'user'},
+                    {'key': 'pets', 'question': 'Pets?', 'answer': 'cat', 'source': 'user'}], 'learnings': {'notes': ['short bullets']}}
+_cl_orig = (_cl2.token, _cl2._session, _cl2._req)
+_cl2.token, _cl2._session, _cl2._req = (lambda: 't'), (lambda: {'user': {'id': 'u'}}), (lambda *a, **k: [_row])
+try:
+    _restored = _cl2.pull()
+finally:
+    _cl2.token, _cl2._session, _cl2._req = _cl_orig
+_pf, _an4 = store.load('profile.json', None), {r['key']: r['answer'] for r in store.load('answers.json', None)}
+_bk = os.listdir(store.path('backups'))
+_merge_ok = (_restored and _pf['phone'] == '555' and _pf['name'] == 'Cloud Name' and _pf['search'] == {'season': 'Summer 2027', 'roles': ['SWE']}
+             and _pf['apply']['daily_limit'] == 10 and _an4 == {'why_us': 'mine', 'pets': 'cat'} and store.resume()['experience'][0]['company'] == 'CloudCo'
+             and any(f.startswith('profile-') for f in _bk) and any(f.startswith('answers-') for f in _bk))
+res.append(ok(_merge_ok, f'sign-in merges the cloud copy into local setup, never over it ({_pf.get("phone")}, {_an4}, backups {len(_bk)})'))
+# 2. resume import: honest time left, Cancel stops the agent, and the built-in reader takes over with a clear message
+_t0 = time.time()
+_tl4._SINK.tag = 'kill-test'
+_th.Timer(0.5, lambda: _tl4.cancel('kill-test')).start()
+_r = _tl4._run([sys.executable, '-c', 'import time; time.sleep(30)'], '', 30)
+_tl4._SINK.tag = None
+_tl4.CANCELLED.discard('kill-test')
+_killed = time.time() - _t0 < 10 and _r.returncode != 0
+_seen = {}
+
+
+def _slow_llm(text, timeout=600, fast=False, think=True):
+    while 'import' not in _tl4.CANCELLED and time.time() - _t0 < 20:
+        _seen.setdefault('progress', api.import_progress())
+        if time.time() - _t0 > 0.4:   # the user presses Cancel (from another request, as the page does)
+            _th.Thread(target=api.cancel_import).start()
+        time.sleep(0.05)
+    return None
+
+
+_llm_orig, _ready_orig = _tl4.call_llm, _ag4.any_ready
+_tl4.call_llm, _ag4.any_ready = _slow_llm, (lambda: True)
+_t0 = time.time()
+try:
+    _ir = api.import_resume(text='Maya Chen\nmaya@example.com\nEXPERIENCE\nSoftware Intern, Acme  May 2025 - Aug 2025\n- Built a Python service used by 40 teams\n')
+    _tl4.call_llm = lambda *a, **k: None   # an agent that fails outright
+    _ir2 = api.import_resume(text='Maya Chen\nmaya@example.com\nPROJECTS\nTracker  2025\n- Built a React dashboard for 300 students\n')
+finally:
+    _tl4.call_llm, _ag4.any_ready = _llm_orig, _ready_orig
+_pg = _seen.get('progress') or {}
+_imp_ok = (_killed and _pg.get('running') and _pg.get('eta', 0) > 0 and _pg.get('limit', 0) >= 90 and time.time() - _t0 < 15
+           and 'stopped your agent' in _ir['message'] and not _ir['ai'] and "couldn't read it" in _ir2['fallback']
+           and api.import_progress() == {'running': False} and not _tl4.RUNNING)
+res.append(ok(_imp_ok, f'resume import shows time left, Cancel kills the agent, built-in reader takes over ({_killed}, {_pg}, {_ir["message"][-60:]})'))
+for _n, _v in _files.items():   # put this test file's setup back for the checks below
+    if _v is None:
+        os.remove(store.path(_n)) if os.path.exists(store.path(_n)) else None
+    else:
+        store.save(_n, _v)
+# 3, 4. "switching versions" only while one is under way; restarts run `-m applytwin` from the install folder
+_nf = _sv.not_found()
+_sv._RESTARTING.append(1)
+_nf2 = _sv.not_found()
+_sv._RESTARTING.clear()
+_cwd, _argv = _sv._restart_cmd()
+res.append(ok('switching' not in _nf and 'switching' in _nf2, f'unknown requests say not-found unless an update is under way ({_nf[:40]})'))
+res.append(ok(_cwd == store.APP and os.path.isabs(_argv[0]) and _argv[1:3] == ['-m', 'applytwin'], f'restart runs from the install folder ({_argv[:3]})'))
+# 5. a limit written in any spelling's posting caps the company (cache and lookup both by normalized name)
+store.execute("insert or replace into jobs(id,source,company,title,url,apply_url,ats,description,found_at,fit,status) values('capx','t','Capco Holdings, Inc.',"
+              "'Intern','u','u','lever','Candidates may apply to only one role this cycle.',0,90,'new')")
+api._posted[0] = 0
+api._limits.clear()
+_cap = api.company_cap('Capco Holdings', 3)
+res.append(ok(_cap == 1, f'company cap reads every spelling\'s postings by normalized name ({_cap})'))
+# 6. the per-company cap counts this recruiting cycle only; the daily limit stays a rolling day
+store.execute("insert into applications(job_id,company,title,url,status,notes,at) values('old1','Cyclco','Intern','u','Applied','',?)", (time.time() - 300 * 86400,))
+_c_old = store.company_count('Cyclco')
+store.execute("insert into applications(job_id,company,title,url,status,notes,at) values('new1','Cyclco Inc','Intern','u','Applied','',?)", (time.time() - 20 * 86400,))
+_c_new = store.company_count('Cyclco')
+res.append(ok(_c_old == 0 and _c_new == 1, f'per-company cap counts this recruiting cycle only ({_c_old}, {_c_new})'))
+# 7. logging a job ApplyTwin doesn't have: the body's company/title, or a clear refusal (never a blank row)
+_pat = r'/api/jobs/([\w-]+)/log'
+_sv.POST[_pat](_re.fullmatch(_pat, '/api/jobs/nojob1/log'), {}, {'status': 'Applied', 'company': 'Newco', 'title': 'Data Intern'})
+try:
+    _sv.POST[_pat](_re.fullmatch(_pat, '/api/jobs/nojob2/log'), {}, {'status': 'Applied'})
+    _refused2 = False
+except RuntimeError as e:
+    _refused2 = 'company and title' in str(e)
+_nr = store.rows("select company, title from applications where job_id in ('nojob1','nojob2')")
+res.append(ok(_nr == [{'company': 'Newco', 'title': 'Data Intern'}] and _refused2, f'logging an unknown job uses the given names or refuses ({_nr}, {_refused2})'))
+store.execute("delete from applications where job_id in ('nojob1','old1','new1')")
+# 8. a broken PDF is reported in our words only, without pypdf's "EOF marker not found" log line
+_recs = []
+_h = _lg.Handler()
+_h.emit = _recs.append
+_lg.getLogger('pypdf').addHandler(_h)
+try:
+    _imp4.extract_text('broken.pdf', _b64.b64encode(b'%PDF-1.4 garbage').decode())
+except RuntimeError:
+    pass
+from applytwin import render as _rn4
+_bp = os.path.join(tempfile.mkdtemp(), 'b.pdf')
+open(_bp, 'wb').write(b'%PDF-1.4 garbage /Type /Page')
+_pc = _rn4.page_count(_bp)
+_lg.getLogger('pypdf').removeHandler(_h)
+res.append(ok(not _recs and _pc == 1, f'broken PDFs log nothing from pypdf ({len(_recs)} records)'))
+
 print(f'\n{sum(res)}/{len(res)} passed')
 sys.exit(0 if all(res) else 1)

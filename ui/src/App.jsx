@@ -73,7 +73,7 @@ export default function App() {
       const q = new URLSearchParams(h.slice(1))
       history.replaceState(null, '', location.pathname + '#home')
       api('/api/auth', { access_token: q.get('access_token'), refresh_token: q.get('refresh_token'), expires_in: q.get('expires_in') })
-        .then(r => { setAuth(r); setAuthReady(true); toast.success(`Signed in${r.user?.email ? ' as ' + r.user.email : ''}`, { description: r.restored ? 'Restored your vault from the cloud.' : 'Your vault now syncs to your account.' }); refresh() })
+        .then(r => { setAuth(r); setAuthReady(true); toast.success(`Signed in${r.user?.email ? ' as ' + r.user.email : ''}`, { description: r.restored ? 'Brought in what your account had that this computer didn\'t (nothing here was overwritten).' : 'Your vault now syncs to your account.' }); refresh() })
         .catch(e => { setAuthReady(true); toast.error('Sign-in failed: ' + e.message) })
     } else api('/api/auth').then(r => { setAuth(r); setAuthReady(true) }).catch(() => setAuthReady(true))
   }, [refresh])
