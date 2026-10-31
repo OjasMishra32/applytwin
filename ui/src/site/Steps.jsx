@@ -79,78 +79,77 @@ export function HowItWorks() {
   )
 }
 
-/* 01. New postings rise through a frosted filter. The ones that don't fit dim and fall away under it; the ones that do
-   turn green, pass through, and settle into your queue above. One list, a handful of rows, nothing repeated. */
+/* 01. Postings scroll past a scan line inside their own window. Each one gets a verdict as it crosses: most dim with
+   "Doesn't fit", the few that fit turn green and drop into your queue below. Everything stays in its own lane. */
 const STREAM = [   // [company, domain, role, city, fits]
   ['Netflix', 'netflix.com', 'Content Strategy Intern', 'Los Gatos'], ['Salesforce', 'salesforce.com', 'Sales Operations Intern', 'Chicago'],
-  ['Databricks', 'databricks.com', 'Software Engineer Intern', 'Seattle'], ['Adobe', 'adobe.com', 'Marketing Intern', 'San Jose'],
+  ['Stripe', 'stripe.com', 'Software Engineer Intern', 'San Francisco', true], ['Adobe', 'adobe.com', 'Marketing Intern', 'San Jose'],
   ['Uber', 'uber.com', 'Senior Software Engineer', 'San Francisco'],
   ['Two Sigma', 'twosigma.com', 'Quantitative Research Intern', 'New York', true],
   ['Coinbase', 'coinbase.com', 'Product Design Intern', 'Remote'], ['Airbnb', 'airbnb.com', 'Finance Intern', 'San Francisco'],
-  ['Microsoft', 'microsoft.com', 'Program Manager, Full-time', 'Redmond'], ['Robinhood', 'robinhood.com', 'Legal Intern', 'Menlo Park'],
-  ['Anduril', 'anduril.com', 'Autonomy Engineer Intern', 'Costa Mesa', true],
+  ['Microsoft', 'microsoft.com', 'Program Manager, Full-time', 'Redmond'],
+  ['Anduril', 'anduril.com', 'Autonomy Engineer Intern', 'Costa Mesa', true], ['Robinhood', 'robinhood.com', 'Legal Intern', 'Menlo Park'],
   ['Snowflake', 'snowflake.com', 'Recruiting Coordinator', 'Bozeman'], ['Notion', 'notion.so', 'Community Intern', 'New York'],
-  ['Ramp', 'ramp.com', 'Account Executive', 'Miami'], ['Figma', 'figma.com', 'Brand Design Intern', 'London'],
-  ['Meta', 'meta.com', 'Data Center Technician', 'Prineville'], ['Tesla', 'tesla.com', 'Service Advisor', 'Austin'],
-  ['Amazon', 'amazon.com', 'Area Manager Intern', 'Nashville'], ['Palantir', 'palantir.com', 'Business Development Intern', 'Washington'],
-  ['Apple', 'apple.com', 'Retail Specialist', 'Gainesville']]
-const FIRST = ['Stripe', 'stripe.com', 'Software Engineer Intern', 'San Francisco']
-const RH = 58, GAP = 10, BAND = 300, BAND_H = 64, START = BAND + BAND_H + 18, TRAVEL = 980
+  ['Databricks', 'databricks.com', 'Software Engineer Intern', 'Seattle', true],
+  ['Ramp', 'ramp.com', 'Account Executive', 'Miami'], ['Meta', 'meta.com', 'Data Center Technician', 'Prineville'],
+  ['Figma', 'figma.com', 'Brand Design Intern', 'London'], ['Tesla', 'tesla.com', 'Service Advisor', 'Austin']]
+const RH = 56, GAP = 8, WIN = 312, SCAN = WIN / 2
+const TRAVEL = (STREAM.length - 1) * (RH + GAP) - SCAN + RH
 function Sift({ p }) {
-  const t = range(p, 0.1, 0.82)
+  const t = range(p, 0.08, 0.86)
   const off = t * TRAVEL
-  const yOf = i => START + i * (RH + GAP) - off                      // a row's top inside the stage
-  const through = i => smooth(range(BAND + BAND_H / 2 - yOf(i), 0, 70))   // 0 below the band's middle, 1 once it has passed
-  const checked = Math.round(380 + 860 * t)
-  const fits = STREAM.map((r, i) => [r, i]).filter(([r]) => r[4])
-  const queue = [[FIRST, 1], ...fits.map(([r, i]) => [r, through(i)])]
-  const inQueue = queue.filter(([, k]) => k > 0.5).length
-  const fade = 'linear-gradient(to bottom, #000 0%, #000 70%, transparent 100%)'
-  const row = ([c, d, role, city], extra) => (
-    <><Avatar name={c} domain={d} size={34} />
-      <div className="min-w-0 flex-1"><div className="truncate text-[15px] font-semibold">{role}</div><div className="truncate text-[13px] muted">{c} · {city}</div></div>{extra}</>)
-  const check = <span className="grid size-6 shrink-0 place-items-center rounded-full" style={{ background: 'var(--green)' }}><Check className="size-3.5 text-white" strokeWidth={3} /></span>
+  const yOf = i => WIN - 40 + i * (RH + GAP) - off        // row top inside the window
+  const passed = i => smooth(range(SCAN - (yOf(i) + RH / 2), 0, 36))   // 0 before its middle crosses the scan line, 1 after
+  const checked = Math.round(120 + 1120 * t)
+  const queue = STREAM.filter(r => r[4]).map(r => [r, passed(STREAM.indexOf(r))])
+  const n = queue.filter(([, k]) => k > 0.5).length
+  const mask = 'linear-gradient(to bottom, transparent 0, #000 22%, #000 78%, transparent 100%)'
   return (
-    <Stage w={560} h={600}>
-      {/* your queue */}
-      <div className="absolute inset-x-0 top-0">
-        <div className="flex items-baseline justify-between px-1">
-          <div className="text-[13px] font-semibold uppercase tracking-[0.06em] faint">Your queue</div>
-          <div className="text-[13px] tabular-nums muted">{inQueue} of {checked.toLocaleString()}</div>
-        </div>
-        <div className="mt-3 space-y-2.5">
-          {queue.map(([r, k]) => (
-            <div key={r[0]} className="sheet flex items-center gap-3 rounded-[16px] px-4"
-              style={{ height: RH + 4, opacity: k, transform: `translateY(${(1 - k) * 60}px) scale(${0.96 + 0.04 * k})`, visibility: k > 0.01 ? 'visible' : 'hidden' }}>
-              {row(r, check)}
-            </div>))}
-        </div>
-      </div>
-      {/* incoming postings, rising into the filter */}
-      <div className="absolute inset-x-0 overflow-hidden" style={{ top: BAND, bottom: 0, maskImage: fade, WebkitMaskImage: fade }}>
-        {STREAM.map((r, i) => {
-          const y = yOf(i) - BAND
-          if (y > 330 || y < -RH) return null
-          const near = smooth(range(START + 40 - yOf(i), 0, 90))   // how close it is to the filter
-          const fit = r[4]
-          return (
-            <div key={r[0]} className="absolute inset-x-[14px] flex items-center gap-3 rounded-[14px] px-4"
-              style={{ top: y, height: RH, background: 'var(--bg-3)', boxShadow: fit && near > 0.2 ? '0 0 0 2px var(--green), var(--shadow)' : '0 0 0 1px var(--line)',
-                opacity: fit ? 1 : 1 - 0.7 * near, transform: fit ? 'none' : `scale(${1 - 0.04 * near})`, filter: fit ? 'none' : `grayscale(${near})` }}>
-              {row(r, fit ? <span style={{ opacity: near }}>{check}</span> : <span className="text-[12px] faint" style={{ opacity: near }}>Doesn't fit</span>)}
-            </div>)
-        })}
-      </div>
-      {/* the filter itself */}
-      <div className="absolute inset-x-0 flex items-center justify-between rounded-[18px] px-5 backdrop-blur-2xl"
-        style={{ top: BAND, height: BAND_H, background: 'color-mix(in srgb, color-mix(in srgb, var(--blue) 9%, var(--bg-2)) 78%, transparent)', boxShadow: '0 0 0 1px color-mix(in srgb, var(--blue) 35%, transparent), 0 12px 32px rgb(0 0 0 / .08)' }}>
+    <Stage w={560} h={560}>
+      {/* the filter */}
+      <div className="absolute inset-x-0 top-0 flex items-center justify-between rounded-[18px] px-5"
+        style={{ height: 64, background: 'color-mix(in srgb, var(--blue) 10%, var(--bg-2))', boxShadow: '0 0 0 1px color-mix(in srgb, var(--blue) 30%, transparent)' }}>
         <div className="flex items-center gap-3">
-          <span className="relative grid size-8 place-items-center rounded-full" style={{ background: 'var(--blue)' }}>
+          <span className="grid size-8 place-items-center rounded-full" style={{ background: 'var(--blue)' }}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round"><path d="M2 4h12M4.5 8h7M7 12h2" /></svg>
           </span>
-          <div><div className="text-[15px] font-semibold">Your field, cycle and cities</div><div className="text-[12.5px] muted">Software · Summer 2027 · NYC, SF, LA</div></div>
+          <div><div className="text-[15px] font-semibold">Your field, cycle and cities</div><div className="text-[12.5px] muted">Software · Summer 2027 · NYC, SF, Seattle</div></div>
         </div>
         <div className="text-right"><div className="display-l text-[24px] tabular-nums leading-none">{checked.toLocaleString()}</div><div className="mt-0.5 text-[12px] muted">postings checked</div></div>
+      </div>
+      {/* the postings, in their own window */}
+      <div className="absolute inset-x-0 overflow-hidden rounded-[18px]" style={{ top: 80, height: WIN, background: 'var(--bg-2)' }}>
+        <div className="absolute inset-0" style={{ maskImage: mask, WebkitMaskImage: mask }}>
+          {STREAM.map((r, i) => {
+            const y = yOf(i)
+            if (y > WIN || y < -RH) return null
+            const k = passed(i), fit = r[4]
+            return (
+              <div key={r[0]} className="absolute inset-x-3 flex items-center gap-3 rounded-[14px] px-3.5"
+                style={{ top: y, height: RH, background: 'var(--bg-3)', opacity: fit ? 1 : 1 - 0.62 * k,
+                  boxShadow: fit ? `0 0 0 ${1 + k}px color-mix(in srgb, var(--green) ${Math.round(k * 100)}%, var(--line))` : '0 0 0 1px var(--line)' }}>
+                <Avatar name={r[0]} domain={r[1]} size={32} />
+                <div className="min-w-0 flex-1"><div className="truncate text-[14.5px] font-semibold">{r[2]}</div><div className="truncate text-[12.5px] muted">{r[0]} · {r[3]}</div></div>
+                <span className="shrink-0 text-[12px] font-medium" style={{ opacity: k, color: fit ? 'var(--green)' : 'var(--fg-3)' }}>{fit ? 'Fits you' : "Doesn't fit"}</span>
+              </div>)
+          })}
+        </div>
+        {/* scan line */}
+        <div className="pointer-events-none absolute inset-x-0" style={{ top: SCAN - 1, height: 2, background: 'linear-gradient(90deg, transparent, color-mix(in srgb, var(--blue) 70%, transparent), transparent)' }} />
+      </div>
+      {/* your queue */}
+      <div className="absolute inset-x-0 flex items-center justify-between rounded-[18px] px-5" style={{ top: 408, height: 76, background: 'var(--bg-2)', boxShadow: '0 0 0 1px var(--line)' }}>
+        <div>
+          <div className="text-[12px] font-semibold uppercase tracking-[0.06em] faint">Your queue</div>
+          <div className="mt-1 text-[15px] font-semibold tabular-nums">{n} {n === 1 ? 'role fits' : 'roles fit'}</div>
+        </div>
+        <div className="flex items-center">
+          {queue.map(([r, k], i) => (
+            <div key={r[0]} className="-ml-2 first:ml-0 rounded-full ring-[3px] ring-[var(--bg-2)]"
+              style={{ opacity: k, transform: `translateY(${(1 - k) * -18}px) scale(${0.7 + 0.3 * k})`, zIndex: i }}>
+              <Avatar name={r[0]} domain={r[1]} size={36} />
+            </div>))}
+        </div>
       </div>
     </Stage>
   )

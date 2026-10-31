@@ -55,10 +55,7 @@ export default function Site() {
       {/* 1. What it is, with the app itself as the picture */}
       <section className="px-4 pt-24 sm:pt-32">
         <div className="mx-auto max-w-[1120px] min-[1800px]:max-w-[1360px] text-center">
-          <div style={{ animationDelay: '0s' }} className="rise eyebrow mx-auto w-fit">
-            <span className="eyebrow-dot" aria-hidden />Free and open source<span className="faint">· Mac, Windows, Linux</span>
-          </div>
-          <h1 className="display-xl mt-6 text-[clamp(44px,7.4vw,104px)] [text-wrap:balance]">
+          <h1 className="display-xl text-[clamp(44px,7.4vw,104px)] [text-wrap:balance]">
             <span style={{ animationDelay: '0.04s' }} className="rise block">You apply once.</span>
             <span style={{ animationDelay: '0.12s' }} className="rise block muted">Your twin does the rest.</span>
           </h1>
@@ -308,11 +305,13 @@ function NeverLine({ p, i, n, children }) {
   const still = useReducedMotion()
   const a = i / (n + 1)
   const opacity = useTransform(p, [a, a + 1 / (n + 1)], [0.2, 1])
-  const strike = useTransform(p, [a + 0.5 / (n + 1), a + 1.4 / (n + 1)], [0, 1])
+  const strike = useTransform(p, [a + 0.5 / (n + 1), a + 1.4 / (n + 1)], [0, 100])
+  // the strike is the text's own background, so when a line wraps it crosses through every line, left to right
+  const size = useTransform(strike, v => `${still ? 100 : v}% 0.07em`)
   return (
-    <motion.li style={{ opacity: still ? 1 : opacity }} className="display-l relative w-fit py-1 text-[clamp(30px,4.6vw,60px)] [text-wrap:balance]">
-      {children}
-      <motion.span aria-hidden className="absolute left-0 right-0 top-[54%] h-[0.07em] origin-left rounded-full bg-[var(--orange)]" style={{ scaleX: still ? 1 : strike }} />
+    <motion.li style={{ opacity: still ? 1 : opacity }} className="display-l py-1 text-[clamp(30px,4.6vw,60px)] [text-wrap:balance]">
+      <motion.span style={{ backgroundImage: 'linear-gradient(var(--orange), var(--orange))', backgroundRepeat: 'no-repeat',
+        backgroundPosition: '0 58%', backgroundSize: size }}>{children}</motion.span>
     </motion.li>
   )
 }
