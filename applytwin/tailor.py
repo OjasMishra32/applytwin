@@ -1105,7 +1105,7 @@ class _Track:
         src = getattr(self, 'src', {}) or {}
         rw = []
         for fid, new in re.findall(r'\{\s*"from"\s*:\s*"([^"]+)"\s*,\s*"text"\s*:\s*"((?:[^"\\]|\\.)*)', text):
-            rw.append({"from": ats.plain(src.get(fid, ''))[:260], "to": ats.plain(s(new))[:260]})
+            rw.append({"from": ats.plain(src.get(fid, ''))[:600], "to": ats.plain(s(new))[:600]})
         out['rewrites'] = rw[-8:]
         prev = getattr(self, '_seen', {}) or {}   # a revision streams from the start: keep showing what was there until it catches up
         for k in ('requirements', 'positioning', 'rewrites'):

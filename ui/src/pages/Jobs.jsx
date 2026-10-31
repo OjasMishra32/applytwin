@@ -123,10 +123,12 @@ function Watch({ live }) {
 
 // the words the rewrite brought in, tinted, so you see exactly what changed
 function Diff({ from, to }) {
-  const old = new Set((from || '').toLowerCase().match(/[a-z0-9+#.]+/g) || [])
+  // the same word pieces on both sides ("company's" is company + s, "1,000+" is 1 + 000): only truly new words are tinted
+  const parts = s => (s || '').toLowerCase().match(/[a-z0-9]+/g) || []
+  const old = new Set(parts(from))
   return (to || '').split(/(\s+)/).map((w, i) => {
-    const k = w.toLowerCase().replace(/[^a-z0-9+#.]/g, '')
-    return k && !old.has(k) ? <span key={i} className="text-signal">{w}</span> : <span key={i}>{w}</span>
+    const p = parts(w)
+    return p.length && p.some(x => !old.has(x)) ? <span key={i} className="text-signal">{w}</span> : <span key={i}>{w}</span>
   })
 }
 
