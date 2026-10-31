@@ -952,6 +952,16 @@ res.append(ok(_hw == [('hardware_eng', 'chip design / verification'), ('hardware
                       ('robotics_hardware', 'robotics / hardware'), ('robotics_hardware', 'robotics / hardware'),
                       ('bigtech_swe', 'big-tech software engineering')] and learn.field_for({'title': 'Design Verification Intern'}) == 'hardware',
               f'hardware postings -> hardware profile and variant ({_hw})'))
+# board-level electrical and avionics titles get the electrical/board profile, ahead of the firm's big-tech or defense routing;
+# embedded, chip, test/validation and mechanical titles keep theirs (the validation variant didn't win its blind review)
+_hb = [_tp.pattern_profile({'company': c, 'title': t}, j, learn.field_for({'title': t}))[0] for c, t, j in [
+    ('Apple', 'Hardware Engineering Intern, Electrical Engineering', ''), ('SpaceX', 'Avionics Hardware Engineering Intern', 'ITAR'),
+    ('Anduril Industries', 'Electrical Engineering Intern', 'U.S. person, ITAR'), ('Lucid Motors', 'Power Electronics Hardware Engineering Intern', ''),
+    ('Rivian', 'Electrical Test & Validation Engineering Intern', ''), ('Intel', 'Silicon Validation / Post-Silicon Engineering Intern', ''),
+    ('Figure AI', 'Embedded / Electrical Engineering Intern', ''), ('Ford', 'Mechanical Engineering Intern', '')]]
+res.append(ok(_hb[:4] == ['hardware_board'] * 4 and _hb[4] == 'robotics_hardware' and _hb[5] != 'hardware_board'
+              and _hb[6] == 'hardware_eng' and _hb[7] == 'robotics_hardware' and 'variants' not in _pj['profiles']['hardware_board'],
+              f'electrical / board postings -> electrical/board profile ({_hb})'))
 # a rewrite can't add a hardware tool its role never lists (an interviewer tests every one); spellings of one part family match
 _o = 'Built a UVM environment for an AHB-to-APB bridge; closed coverage from 71% to 98%.'
 _w1 = _tp.check_rewrite(_o, 'Built a UVM environment for an AXI bridge in Xcelium, closing coverage from 71% to 98%.', '', '', _o)
@@ -969,9 +979,32 @@ res.append(ok(_tp.weak('Completed ISO 26262 awareness training.') and _tp.weak('
               and not _tp._can_pad({'name': 'Discord Bot', 'bullets': ['Made a Discord bot that plays music.']}, _two)
               and _tp._can_pad({'name': 'RISC-V CPU', 'bullets': ['Built a 5-stage RV32I pipeline on a Basys 3 FPGA at 100 MHz.']}, _two),
               'page filler skips trainings, service jobs and all-filler entries'))
+# finance reads newest first, but an ongoing part-time campus role goes by its start date: it never sits above the internship
+# that ended after it began (blind reviewers marked "Research Assistant, Sep 2025 - Present" above the summer internship down)
+_fo = {'experience': [{'id': 'ra', 'title': 'Research Assistant to Finance Professor', 'start': 'Sep 2025', 'end': 'Present', 'bullets': ['x']},
+                      {'id': 'wm', 'title': 'Summer Investment Analyst', 'start': 'Jun 2026', 'end': 'Aug 2026', 'bullets': ['x']},
+                      {'id': 'svb', 'title': 'Equity Research Intern', 'start': 'May 2025', 'end': 'Aug 2025', 'bullets': ['x']},
+                      {'id': 'pt', 'title': 'Part-time Investment Analyst', 'start': 'Jan 2026', 'end': 'Present', 'bullets': ['x']},
+                      {'id': 'ta', 'title': 'Teaching Assistant', 'start': 'Sep 2026', 'end': 'Present', 'bullets': ['x']}],
+       'leadership': [{'id': 'c1', 'title': 'Member', 'start': 'Sep 2024', 'end': 'Present'}, {'id': 'c2', 'title': 'Chair', 'start': 'Jan 2025', 'end': 'Dec 2025'}]}
+_tp._house_rules(_fo, {'field': 'finance'})
+res.append(ok([e['id'] for e in _fo['experience']] == ['pt', 'ta', 'wm', 'ra', 'svb'] and [e['id'] for e in _fo['leadership']] == ['c1', 'c2'],
+              f"finance order: ongoing campus roles by start date, below the internship that ended after they began ({[e['id'] for e in _fo['experience']]})"))
+# a section the plan left out still shows, but without the entries the plan cut, filler lines or all-filler club entries
+_vu = {'basics': {'name': 'A'}, 'experience': [{'id': 'nasa', 'title': 'Intern', 'org': 'NASA', 'bullets': ['Ran 2,000 Monte Carlo cases on a lander model.']}],
+       'leadership': [{'id': 'avi', 'title': 'Avionics Lead', 'org': 'Rocket Team', 'bullets': ['Lead 12 members across flight software and PCB design.']},
+                      {'id': 'out', 'title': 'Outreach Chair', 'org': 'Club', 'bullets': ['Coordinated volunteers.']},
+                      {'id': 'ws', 'title': 'Workshop Coordinator', 'org': 'IEEE', 'bullets': ['Ran soldering workshops for 40+ students.', 'Helped organize events.']},
+                      ]}
+_ru, _ = _tp.apply(_vu, {'experience': [{'id': 'nasa'}, {'id': 'avi'}], 'lead': {'entry': 'nasa'}}, '')
+res.append(ok([e['id'] for e in _ru['experience']] == ['nasa', 'avi'] and [(e['id'], e['bullets']) for e in _ru['leadership']] == [('ws', ['Ran soldering workshops for 40+ students.'])],
+              f"a section the plan left out keeps no filler lines or all-filler entries ({[(e['id'], e['bullets']) for e in _ru['leadership']]})"))
 _sk = _tp._pick_skills([{'label': 'Software & Lab', 'items': ['Python', 'Oscilloscopes']}, {'label': 'Embedded', 'items': ['C']}],
                        [{'label': 'Software & Lab', 'items': ['Python']}, {'label': 'Lab & Test', 'items': ['Oscilloscopes']},
                         {'label': 'Software & Lab', 'items': ['C']}])
+_sk2 = _tp._pick_skills([{'label': 'Modeling', 'items': ['MATLAB', 'Monte Carlo analysis']}, {'label': 'GN&C', 'items': ['EKF', 'HIL testing']}],
+                        [{'label': 'Lab & Test', 'items': ['HIL testing', 'Monte Carlo analysis']}, {'label': 'GN&C & Modeling', 'items': ['EKF', 'MATLAB']}])
+res.append(ok([s['label'] for s in _sk2] == ['Lab & Test', 'GN&C'], f"skills: no heading that reads as another one printed twice ({[s['label'] for s in _sk2]})"))
 res.append(ok([s['label'] for s in _sk] == ['Software & Lab', 'Lab & Test'] and _sk[0]['items'] == ['Python', 'C'],
               f'skills: a split vault line keeps its own heading, never two lines under one heading ({_sk})'))
 _h = render.build_html({'basics': {'name': 'A'}, 'order': ['education'], 'education': [

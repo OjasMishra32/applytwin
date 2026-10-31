@@ -850,6 +850,21 @@ def _closest(bullets, text):
     return best, score
 
 
+def _unplanned(entries, sec):
+    """A section the plan left out entirely (it often moves the one strong club role into experience and writes no
+    "leadership" key) still shows, but not verbatim: filler lines go, and a club or outreach entry with nothing but filler
+    goes (an outreach section ending in "Coordinated volunteers." closed avionics pages in the round-3 blind review).
+    The plan's "cut" list is not applied here: a judged pair where it removed a strong club entry lost."""
+    out = []
+    for e in entries:
+        bl = e.get('bullets') or []
+        keep = [b for b in bl if not weak(b)]
+        if not keep and bl and sec not in ('experience', 'projects'):
+            continue
+        out.append(dict(e, bullets=keep or bl) if bl else e)
+    return out
+
+
 def apply(v, plan, jd=''):
     """Vault + plan -> concrete resume dict, plus a report of accepted/rejected rewrites."""
     v = ensure_ids(copy.deepcopy(v))
@@ -881,7 +896,7 @@ def apply(v, plan, jd=''):
             byid.update({e['id']: e for e in v.get('leadership', []) if e.get('title') and e['id'] not in byid})
         chosen = plan.get(sec)
         if chosen is None:
-            out[sec] = v.get(sec, [])
+            out[sec] = _unplanned(v.get(sec, []), sec)
             continue
         lst = []
         for c in chosen:
@@ -1174,7 +1189,8 @@ def _house_rules(res, ctx):
     if ctx.get('field') in ('finance', 'consulting') or prof.get('chronological'):
         for sec in ('experience', 'leadership'):
             if res.get(sec):
-                res[sec] = sorted(res[sec], key=lambda e: _when_end(e), reverse=True)
+                res[sec] = _newest_first(res[sec]) if sec == 'experience' else \
+                    sorted(res[sec], key=lambda e: _when_end(e), reverse=True)
     if prof.get('force_order') and res.get('order'):
         lead = [s for s in prof['force_order'] if s in res['order']]
         res['order'] = lead + [s for s in res['order'] if s not in lead]
@@ -1238,6 +1254,29 @@ def _when_end(e):
     parts = re.split(r'\s*[–—-]\s*|\s+to\s+', str(dates)) if dates else []
     return (_when(e.get('end')) or (_when(parts[-1]) if parts else None) or 0,
             _when(e.get('start')) or (_when(parts[0]) if parts else None) or 0)
+
+
+# a part-time campus role (research or teaching assistant, tutor, peer advisor) as opposed to an internship or a job
+MINOR_ROLE = re.compile(r'\b(assistant|tutor|grader|advisor|ambassador|mentor|member|volunteer|peer|caller|representative|'
+                        r'chair|coordinator|desk|worker|ta)\b', re.I)
+SUBSTANTIVE_ROLE = re.compile(r'\b(intern(ship)?|summer|analyst|associate|co-?op|engineer|developer|trader|consultant|'
+                              r'scientist|banker|full[- ]time)\b', re.I)
+
+
+def _minor_ongoing(e):
+    title = str(e.get('title') or '')
+    return _when_end(e)[0] >= 9999 and bool(MINOR_ROLE.search(title)) and not SUBSTANTIVE_ROLE.search(title)
+
+
+def _newest_first(entries):
+    """Strict reverse-chronological order (finance reads it that way), except that a still-ongoing part-time campus role
+    ("Research Assistant, Sep 2025 - Present") is placed by its start date and never above an internship that ended after
+    it began. "Present" otherwise put it above last summer's internship, and blind reviewers marked that down as burying the
+    strongest role."""
+    def key(e):
+        end, start = _when_end(e)
+        return (start, start) if _minor_ongoing(e) and start else (end, start)
+    return sorted(entries, key=key, reverse=True)
 
 
 def _not_repeated(awards, res):
@@ -1326,6 +1365,9 @@ def _pick_skills(vault_skills, picks):
         items = [allitems[norm(i)] for i in s.get('items', []) if norm(i) in allitems and norm(i) not in used]
         lab = next((vs['label'] for vs in vault_skills if norm(vs.get('label')) == norm(s.get('label'))), None) or \
             next((vs['label'] for vs in vault_skills if items and items[0] in vs.get('items', [])), s.get('label'))
+        if s.get('label') and norm(lab) != norm(s['label']) and any(
+                isinstance(p, dict) and p is not s and norm(lab) in norm(p.get('label')) for p in picks):
+            lab = s['label']   # "GN&C" beside the plan's own "GN&C & Modeling" reads as one heading printed twice
         if items:
             used.update(norm(i) for i in items)
             same = next((o for o in out if norm(o['label']) == norm(lab)), None)
