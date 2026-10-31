@@ -81,7 +81,7 @@ def dates(e):
 
 def build_tex(r, k=1.0):
     b = r.get('basics', {})
-    contact = [esc(x) for x in (b.get('phone'), b.get('email'), b.get('location')) if x]
+    contact = [esc(x) for x in (b.get('phone'), b.get('email'), b.get('location'), b.get('status')) if x]
     for l in b.get('links', []):
         label = l.get('label') or re.sub(r'^https?://(www\.)?', '', l.get('url', '')).rstrip('/')
         contact.append(r'\href{%s}{\underline{%s}}' % (url(l.get('url', '')), esc(label)))

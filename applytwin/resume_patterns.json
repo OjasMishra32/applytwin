@@ -1,6 +1,6 @@
 {
  "about": "Aggregate norms from resumes people deliberately published (public GitHub resume repositories, MIT-licensed public dataset as a general baseline). No names, contacts, links or real bullet text are stored: only counts, shares, section orders, verb frequencies and skills-heading labels. Example bullets are invented for shape. See docs/RESUME_PATTERNS.md.",
- "version": 1,
+ "version": 2,
  "corpus": {
   "github_tex_resumes": 2496,
   "levels": {
@@ -51,11 +51,8 @@
   }
  },
  "not_shipped": {
-  "quant_research_dev": "lost the blind A/B review in rounds 1-2 (0-4); with no profile, round 3 won 4-0",
-  "investment_banking": "lost the blind A/B review overall (5-11 across Evercore and Goldman postings) and the absolute grader (7 vs 8)",
-  "ml_research": "lost the blind A/B review overall (3-5)",
-  "defense": "lost the blind A/B review overall (3-4)",
-  "product_design": "no product/design posting in the eval set yet, so not shipped until measured"
+  "product_design": "no product/design posting in the eval set yet, so not shipped until measured",
+  "defense": "round 2: with the U.S. citizenship line the profile won 42-6, but the line alone (plain prompt) won 25-7 and the profile without the line lost 10-22, so only the line shipped"
  },
  "top_firm_vs_rest_students": {
   "students_top_firm": {
@@ -169,6 +166,7 @@
   "defense",
   "startup",
   "ml_research",
+  "applied_ml",
   "bigtech_swe",
   "robotics_hardware",
   "data",
@@ -205,7 +203,10 @@
    "body_min": 1
   },
   "ml_research": {
-   "title": "machine learning|\\bml\\b|\\bai\\b|research scien|applied scien|deep learning|computer vision|\\bnlp\\b|\\bllm|research engineer|perception|reinforcement"
+   "title": "research|residen(t|cy)\\b",
+   "need_text": "machine learning|deep learning|\\bml\\b|\\bai\\b|\\bnlp\\b|\\bllms?\\b|language model|computer vision|neural|reinforcement learning|generative|foundation model",
+   "need_text_min": 2,
+   "unless_title": "\\bux\\b|user research|market research|equity research|investment research|quant|clinical|lab (tech|assist)|research analyst|operations research"
   },
   "bigtech_swe": {
    "firms": "\\bgoogle|\\bmeta\\b|facebook|\\bapple\\b|amazon|\\baws\\b|netflix|microsoft|nvidia|openai|anthropic|deepmind|alphabet|tesla|uber|airbnb|stripe|databricks|linkedin|salesforce|adobe|oracle",
@@ -219,6 +220,9 @@
   },
   "product_design": {
    "title": "product manag|\\bapm\\b|product design|\\bux\\b|ui/ux|ux/ui|product analyst"
+  },
+  "applied_ml": {
+   "title": "machine learning|\\bml\\b|\\bai\\b|research scien|applied scien|deep learning|computer vision|\\bnlp\\b|\\bllm|research engineer|perception|reinforcement"
   }
  },
  "by_field": {
@@ -1895,6 +1899,819 @@
      "latency_metric": 0.08,
      "money_metric": 0.02,
      "deal": 0.23
+    }
+   }
+  },
+  "investment_banking": {
+   "label": "investment banking",
+   "basis": "conventions synthesized from public recruiting guides (university career centers, firm career pages and postings); only 7 public resumes matched, too few for statistics",
+   "lead_with": "Education first (school, degree and expected graduation, GPA on the degree line, honors and a short finance coursework line), then banking, private equity and other finance roles, newest first, each opening with the deal or model the candidate built",
+   "force_order": [
+    "education",
+    "experience",
+    "leadership",
+    "projects"
+   ],
+   "chronological": true,
+   "titles": {
+    "leadership": "Leadership & Activities",
+    "skills": "auto"
+   },
+   "skills": "the closing section of labeled lines in this order when the vault has them: Technical (modeling and valuation), Software (Excel, PowerPoint, Capital IQ, FactSet, Bloomberg, PitchBook), Certifications, Languages, Interests (the vault's specific interests, kept as conversation starters)",
+   "conventions": [
+    "Roles run strictly newest first in Experience and in Leadership & Activities (the page enforces it); choose and frame, never reorder by relevance.",
+    "Each banking or PE role opens with its biggest deal bullet: what the candidate built or drafted, the transaction (type, size, sector) and the output (CIM, pitch book, management presentation, IC memo), all as the vault states.",
+    "Verbs never outrun the vault: 'supported' a process stays supported; an intern never 'led', 'executed' or 'closed' a deal unless the vault says so.",
+    "Keep every titled leadership role with its number (budget managed, members trained, placements): banks screen for leadership and the posting asks for it.",
+    "Modeling cases and stock pitches (DCF, LBO, accretion/dilution, take-private) stay on the page with their recommendation and 2 bullets; a personal brokerage account or a one-line project does not.",
+    "Non-finance jobs get one or two lines framed by analytical or client value (dollars raised, students taught), or give way to stronger finance material.",
+    "Attention to detail is screened: finished roles in past tense and current roles in present tense, one phrase never repeated across a role's bullets, GPA always shown when the vault has it."
+   ],
+   "avoid": [
+    "filler bullets ('did research on', 'maintained the data room', 'attended meetings', 'made the slides') when the entry has a stronger true bullet",
+    "a summary or objective line",
+    "tech-style skills lists or a GitHub-first header",
+    "one-line orphan entries",
+    "inflating intern verbs (led, executed, closed)",
+    "client names the vault does not state"
+   ],
+   "exemplars": [
+    "Built the operating model and returns analysis for a $300M sell-side process in business services, used in the buyer outreach materials.",
+    "Drafted 10 pages of a management presentation, including the industry overview and benchmarking against 8 public peers.",
+    "Modeled accretion/dilution for a hypothetical merger of two regional insurers and presented the recommendation to a panel of bankers."
+   ],
+   "norms": {
+    "bullet_chars": [
+     90,
+     180
+    ],
+    "bullets_per_role": "3-4 for banking/PE roles, 1-2 for others",
+    "bullets_per_project": "2",
+    "bullets_total": "15-20",
+    "quantified": "Deal and model bullets name the size, sector, model type or count of analyses where the vault has one.",
+    "max_chars": 215,
+    "quantified_min": 0.5
+   },
+   "verbs": [
+    "Built",
+    "Drafted",
+    "Modeled",
+    "Prepared",
+    "Analyzed",
+    "Valued",
+    "Screened",
+    "Ran",
+    "Presented",
+    "Wrote",
+    "Managed",
+    "Taught",
+    "Raised",
+    "Researched"
+   ],
+   "checks": [
+    "tense",
+    "repeat_phrase",
+    "thin_roles"
+   ]
+  },
+  "ml_research": {
+   "label": "ML / AI research",
+   "basis": "conventions synthesized from public recruiting guides (university career centers, firm career pages and postings); section and bullet norms also from 53 public student/new-grad ML resumes",
+   "lead_with": "research: the publications and preprints (venue, year and status exactly as the vault states) right under Education, then the research lab role whose first bullet states the problem, the method and the result against a baseline; industry ML internships follow with their measured result",
+   "force_order": [
+    "education",
+    "research",
+    "experience",
+    "projects"
+   ],
+   "skills": "labeled lines: Languages; ML (PyTorch, JAX, Hugging Face as the vault has them); Infrastructure (CUDA, Slurm, distributed training, cloud); a graduate-level coursework line in education helps an undergraduate",
+   "conventions": [
+    "Research bullets read problem > method > result: what question, what the candidate built or changed, and the result against a named baseline or benchmark, with model size, data and compute only as the vault states them.",
+    "For a research posting the research lab role goes first in Experience (name the lab; the advisor if the vault has one); industry ML roles follow, framed by their method and measured result rather than business language.",
+    "Paper status exactly as the vault states it (main conference, workshop, preprint, under review); never upgrade a workshop paper or preprint.",
+    "Bullets never restate a listed paper's title: they add what the paper line cannot (the method, the scale, what the candidate owned).",
+    "Kaggle medals and competition ranks (with the field size), open-source models or contributions to known ML libraries are strong secondary evidence: keep them.",
+    "Keep the industry ML internships after the research role (models trained and shipped at scale are strong evidence for research teams too): Experience usually holds 3 roles. Only a teaching, library or unrelated job gives way.",
+    "Every kept role has 2-3 bullets; a from-scratch model or Kaggle project keeps its architecture and measured result."
+   ],
+   "avoid": [
+    "'used machine learning to' with no model, data or metric",
+    "product or revenue framing that hides the method",
+    "a tutorial-style project in place of a research result",
+    "keyword lists of every framework",
+    "claiming a model was trained when the vault says it was fine-tuned or prompted"
+   ],
+   "exemplars": [
+    "Proposed a curriculum-sampling objective for instruction tuning; improved a 1B model's exact match 4.2 points over the uniform-sampling baseline on 3 reasoning benchmarks.",
+    "Built an evaluation suite of 12 long-context tasks and found retrieval accuracy fell 30% past 16K tokens for 4 of 5 open models."
+   ],
+   "norms": {
+    "bullet_chars": [
+     90,
+     175
+    ],
+    "max_chars": 225,
+    "bullets_per_role": "2-3",
+    "bullets_per_project": "1-2",
+    "bullets_total": "13-18",
+    "quantified_min": 0.5
+   },
+   "verbs": [
+    "Proposed",
+    "Developed",
+    "Trained",
+    "Fine-tuned",
+    "Implemented",
+    "Designed",
+    "Evaluated",
+    "Built",
+    "Analyzed",
+    "Improved",
+    "Published",
+    "Presented",
+    "Benchmarked",
+    "Reproduced"
+   ],
+   "checks": [
+    "tense",
+    "thin_roles",
+    "paper_repeat"
+   ],
+   "stats": {
+    "n": 132,
+    "n_students": 53,
+    "n_students_top_firm": 8,
+    "numbers_from": "students",
+    "levels": {
+     "experienced": 79,
+     "newgrad": 32,
+     "intern": 21
+    },
+    "digit_share": 0.39,
+    "quantified_share_strict": 0.32,
+    "weak_opener_share": 0.026,
+    "multi_sentence_share": 0.163,
+    "bullet_chars_p25_50_75_90": [
+     80,
+     109,
+     162,
+     217
+    ],
+    "bullets_total_p25_50_75": [
+     12,
+     16,
+     22
+    ],
+    "roles_median": 2,
+    "projects_median": 1,
+    "education_first_share": 0.66,
+    "first_section_after_education": [
+     [
+      "experience",
+      26
+     ],
+     [
+      "coursework",
+      4
+     ],
+     [
+      "other",
+      4
+     ],
+     [
+      "interests",
+      1
+     ]
+    ],
+    "common_orders": [
+     [
+      [
+       "education",
+       "experience",
+       "projects",
+       "skills"
+      ],
+      4
+     ],
+     [
+      [
+       "education",
+       "skills",
+       "experience",
+       "projects"
+      ],
+      3
+     ],
+     [
+      [
+       "education",
+       "skills",
+       "coursework",
+       "experience",
+       "projects"
+      ],
+      2
+     ],
+     [
+      [],
+      2
+     ]
+    ],
+    "section_presence": {
+     "education": 0.92,
+     "experience": 0.91,
+     "skills": 0.85,
+     "projects": 0.75,
+     "research": 0.43,
+     "awards": 0.36,
+     "other": 0.25,
+     "coursework": 0.15,
+     "leadership": 0.09,
+     "summary": 0.09,
+     "languages": 0.08,
+     "interests": 0.06,
+     "links": 0.06,
+     "certifications": 0.02
+    },
+    "skills_labels": [
+     [
+      "languages",
+      17
+     ],
+     [
+      "frameworks",
+      4
+     ],
+     [
+      "programming",
+      3
+     ],
+     [
+      "technologies",
+      3
+     ],
+     [
+      "libraries",
+      2
+     ],
+     [
+      "packages",
+      2
+     ],
+     [
+      "tools",
+      2
+     ],
+     [
+      "infrastructure",
+      2
+     ],
+     [
+      "programming languages",
+      2
+     ],
+     [
+      "databases",
+      2
+     ]
+    ],
+    "skills_lines_median": 3.0,
+    "headings": {
+     "skills": [
+      [
+       "skills",
+       25
+      ],
+      [
+       "technical skills",
+       13
+      ],
+      [
+       "other skills",
+       1
+      ],
+      [
+       "skills summary",
+       1
+      ],
+      [
+       "technical",
+       1
+      ],
+      [
+       "technical skills ptpt",
+       1
+      ]
+     ],
+     "leadership": [
+      [
+       "leadership extracurricular",
+       2
+      ],
+      [
+       "extracurricular activities",
+       1
+      ],
+      [
+       "campus involvement",
+       1
+      ],
+      [
+       "activities",
+       1
+      ]
+     ],
+     "experience": [
+      [
+       "experience",
+       24
+      ],
+      [
+       "work experience",
+       9
+      ],
+      [
+       "professional experience",
+       4
+      ],
+      [
+       "employment",
+       2
+      ],
+      [
+       "research experience",
+       2
+      ],
+      [
+       "relevant experience",
+       1
+      ]
+     ],
+     "awards": [
+      [
+       "achievements",
+       9
+      ],
+      [
+       "awards",
+       2
+      ],
+      [
+       "awards and achievements",
+       1
+      ],
+      [
+       "awards & certifications",
+       1
+      ],
+      [
+       "awards & achievements",
+       1
+      ],
+      [
+       "honors",
+       1
+      ]
+     ]
+    },
+    "has": {
+     "gpa": 0.43,
+     "coursework": 0.28,
+     "publication": 0.53,
+     "competition": 0.3,
+     "startup": 0.08,
+     "open_source": 0.25,
+     "clearance": 0.04,
+     "test_scores": 0.04,
+     "interests": 0.09,
+     "certification": 0.17,
+     "users_metric": 0.13,
+     "latency_metric": 0.11,
+     "money_metric": 0.09,
+     "deal": 0.08
+    }
+   }
+  },
+  "quant_research_dev": {
+   "label": "quant research",
+   "basis": "conventions synthesized from public recruiting guides (university career centers, firm career pages and postings); only 3 public resumes matched, too few for statistics",
+   "lead_with": "a headline whose first tag is the quantitative-research identity in the vault's words, Education with GPA and the hardest math, probability and statistics coursework; then the most quantitative research role, its first bullet stating the data, the method and the result as the vault states it; a full Awards section of competition placements closes the page",
+   "skills": "Languages (Python, C++, plus OCaml, R or q/kdb+ only if in the vault); Libraries (NumPy, pandas, scikit-learn, statsmodels); Quant methods (regression, time series, Monte Carlo, stochastic processes) when the bullets back them",
+   "conventions": [
+    "Research bullets: the question, the data (source, size, frequency), the method (regression, time-series or ML model, Monte Carlo) and the result, exactly as the vault states them. Never add a validation or significance claim (out of sample, walk-forward, after costs, statistically significant, robust) that the vault does not make for that bullet.",
+    "Engineering roles are framed by their quantitative content: market-data pipelines, statistics, measured latency or throughput, not generic software duties.",
+    "Competition math, physics and trading competitions (Putnam, olympiads, AIME, Estimathon, ICPC, trading competitions) are a primary filter: keep every placement the vault has in a full Awards section (never a one-line Awards section).",
+    "Keep every internship at a trading firm, hedge fund or top tech firm, framed by its quantitative or performance content: dropping one leaves a gap a quant recruiter notices. A grading, TA or service job is the one that gives way.",
+    "Every kept role carries 2-3 distinct bullets (never the same fact twice).",
+    "In Leadership, competitive problem-solving (a Putnam seminar, math circle, trading or quant club, olympiad coaching) beats an unrelated club or treasurer role.",
+    "A backtest or strategy result keeps its validation framing from the vault (walk-forward, out of sample, net of costs)."
+   ],
+   "avoid": [
+    "validation, significance or presentation claims the vault does not make",
+    "Sharpe or returns with the vault's validation framing stripped",
+    "buzzwords (AI-driven, alpha) without a method",
+    "a one-bullet role",
+    "generic software bullets when a statistical or data bullet exists for the same role"
+   ],
+   "exemplars": [
+    "Regressed next-day ETF returns on 14 order-flow features across 6 years of daily data; out-of-sample R-squared 0.8% with a stable sign across regimes.",
+    "Simulated 1M option-hedging paths in NumPy to compare delta and delta-gamma hedging; cut P&L variance 35% in the high-volatility regime."
+   ],
+   "norms": {
+    "bullet_chars": [
+     90,
+     175
+    ],
+    "bullets_per_role": "2-3",
+    "bullets_per_project": "1-2",
+    "bullets_total": "13-18",
+    "quantified": "Every result is a number: data size and frequency, out-of-sample metric, rank of N, speedup.",
+    "max_chars": 215,
+    "quantified_min": 0.5
+   },
+   "verbs": [
+    "Modeled",
+    "Estimated",
+    "Regressed",
+    "Backtested",
+    "Simulated",
+    "Built",
+    "Analyzed",
+    "Tested",
+    "Derived",
+    "Optimized",
+    "Designed",
+    "Placed"
+   ],
+   "checks": [
+    "tense",
+    "thin_roles"
+   ],
+   "variants": [
+    {
+     "when_title": "develop|engineer|software|\\bswe\\b|\\bdev\\b|technolog|infrastructure|\\bc\\+\\+",
+     "label": "quant developer / trading-systems engineering",
+     "lead_with": "Education with GPA and systems and algorithms coursework; then the strongest performance-engineering role: what system, what technique, and the measured latency, throughput or memory change",
+     "skills": "Languages (C++ first when the vault backs it, then Python, Rust, OCaml); Systems (Linux, networking, concurrency, profiling tools); Libraries and tools from the vault",
+     "conventions": [
+      "Bullets: the system and its constraint, the technique (allocation-free or lock-free code, cache-aware layout, SIMD, kernel bypass, profiling) and the measured result (p50/p99 latency, msgs/sec, memory), as the vault states.",
+      "Correctness counts as much as speed: tests, fuzzing, replay tools and incidents prevented.",
+      "Competitive programming (ICPC, Codeforces) and math competitions stay in a full Awards section; open-source systems work is strong evidence.",
+      "Every kept role carries 2-3 bullets; a TA or service job gives way to a systems project."
+     ],
+     "avoid": [
+      "web-app framing for systems work",
+      "a performance claim without the measurement the vault gives",
+      "listing every language ever touched",
+      "a one-bullet role"
+     ],
+     "exemplars": [
+      "Replaced a mutex-guarded queue in a C++ market-data handler with a single-producer ring buffer, cutting p99 latency from 9 us to 3 us.",
+      "Built a deterministic replay harness for order-gateway sessions that caught 3 sequencing bugs before release."
+     ],
+     "verbs": [
+      "Optimized",
+      "Built",
+      "Reduced",
+      "Profiled",
+      "Rewrote",
+      "Designed",
+      "Implemented",
+      "Benchmarked",
+      "Debugged",
+      "Parallelized",
+      "Shipped",
+      "Placed"
+     ]
+    }
+   ]
+  },
+  "defense": {
+   "label": "defense tech",
+   "shipped": false,
+   "basis": "conventions synthesized from public recruiting guides (university career centers, firm career pages and postings); section norms also from 52 public resumes",
+   "lead_with": "the most mission-relevant hands-on work: what the candidate built, integrated and tested (bench, hardware in the loop, flight or field), the tools, and a measured result",
+   "skills": "labeled lines that mirror the posting's stack, as the vault backs them",
+   "conventions": [
+    "Show verification by name: bench validation with lab equipment, hardware-in-the-loop or simulation tests, flight or field tests, test-time or failure-rate reductions. These readers hire people whose systems were tested, not just designed.",
+    "Industry and lab roles with real deliverables come before class projects; a design-team program (rocketry, Formula SAE, UAS, CubeSat, robotics) counts as engineering with tests passed.",
+    "Frame the same facts in this reader's language: reliability, safety margins, real-time constraints, power, mass, fault handling, requirements and verification.",
+    "Citizenship is a hard screen for most of these roles: the contact line carries it when the user's profile states it. Never state or imply a clearance the vault does not list.",
+    "Every kept role has 2-4 bullets; a retail or unrelated job gives way to a technical project."
+   ],
+   "avoid": [
+    "vague lab chores ('did various lab tasks')",
+    "a class project with no test or result in place of lab or industry evidence",
+    "consumer or marketing framing for mission work",
+    "claiming or implying a clearance",
+    "export-controlled or program details beyond what the vault states"
+   ],
+   "exemplars": [
+    "Brought up a motor-controller board and validated its gate-drive timing on an oscilloscope, cutting bench test time from 3 hours to 40 minutes.",
+    "Wrote a hardware-in-the-loop test for a flight computer's sensor drivers that ran 500 fault-injection cases per build."
+   ],
+   "norms": {
+    "bullet_chars": [
+     85,
+     170
+    ],
+    "max_chars": 220,
+    "bullets_per_role": "2-4",
+    "bullets_per_project": "1-2",
+    "bullets_total": "14-20",
+    "quantified_min": 0.5
+   },
+   "verbs": [
+    "Designed",
+    "Built",
+    "Validated",
+    "Tested",
+    "Integrated",
+    "Wrote",
+    "Debugged",
+    "Brought up",
+    "Characterized",
+    "Automated",
+    "Reduced",
+    "Developed"
+   ],
+   "checks": [
+    "tense",
+    "thin_roles"
+   ],
+   "variants": [
+    {
+     "when_title": "^(?!.*(gn&c|\\bgnc\\b|guidance|flight|embedded|firmware|avionics|hardware|electrical|mechanical|fpga)).*(software|\\bswe\\b|developer|autonomy|perception|backend|platform|cloud|\\bdata\\b|machine learning|\\bml\\b|\\bai\\b)",
+     "label": "defense tech software",
+     "lead_with": "production software that ran on real systems: the service, robot or vehicle it ran on, the scale or real-time constraint, how it was tested, and a measured result",
+     "skills": "Languages (C++, Python, Java, Rust, Go as the posting and vault name them); Systems (Linux, Docker, Kubernetes, networking, distributed systems); Testing and CI tools",
+     "exemplars": [
+      "Built a telemetry ingest service in Go that processed 40K messages/sec with replay-based integration tests in CI.",
+      "Added fault-tolerant retries and health checks to a fleet-management API, raising monthly uptime from 99.2% to 99.9%."
+     ]
+    }
+   ],
+   "stats": {
+    "n": 52,
+    "n_students": 24,
+    "n_students_top_firm": 9,
+    "numbers_from": "all",
+    "levels": {
+     "experienced": 28,
+     "intern": 11,
+     "newgrad": 13
+    },
+    "digit_share": 0.26,
+    "quantified_share_strict": 0.21,
+    "weak_opener_share": 0.025,
+    "multi_sentence_share": 0.148,
+    "bullet_chars_p25_50_75_90": [
+     62,
+     99,
+     153,
+     210
+    ],
+    "bullets_total_p25_50_75": [
+     13,
+     19,
+     30
+    ],
+    "roles_median": 0.0,
+    "projects_median": 0.0,
+    "education_first_share": 0.44,
+    "first_section_after_education": [
+     [
+      "experience",
+      20
+     ],
+     [
+      "coursework",
+      3
+     ],
+     [
+      "other",
+      2
+     ],
+     [
+      "projects",
+      2
+     ]
+    ],
+    "common_orders": [
+     [
+      [
+       "experience",
+       "education"
+      ],
+      5
+     ],
+     [
+      [
+       "skills",
+       "education",
+       "experience"
+      ],
+      2
+     ],
+     [
+      [
+       "skills",
+       "experience",
+       "projects",
+       "education"
+      ],
+      2
+     ],
+     [
+      [
+       "education",
+       "experience",
+       "projects",
+       "skills"
+      ],
+      2
+     ]
+    ],
+    "section_presence": {
+     "education": 0.98,
+     "experience": 0.92,
+     "skills": 0.79,
+     "projects": 0.46,
+     "other": 0.4,
+     "research": 0.27,
+     "awards": 0.27,
+     "leadership": 0.21,
+     "links": 0.15,
+     "summary": 0.12,
+     "certifications": 0.1,
+     "coursework": 0.08,
+     "languages": 0.04,
+     "volunteering": 0.04
+    },
+    "skills_labels": [
+     [
+      "languages",
+      13
+     ],
+     [
+      "technologies",
+      5
+     ],
+     [
+      "developer tools",
+      4
+     ],
+     [
+      "frameworks",
+      4
+     ],
+     [
+      "libraries",
+      2
+     ],
+     [
+      "programming",
+      2
+     ],
+     [
+      "databases",
+      1
+     ],
+     [
+      "technologies/frameworks",
+      1
+     ],
+     [
+      "familiar",
+      1
+     ],
+     [
+      "proficient",
+      1
+     ]
+    ],
+    "skills_lines_median": 3,
+    "headings": {
+     "skills": [
+      [
+       "skills",
+       22
+      ],
+      [
+       "technical skills",
+       5
+      ],
+      [
+       "programming skills",
+       4
+      ],
+      [
+       "schlsselfhigkeiten programming skills",
+       1
+      ],
+      [
+       "skills summary",
+       1
+      ],
+      [
+       "software skills",
+       1
+      ]
+     ],
+     "leadership": [
+      [
+       "activities",
+       3
+      ],
+      [
+       "leadership extracurricular",
+       2
+      ],
+      [
+       "leadership",
+       2
+      ],
+      [
+       "extracurriculars",
+       1
+      ],
+      [
+       "extracurricular",
+       1
+      ],
+      [
+       "leadership activities",
+       1
+      ]
+     ],
+     "experience": [
+      [
+       "experience",
+       34
+      ],
+      [
+       "work experience",
+       2
+      ],
+      [
+       "social work, sports and interests",
+       1
+      ],
+      [
+       "erfahrung experience",
+       1
+      ],
+      [
+       "royalbluework experience",
+       1
+      ],
+      [
+       "technical experience",
+       1
+      ]
+     ],
+     "awards": [
+      [
+       "awards",
+       8
+      ],
+      [
+       "honorsawards",
+       1
+      ],
+      [
+       "royalblueachievements",
+       1
+      ],
+      [
+       "involvement honors",
+       1
+      ],
+      [
+       "awards and honors",
+       1
+      ],
+      [
+       "selected honors and awards",
+       1
+      ]
+     ]
+    },
+    "has": {
+     "gpa": 0.29,
+     "coursework": 0.21,
+     "publication": 0.29,
+     "competition": 0.29,
+     "startup": 0.13,
+     "open_source": 0.29,
+     "clearance": 0.87,
+     "test_scores": 0.1,
+     "interests": 0.1,
+     "certification": 0.29,
+     "users_metric": 0.08,
+     "latency_metric": 0.15,
+     "money_metric": 0.08,
+     "deal": 0.15
     }
    }
   }

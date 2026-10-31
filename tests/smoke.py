@@ -865,12 +865,57 @@ from applytwin import tailor as _tp
 _prof = [_tp.pattern_profile({'company': c, 'title': t}, '', f)[0] for c, t, f in [
     ('Wellington Management', 'Equity Research Summer Associate', 'finance'), ('Morgan Stanley', 'Technology Summer Analyst', 'finance'),
     ('Jane Street', 'Quantitative Trading Intern', 'quant'), ('Google', 'Software Engineering Intern', 'software'),
-    ('Lattice Labs (YC W26)', 'Founding Engineering Intern', 'software'), ('Evercore', 'Investment Banking Summer Analyst', 'finance')]]
-# banking's profile lost the blind review, so a banking posting keeps the plain prompt rather than borrowing a neighbor's
-res.append(ok(_prof == ['asset_mgmt_markets', None, 'quant_trading', 'bigtech_swe', 'startup', None], f'posting -> resume profile ({_prof})'))
+    ('Lattice Labs (YC W26)', 'Founding Engineering Intern', 'software'), ('Evercore', 'Investment Banking Summer Analyst', 'finance'),
+    ('Anduril Industries', 'Electrical Engineering Intern, Embedded Systems', 'hardware'), ('Pinterest', 'Machine Learning Intern', 'ml'),
+    ('Two Sigma', 'Quantitative Researcher Intern', 'quant')]]
+# Pinterest's applied ML role is not a research posting; the defense profile has not won its blind review (only the
+# citizenship line shipped), so Anduril keeps the plain prompt rather than borrowing a neighbor's
+res.append(ok(_prof == ['asset_mgmt_markets', None, 'quant_trading', 'bigtech_swe', 'startup', 'investment_banking', None, None, 'quant_research_dev'],
+              f'posting -> resume profile ({_prof})'))
 _fl = _tp.pattern_flags({'experience': [{'bullets': ['Worked on the backend for the payments team.', 'Built a cache in Go, cutting p99 latency 30%.']}]})
 res.append(ok(any('weak opener' in f for f in _fl) and not any('Built' in f for f in _fl) and 'ASSET MANAGEMENT' in _tp.prompt(api.get_vault(), {'title': 'Equity Research Summer Associate', 'company': 'Wellington Management'}, 'stocks', {}),
               'recruiter-norms check flags filler openers; the plan prompt carries the posting\'s profile'))
+# profiles still being measured ("shipped": false) stay off unless an eval switches them on; variants follow the title
+_unshipped = [k for k, p in _pj['profiles'].items() if not p.get('shipped', True)]
+os.environ['APPLYTWIN_TRY_PROFILES'] = 'all'
+_try = [(_tp.pattern_profile({'company': c, 'title': t}, j, f)[0], (_tp.pattern_profile({'company': c, 'title': t}, j, f)[1] or {}).get('label'))
+        for c, t, j, f in [('Hudson River Trading', 'Software Engineering Intern (C++)', '', 'software'),
+                           ('Citadel', 'Quantitative Research Intern', '', 'quant'),
+                           ('Northrop Grumman', 'GN&C / Flight Software Engineering Intern', 'U.S. citizenship required', 'software'),
+                           ('Google DeepMind', 'Student Researcher', 'machine learning research with large language models', 'general'),
+                           ('Pinterest', 'Machine Learning Intern', 'machine learning recommendation systems', 'ml'),
+                           ('Google', 'Machine Learning Engineer Intern', 'deep learning models', 'ml')]]
+os.environ.pop('APPLYTWIN_TRY_PROFILES')
+res.append(ok(_try == [('quant_research_dev', 'quant developer / trading-systems engineering'), ('quant_research_dev', 'quant research'),
+                       ('defense', 'defense tech'), ('ml_research', 'ML / AI research'), (None, None), (None, None)]
+              and all(not _tp._live(k, _pj['profiles']) for k in _unshipped), f'measured profiles: variants and research-only ML detection ({_try})'))
+_rs = {'basics': {}, 'education': [{'school': 'X'}], 'order': ['education', 'experience', 'leadership', 'skills', 'awards'],
+       'experience': [{'org': 'Old Co', 'end': 'Aug 2025', 'bullets': ['Teach Excel labs to 40 students.', 'Built a DCF model', 'Wrote a 60-question guide.']},
+                      {'org': 'New Co', 'end': 'Aug 2026', 'bullets': ['Built an LBO for a $65M add-on.']}],
+       'skills': [{'label': 'Technical', 'items': ['DCF']}, {'label': 'Interests', 'items': ['Golf']}],
+       'awards': ["Dean's List"]}
+_rs['experience'][1]['bullets'].append('Built an LBO for a $65M add-on')   # differs only by the final period: one line after
+_tp._house_rules(_rs, {'field': 'general', 'pattern': _pj['profiles']['investment_banking']})
+_tp._same_punctuation(_rs)
+_fl2 = _tp._profile_flags(_rs, ['tense'])
+res.append(ok([e['org'] for e in _rs['experience']] == ['New Co', 'Old Co'] and _rs['titles'].get('skills') == 'Skills & Interests'
+              and _rs['titles'].get('leadership') == 'Leadership & Activities' and all(b.endswith('.') for e in _rs['experience'] for b in e['bullets'])
+              and len(_rs['experience'][0]['bullets']) == 1 and len(_fl2) == 1 and 'Teach' in _fl2[0],
+              f'profile house rules: newest first, finance headings, one punctuation style, tense slips ({_fl2})'))
+store.save('profile.json', {**store.profile(), 'citizenship': 'U.S. citizen'})
+_rc = {'basics': {}}
+_tp._status_line(_rc, 'Must be a U.S. person; eligible for a security clearance.')
+_rn = {'basics': {}}
+_tp._status_line(_rn, 'Build great software.')
+store.save('profile.json', {**store.profile(), 'citizenship': ''})
+_rx = {'basics': {}}
+_tp._status_line(_rx, 'Must be a U.S. person.')
+res.append(ok(_rc['basics'].get('status') == 'U.S. Citizen' and 'status' not in _rn['basics'] and 'status' not in _rx['basics']
+              and 'U.S. Citizen' in render.build_html({'basics': {'name': 'A', 'status': 'U.S. Citizen'}}),
+              'citizenship line only when the posting screens on it and the profile states it'))
+_h = render.build_html({'basics': {'name': 'A'}, 'order': ['education'], 'education': [
+    {'school': 'Indiana University', 'degree': 'Bachelor of Science in Business, Finance and Accounting', 'minor': 'Economics', 'gpa': '3.89/4.00', 'honors': ["Dean's List"]}]})
+res.append(ok('<span class="nb">GPA: 3.89/4.00</span> · Dean' in _h, 'a long degree line moves the GPA (never split) to the honors line'))
 
 print(f'\n{sum(res)}/{len(res)} passed')
 sys.exit(0 if all(res) else 1)

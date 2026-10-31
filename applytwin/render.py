@@ -47,7 +47,7 @@ TEMPLATES = {
 
 BASE_CSS = """
 @page { size: Letter; margin: 0; }
-* { box-sizing: border-box; }
+* { box-sizing: border-box; } .nb { white-space: nowrap; }
 html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 body { margin: 0; color: #111; font-variant-ligatures: none; font-feature-settings: "liga" 0, "clig" 0; }
 .page { width: 8.5in; min-height: 11in; padding: var(--mt) var(--mx); font-family: var(--font); font-size: calc(var(--fs) * var(--k));
@@ -140,7 +140,7 @@ def build_html(r, style='classic', k=1.0, titles=None):
     if style == 'modern' and ' ' in name:
         first, last = name.rsplit(' ', 1)
         name = f'{first} <b>{last}</b>'
-    contact = [b.get('phone'), b.get('email'), b.get('location')]
+    contact = [b.get('phone'), b.get('email'), b.get('location'), b.get('status')]   # status: 'U.S. Citizen' for roles that screen on it
     items = [f'<span>{html.escape(c)}</span>' for c in contact if c]
     for l in b.get('links', []):
         label = l.get('label') or re.sub(r'^https?://(www\.)?', '', l.get('url', '')).rstrip('/')
@@ -158,14 +158,21 @@ def build_html(r, style='classic', k=1.0, titles=None):
         if sec == 'education':
             for e in data:
                 deg = degree_line(e)
-                extra = '; '.join(x for x in (e.get('minor') and 'Minor in ' + e['minor'], e.get('gpa') and 'GPA: ' + e['gpa']) if x)
+                # the GPA never wraps apart ("GPA:" at a line end, "3.89/4.00" on the next reads as a broken line): when the
+                # degree line is too long to hold it beside the dates, it opens the honors line instead
+                gpa = e.get('gpa') and '<span class="nb">GPA: ' + html.escape(str(e['gpa'])) + '</span>'
+                minor = e.get('minor') and 'Minor in ' + e['minor']
+                long_line = bool(gpa) and len(deg) + len(minor or '') + len(str(e['gpa'])) + 9 > 84
+                extra = '; '.join(x for x in (minor and html.escape(minor), not long_line and gpa) if x)
                 body.append(f'<div class="entry"><div class="row"><span class="org">{html.escape(e.get("school", ""))}</span>'
                             f'<span>{html.escape(e.get("location", ""))}</span></div><div class="row"><span class="role">{html.escape(deg)}'
-                            f'{("; " + html.escape(extra)) if extra else ""}</span><span class="meta">{html.escape(dates(e))}</span></div>')
+                            f'{("; " + extra) if extra else ""}</span><span class="meta">{html.escape(dates(e))}</span></div>')
                 lines = []
+                if long_line:
+                    lines.append(gpa + (' \u00b7 ' + md(' \u00b7 '.join(e['honors'])) if e.get('honors') else ''))
                 if e.get('coursework'):
                     lines.append('<b>Relevant coursework:</b> ' + html.escape(', '.join(e['coursework'])))
-                if e.get('honors'):
+                if e.get('honors') and not long_line:
                     lines.append(md(' \u00b7 '.join(e['honors'])))
                 body += [f'<div>{l}</div>' for l in lines]
                 body.append('</div>')
