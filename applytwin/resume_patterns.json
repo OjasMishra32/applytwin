@@ -1,0 +1,1902 @@
+{
+ "about": "Aggregate norms from resumes people deliberately published (public GitHub resume repositories, MIT-licensed public dataset as a general baseline). No names, contacts, links or real bullet text are stored: only counts, shares, section orders, verb frequencies and skills-heading labels. Example bullets are invented for shape. See docs/RESUME_PATTERNS.md.",
+ "version": 1,
+ "corpus": {
+  "github_tex_resumes": 2496,
+  "levels": {
+   "newgrad": 1010,
+   "intern": 555,
+   "experienced": 931
+  },
+  "students_top_firm": 124,
+  "students_all": 1565,
+  "baseline_dataset": null
+ },
+ "contrast": {
+  "general_population_resume_atlas": {
+   "n": 13389,
+   "median_words": 401,
+   "median_digits_per_100_words": 3.76,
+   "share_with_phrase": {
+    "responsible for": 0.0,
+    "worked on": 0.006,
+    "helped": 0.145,
+    "assisted": 0.284,
+    "duties included": 0.007,
+    "various": 0.381,
+    "team player": 0.103,
+    "hard working": 0.009,
+    "detail oriented": 0.018,
+    "utilized": 0.116,
+    "participated in": 0.006
+   }
+  },
+  "github_public_resumes": {
+   "n": 3065,
+   "median_words": 491,
+   "median_digits_per_100_words": 6.67,
+   "share_with_phrase": {
+    "responsible for": 0.077,
+    "worked on": 0.099,
+    "helped": 0.078,
+    "assisted": 0.092,
+    "duties included": 0.0,
+    "various": 0.187,
+    "team player": 0.009,
+    "hard working": 0.001,
+    "detail oriented": 0.0,
+    "utilized": 0.12,
+    "participated in": 0.069
+   }
+  }
+ },
+ "not_shipped": {
+  "quant_research_dev": "lost the blind A/B review in rounds 1-2 (0-4); with no profile, round 3 won 4-0",
+  "investment_banking": "lost the blind A/B review overall (5-11 across Evercore and Goldman postings) and the absolute grader (7 vs 8)",
+  "ml_research": "lost the blind A/B review overall (3-5)",
+  "defense": "lost the blind A/B review overall (3-4)",
+  "product_design": "no product/design posting in the eval set yet, so not shipped until measured"
+ },
+ "top_firm_vs_rest_students": {
+  "students_top_firm": {
+   "n": 124,
+   "bullet_chars_p25_50_75_90": [
+    92,
+    112,
+    163,
+    212
+   ],
+   "bullets_total_p25_50_75": [
+    13,
+    17,
+    21
+   ],
+   "digit_share": 0.36,
+   "quantified_share": 0.29,
+   "multi_sentence_share": 0.07,
+   "weak_opener_share": 0.036,
+   "education_first_share": 0.68,
+   "section_presence": {
+    "experience": 1.0,
+    "education": 0.98,
+    "skills": 0.89,
+    "projects": 0.84,
+    "awards": 0.22,
+    "leadership": 0.17,
+    "other": 0.12,
+    "research": 0.11,
+    "certifications": 0.1,
+    "summary": 0.1,
+    "coursework": 0.04,
+    "languages": 0.02,
+    "interests": 0.02,
+    "references": 0.02
+   },
+   "has": {
+    "gpa": 0.33,
+    "coursework": 0.29,
+    "publication": 0.1,
+    "competition": 0.4,
+    "startup": 0.17,
+    "open_source": 0.24,
+    "clearance": 0.11,
+    "test_scores": 0.01,
+    "interests": 0.08,
+    "certification": 0.21,
+    "users_metric": 0.1,
+    "latency_metric": 0.15,
+    "money_metric": 0.08,
+    "deal": 0.2
+   }
+  },
+  "students_no_top_firm": {
+   "n": 1441,
+   "bullet_chars_p25_50_75_90": [
+    74,
+    105,
+    153,
+    204
+   ],
+   "bullets_total_p25_50_75": [
+    12,
+    16,
+    20
+   ],
+   "digit_share": 0.33,
+   "quantified_share": 0.25,
+   "multi_sentence_share": 0.082,
+   "weak_opener_share": 0.03,
+   "education_first_share": 0.59,
+   "section_presence": {
+    "education": 0.91,
+    "skills": 0.87,
+    "experience": 0.86,
+    "projects": 0.73,
+    "awards": 0.28,
+    "other": 0.24,
+    "summary": 0.15,
+    "leadership": 0.13,
+    "certifications": 0.12,
+    "research": 0.11,
+    "coursework": 0.09,
+    "interests": 0.04,
+    "languages": 0.04,
+    "links": 0.03
+   },
+   "has": {
+    "gpa": 0.28,
+    "coursework": 0.23,
+    "publication": 0.11,
+    "competition": 0.27,
+    "startup": 0.09,
+    "open_source": 0.18,
+    "clearance": 0.04,
+    "test_scores": 0.02,
+    "interests": 0.08,
+    "certification": 0.27,
+    "users_metric": 0.07,
+    "latency_metric": 0.12,
+    "money_metric": 0.03,
+    "deal": 0.14
+   }
+  }
+ },
+ "detect_order": [
+  "investment_banking",
+  "asset_mgmt_markets",
+  "quant_trading",
+  "quant_research_dev",
+  "defense",
+  "startup",
+  "ml_research",
+  "bigtech_swe",
+  "robotics_hardware",
+  "data",
+  "product_design"
+ ],
+ "detect": {
+  "investment_banking": {
+   "firms": "goldman|morgan stanley|j\\.?\\s?p\\.?\\s?morgan|jpmorgan|evercore|\\bpjt\\b|centerview|lazard|moelis|perella|guggenheim|houlihan|jefferies|harris williams|william blair|piper sandler|rbc capital|barclays|\\bciti|bank of america|bofa|\\bubs\\b|deutsche bank|wells fargo|qatalyst|greenhill|rothschild|blackstone|\\bkkr\\b|apollo|carlyle|warburg|bain capital|tpg\\b|vista equity",
+   "title": "investment bank|\\bibd\\b|\\bm&a\\b|mergers|leveraged finance|restructuring|capital markets|private equity|coverage|corporate finance|banking summer analyst|summer analyst.*banking",
+   "unless_title": "engineer|software|developer|technology|technologist|\\bdata\\b|quant|strats|\\bit\\b|cyber|security analyst|equity research|asset management|sales (&|and) trading|wealth|operations|risk|compliance|audit|controllers|tax"
+  },
+  "asset_mgmt_markets": {
+   "firms": "blackrock|wellington|fidelity|vanguard|pimco|t\\.?\\s?rowe|capital group|state street|invesco|neuberger|nuveen|franklin templeton|alliancebernstein|dodge (&|and) cox|putnam|janus|nomura|\\bmfs\\b",
+   "title": "equity research|asset management|investment management|portfolio|sales (&|and) trading|global markets|\\bmarkets\\b|wealth management|investment analyst|research associate|fixed income|hedge fund",
+   "unless_title": "engineer|software|developer|technology|technologist|\\bdata\\b|quant|strats|\\bit\\b|cyber|security analyst"
+  },
+  "quant_trading": {
+   "title": "\\btrad(er|ing)\\b",
+   "unless_title": "software|developer|engineer|operations|compliance"
+  },
+  "quant_research_dev": {
+   "firms": "jane street|citadel|hudson river|\\bhrt\\b|two sigma|jump trading|optiver|\\bimc\\b|susquehanna|\\bsig\\b|d\\.\\s?e\\.\\s?shaw|de shaw|five rings|\\bdrw\\b|akuna|virtu|tower research|old mission|millennium|point72|cubist|\\baqr\\b|radix|headlands|xtx|squarepoint|renaissance|flow traders|belvedere|chicago trading|peak6|wolverine|g-research|man group|bridgewater|voleon|pdt partners",
+   "title": "\\bquant|strats|quantitative|algorithmic|systematic"
+  },
+  "defense": {
+   "firms": "anduril|palantir|spacex|shield ai|lockheed|northrop|raytheon|\\brtx\\b|boeing|l3\\s?harris|saronic|skydio|general dynamics|\\bbae\\b|leidos|booz allen|blue origin|\\bmitre\\b|lincoln lab|sandia|huntington ingalls|epirus|hermeus|castelion|hadrian|true anomaly|vannevar|rebellion defense|govini|applied intuition",
+   "body": "security clearance|\\bitar\\b|u\\.s\\. person|department of defense|\\bdod\\b|national security|warfighter|defense (tech|technology|industry)|mission[- ]critical defense",
+   "body_min": 2
+  },
+  "startup": {
+   "firms": "\\(yc|y combinator",
+   "title": "founding",
+   "body": "y combinator|\\byc [swfx]\\d|\\(yc|seed[- ](stage|round|funded)|series [ab]\\b|early[- ]stage startup|founding (engineer|team)|pre-seed",
+   "body_min": 1
+  },
+  "ml_research": {
+   "title": "machine learning|\\bml\\b|\\bai\\b|research scien|applied scien|deep learning|computer vision|\\bnlp\\b|\\bllm|research engineer|perception|reinforcement"
+  },
+  "bigtech_swe": {
+   "firms": "\\bgoogle|\\bmeta\\b|facebook|\\bapple\\b|amazon|\\baws\\b|netflix|microsoft|nvidia|openai|anthropic|deepmind|alphabet|tesla|uber|airbnb|stripe|databricks|linkedin|salesforce|adobe|oracle",
+   "need_title": "software|engineer|developer|\\bswe\\b|\\bsde\\b|programmer"
+  },
+  "robotics_hardware": {
+   "title": "robot|hardware|electrical|mechanical|embedded|firmware|avionics|mechatronic|controls|aerospace|propulsion|manufactur|test engineer|systems engineer|\\bgnc\\b|gn&c|fpga|asic|power electronics"
+  },
+  "data": {
+   "title": "data analy|data scien|analytics|business intel"
+  },
+  "product_design": {
+   "title": "product manag|\\bapm\\b|product design|\\bux\\b|ui/ux|ux/ui|product analyst"
+  }
+ },
+ "by_field": {
+  "software": "software",
+  "hardware": "robotics_hardware",
+  "data": "data"
+ },
+ "profiles": {
+  "software": {
+   "label": "software engineering",
+   "lead_with": "the most production-like engineering role (an internship, then research or open source), its first bullet a shipped system with scale or a measured result; strong projects can sit above a weak role",
+   "order": [
+    "education",
+    "experience",
+    "projects",
+    "skills"
+   ],
+   "skills": "2-4 labeled lines (Languages; Frameworks/Libraries; Tools/Infrastructure), most relevant items first, no proficiency bars",
+   "conventions": [
+    "Name the language or framework inside the bullet, not only in Skills.",
+    "Projects read as products: what it does, what it is built with, who used it or how fast it is."
+   ],
+   "avoid": [
+    "opening with 'Worked on', 'Helped', 'Responsible for' or 'Utilized'",
+    "a bullet that is only a list of technologies",
+    "two sentences in one bullet",
+    "the same opening verb three or more times"
+   ],
+   "exemplars": [
+    "Built a rate limiter in Go for an internal API gateway, cutting p99 latency 30% at 5K requests/sec.",
+    "Shipped a React + TypeScript dashboard that 40 support agents use daily, replacing a manual spreadsheet workflow."
+   ],
+   "norms": {
+    "bullet_chars": [
+     93,
+     165
+    ],
+    "max_chars": 215,
+    "bullets_per_role": "2-4",
+    "bullets_per_project": "1-2",
+    "bullets_total": "13-21",
+    "quantified_min": 0.5
+   },
+   "verbs": [
+    "Developed",
+    "Built",
+    "Implemented",
+    "Designed",
+    "Created",
+    "Engineered",
+    "Led",
+    "Integrated",
+    "Optimized",
+    "Architected",
+    "Improved",
+    "Reduced",
+    "Added",
+    "Wrote",
+    "Conducted",
+    "Managed"
+   ],
+   "basis": "numbers from 119 public student/new-grad resumes of people at top firms (1974 public resumes match this profile)",
+   "stats": {
+    "n": 1974,
+    "n_students": 1212,
+    "n_students_top_firm": 119,
+    "numbers_from": "students_top_firm",
+    "levels": {
+     "newgrad": 757,
+     "experienced": 762,
+     "intern": 455
+    },
+    "digit_share": 0.37,
+    "quantified_share_strict": 0.29,
+    "weak_opener_share": 0.036,
+    "multi_sentence_share": 0.069,
+    "bullet_chars_p25_50_75_90": [
+     93,
+     113,
+     165,
+     213
+    ],
+    "bullets_total_p25_50_75": [
+     13,
+     17,
+     21
+    ],
+    "roles_median": 3,
+    "projects_median": 2,
+    "education_first_share": 0.67,
+    "first_section_after_education": [
+     [
+      "experience",
+      76
+     ],
+     [
+      "certifications",
+      3
+     ],
+     [
+      "research",
+      2
+     ],
+     [
+      "projects",
+      2
+     ]
+    ],
+    "common_orders": [
+     [
+      [
+       "education",
+       "experience",
+       "projects",
+       "skills"
+      ],
+      21
+     ],
+     [
+      [
+       "skills",
+       "experience",
+       "projects",
+       "education"
+      ],
+      7
+     ],
+     [
+      [
+       "education",
+       "skills",
+       "experience",
+       "projects"
+      ],
+      6
+     ],
+     [
+      [
+       "experience",
+       "projects",
+       "education",
+       "skills"
+      ],
+      6
+     ]
+    ],
+    "section_presence": {
+     "experience": 1.0,
+     "education": 0.99,
+     "skills": 0.88,
+     "projects": 0.84,
+     "awards": 0.21,
+     "leadership": 0.17,
+     "other": 0.12,
+     "certifications": 0.11,
+     "summary": 0.11,
+     "research": 0.1,
+     "coursework": 0.03,
+     "languages": 0.03,
+     "interests": 0.03,
+     "references": 0.02
+    },
+    "skills_labels": [
+     [
+      "languages",
+      61
+     ],
+     [
+      "developer tools",
+      22
+     ],
+     [
+      "technologies",
+      15
+     ],
+     [
+      "tools",
+      10
+     ],
+     [
+      "frameworks",
+      10
+     ],
+     [
+      "libraries",
+      8
+     ],
+     [
+      "databases",
+      8
+     ],
+     [
+      "technologies/frameworks",
+      8
+     ],
+     [
+      "programming languages",
+      7
+     ],
+     [
+      "frameworks/libraries",
+      4
+     ]
+    ],
+    "skills_lines_median": 3,
+    "headings": {
+     "skills": [
+      [
+       "technical skills",
+       57
+      ],
+      [
+       "skills",
+       32
+      ],
+      [
+       "programming skills",
+       3
+      ],
+      [
+       "technical skills and interests",
+       2
+      ],
+      [
+       "computer skills",
+       1
+      ],
+      [
+       "core backend & platform skills",
+       1
+      ]
+     ],
+     "leadership": [
+      [
+       "leadership extracurricular",
+       5
+      ],
+      [
+       "leadership",
+       3
+      ],
+      [
+       "activities",
+       2
+      ],
+      [
+       "extracurricular activities",
+       2
+      ],
+      [
+       "community & leadership",
+       2
+      ],
+      [
+       "extracurricular",
+       2
+      ]
+     ],
+     "experience": [
+      [
+       "experience",
+       90
+      ],
+      [
+       "work experience",
+       16
+      ],
+      [
+       "professional experience",
+       3
+      ],
+      [
+       "relevant work experience",
+       2
+      ],
+      [
+       "professional summary",
+       1
+      ],
+      [
+       "research experience",
+       1
+      ]
+     ],
+     "awards": [
+      [
+       "achievements",
+       9
+      ],
+      [
+       "honors and awards",
+       2
+      ],
+      [
+       "awards & achievements",
+       2
+      ],
+      [
+       "awards & recognitions",
+       2
+      ],
+      [
+       "achievements extracurricular",
+       1
+      ],
+      [
+       "notable achievements",
+       1
+      ]
+     ]
+    },
+    "has": {
+     "gpa": 0.34,
+     "coursework": 0.28,
+     "publication": 0.09,
+     "competition": 0.39,
+     "startup": 0.18,
+     "open_source": 0.24,
+     "clearance": 0.12,
+     "test_scores": 0.01,
+     "interests": 0.08,
+     "certification": 0.2,
+     "users_metric": 0.1,
+     "latency_metric": 0.14,
+     "money_metric": 0.08,
+     "deal": 0.21
+    }
+   }
+  },
+  "bigtech_swe": {
+   "label": "big-tech software engineering",
+   "lead_with": "a software internship or research role with scale (users, QPS, latency, data size) and the stack named; then open source and systems projects; data structures, distributed systems and testing language mirrored from the posting",
+   "order": [
+    "education",
+    "experience",
+    "projects",
+    "skills"
+   ],
+   "skills": "2-3 labeled lines: Languages (C++, Java, Python, Go first when the posting names them), Frameworks, Tools/Infrastructure",
+   "conventions": [
+    "Every role shows impact in numbers where the vault has them: latency, throughput, users, cost, test coverage.",
+    "Big-tech screeners scan for core CS signal: distributed systems, scale, code quality, testing and on-call/production work.",
+    "Open-source contributions to well-known projects and teaching (TA for data structures/algorithms) both count as signal."
+   ],
+   "avoid": [
+    "vague scope ('worked on backend features')",
+    "class projects without a result above real work",
+    "listing every language ever touched"
+   ],
+   "exemplars": [
+    "Reduced cold-start time of a Kubernetes job scheduler 45% by caching image layers, saving 12 compute-hours a day.",
+    "Designed a sharded key-value cache in C++ serving 20K reads/sec with p99 under 3 ms; covered with 95% unit tests."
+   ],
+   "norms": {
+    "bullet_chars": [
+     90,
+     164
+    ],
+    "max_chars": 215,
+    "bullets_per_role": "2-4",
+    "bullets_per_project": "1-2",
+    "bullets_total": "13-21",
+    "quantified_min": 0.5
+   },
+   "verbs": [
+    "Developed",
+    "Built",
+    "Designed",
+    "Implemented",
+    "Created",
+    "Engineered",
+    "Led",
+    "Integrated",
+    "Optimized",
+    "Improved",
+    "Architected",
+    "Added",
+    "Wrote",
+    "Reduced",
+    "Owned",
+    "Conducted"
+   ],
+   "basis": "numbers from 95 public student/new-grad resumes of people at top firms (205 public resumes match this profile)",
+   "stats": {
+    "n": 205,
+    "n_students": 95,
+    "n_students_top_firm": 95,
+    "numbers_from": "students_top_firm",
+    "levels": {
+     "newgrad": 40,
+     "experienced": 110,
+     "intern": 55
+    },
+    "digit_share": 0.37,
+    "quantified_share_strict": 0.3,
+    "weak_opener_share": 0.037,
+    "multi_sentence_share": 0.063,
+    "bullet_chars_p25_50_75_90": [
+     90,
+     113,
+     164,
+     212
+    ],
+    "bullets_total_p25_50_75": [
+     13,
+     17,
+     21
+    ],
+    "roles_median": 3,
+    "projects_median": 2,
+    "education_first_share": 0.67,
+    "first_section_after_education": [
+     [
+      "experience",
+      63
+     ],
+     [
+      "research",
+      2
+     ],
+     [
+      "certifications",
+      2
+     ],
+     [
+      "other",
+      1
+     ]
+    ],
+    "common_orders": [
+     [
+      [
+       "education",
+       "experience",
+       "projects",
+       "skills"
+      ],
+      15
+     ],
+     [
+      [
+       "skills",
+       "experience",
+       "projects",
+       "education"
+      ],
+      7
+     ],
+     [
+      [
+       "experience",
+       "projects",
+       "education",
+       "skills"
+      ],
+      5
+     ],
+     [
+      [
+       "education",
+       "skills",
+       "experience",
+       "projects"
+      ],
+      4
+     ]
+    ],
+    "section_presence": {
+     "education": 1.0,
+     "experience": 1.0,
+     "skills": 0.86,
+     "projects": 0.83,
+     "awards": 0.22,
+     "leadership": 0.18,
+     "other": 0.14,
+     "research": 0.11,
+     "certifications": 0.09,
+     "summary": 0.08,
+     "languages": 0.03,
+     "interests": 0.03,
+     "coursework": 0.02,
+     "references": 0.02
+    },
+    "skills_labels": [
+     [
+      "languages",
+      47
+     ],
+     [
+      "developer tools",
+      16
+     ],
+     [
+      "technologies",
+      11
+     ],
+     [
+      "tools",
+      7
+     ],
+     [
+      "libraries",
+      6
+     ],
+     [
+      "databases",
+      6
+     ],
+     [
+      "frameworks",
+      6
+     ],
+     [
+      "technologies/frameworks",
+      5
+     ],
+     [
+      "programming languages",
+      5
+     ],
+     [
+      "methodologies",
+      3
+     ]
+    ],
+    "skills_lines_median": 3,
+    "headings": {
+     "skills": [
+      [
+       "technical skills",
+       43
+      ],
+      [
+       "skills",
+       26
+      ],
+      [
+       "technical skills and interests",
+       2
+      ],
+      [
+       "programming skills",
+       2
+      ],
+      [
+       "computer skills",
+       1
+      ],
+      [
+       "core backend & platform skills",
+       1
+      ]
+     ],
+     "leadership": [
+      [
+       "leadership",
+       3
+      ],
+      [
+       "leadership extracurricular",
+       3
+      ],
+      [
+       "activities",
+       2
+      ],
+      [
+       "extracurricular activities",
+       2
+      ],
+      [
+       "community & leadership",
+       2
+      ],
+      [
+       "leadership & community",
+       1
+      ]
+     ],
+     "experience": [
+      [
+       "experience",
+       69
+      ],
+      [
+       "work experience",
+       13
+      ],
+      [
+       "professional experience",
+       3
+      ],
+      [
+       "relevant work experience",
+       2
+      ],
+      [
+       "professional summary",
+       1
+      ],
+      [
+       "research experience",
+       1
+      ]
+     ],
+     "awards": [
+      [
+       "achievements",
+       8
+      ],
+      [
+       "honors and awards",
+       2
+      ],
+      [
+       "achievements extracurricular",
+       1
+      ],
+      [
+       "notable achievements",
+       1
+      ],
+      [
+       "honors",
+       1
+      ]
+     ]
+    },
+    "has": {
+     "gpa": 0.32,
+     "coursework": 0.28,
+     "publication": 0.12,
+     "competition": 0.43,
+     "startup": 0.19,
+     "open_source": 0.29,
+     "clearance": 0.08,
+     "test_scores": 0.01,
+     "interests": 0.08,
+     "certification": 0.15,
+     "users_metric": 0.13,
+     "latency_metric": 0.14,
+     "money_metric": 0.08,
+     "deal": 0.2
+    }
+   }
+  },
+  "quant_trading": {
+   "label": "quant trading",
+   "lead_with": "math and problem-solving signal right under education (competition placements, olympiads, Putnam, high GPA in math/CS), then trading-adjacent work: trading competitions, market-making or betting projects, probability-heavy research",
+   "order": [
+    "education",
+    "experience",
+    "projects",
+    "awards",
+    "skills"
+   ],
+   "skills": "one or two short lines (Python, C++/OCaml, statistics tools); interests line (games of strategy, poker, chess) is common and welcome",
+   "conventions": [
+    "Education carries GPA and the hardest math/probability coursework; competition results sit high (education or Awards).",
+    "Bullets show decisions under uncertainty: expected value, risk, PnL in a simulation, ranks in a trading game.",
+    "Short, dense, one-line bullets; no finance jargon needed."
+   ],
+   "avoid": [
+    "claiming real trading returns the vault does not state",
+    "long engineering-only bullets with no quantitative reasoning",
+    "burying competition results at the bottom"
+   ],
+   "exemplars": [
+    "Placed 3rd of 60 teams in a university market-making competition with a quoting bot that managed inventory risk in Python.",
+    "Modeled poker hand equities with Monte Carlo simulation, converging 50x faster with variance reduction."
+   ],
+   "norms": {
+    "bullet_chars": [
+     80,
+     160
+    ],
+    "bullets_per_role": "2-3",
+    "bullets_per_project": "1-2",
+    "bullets_total": "12-18",
+    "quantified": "Every result is a number: rank of N, expected value, PnL in a simulation, speedup, accuracy.",
+    "max_chars": 215,
+    "quantified_min": 0.5
+   },
+   "verbs": [
+    "Placed",
+    "Built",
+    "Modeled",
+    "Designed",
+    "Simulated",
+    "Priced",
+    "Optimized",
+    "Analyzed",
+    "Won",
+    "Derived",
+    "Implemented",
+    "Wrote"
+   ],
+   "basis": "only 13 public resumes matched this profile, too few for statistics: conventions and bullet norms are from public recruiting guides",
+   "stats": {
+    "n": 13,
+    "n_students": 5,
+    "n_students_top_firm": 3,
+    "numbers_from": "conventions (too few samples)",
+    "levels": {
+     "experienced": 8,
+     "newgrad": 2,
+     "intern": 3
+    }
+   }
+  },
+  "asset_mgmt_markets": {
+   "label": "asset management / markets",
+   "lead_with": "Education with GPA, then investment experience: stock pitches, equity research, portfolio or markets roles; a student investment fund with assets under management and performance is strong signal",
+   "order": [
+    "education",
+    "experience",
+    "leadership",
+    "skills"
+   ],
+   "skills": "final 'Skills & Interests' lines: Technical (Excel, Bloomberg, FactSet, Python if backed), Certifications (CFA Level I candidate, BMC), Interests",
+   "conventions": [
+    "Bullets show investment judgment: thesis, valuation method, recommendation and the outcome (return vs benchmark if in the vault).",
+    "Same strict finance format as banking: reverse-chronological, Leadership & Activities section, Skills & Interests last."
+   ],
+   "avoid": [
+    "a pitch with no recommendation or outcome",
+    "tech-style project sections",
+    "generic customer-service bullets"
+   ],
+   "exemplars": [
+    "Pitched a long position on a mid-cap industrial to the student fund's committee; 10% allocation approved, +14% vs index in 6 months.",
+    "Wrote 6 initiation notes covering consumer staples, building comps and a sum-of-the-parts valuation for each."
+   ],
+   "norms": {
+    "bullet_chars": [
+     90,
+     180
+    ],
+    "bullets_per_role": "3-4",
+    "bullets_per_project": "1-2",
+    "bullets_total": "14-20",
+    "quantified": "Investment bullets state the position, valuation method, and the result or allocation where the vault has it.",
+    "max_chars": 215,
+    "quantified_min": 0.5
+   },
+   "verbs": [
+    "Pitched",
+    "Analyzed",
+    "Built",
+    "Valued",
+    "Researched",
+    "Wrote",
+    "Recommended",
+    "Managed",
+    "Screened",
+    "Presented",
+    "Tracked",
+    "Modeled"
+   ],
+   "basis": "only 12 public resumes matched this profile, too few for statistics: conventions and bullet norms are from public recruiting guides",
+   "stats": {
+    "n": 12,
+    "n_students": 4,
+    "n_students_top_firm": 3,
+    "numbers_from": "conventions (too few samples)",
+    "levels": {
+     "intern": 3,
+     "experienced": 8,
+     "newgrad": 1
+    }
+   }
+  },
+  "robotics_hardware": {
+   "label": "robotics / hardware",
+   "lead_with": "the hands-on build: an engineering internship or design-team role (rocketry, Formula SAE, robotics) with what was designed, built and tested, the tools (CAD, Altium, ROS, oscilloscopes) and a measured result",
+   "order": [
+    "education",
+    "experience",
+    "projects",
+    "skills"
+   ],
+   "skills": "labeled lines: CAD/EDA (SolidWorks, Altium, KiCad), Programming (C/C++, Python, MATLAB), Lab/Fabrication (oscilloscope, 3D printing, machining)",
+   "conventions": [
+    "Design teams and labs count as experience when the role carries a title and real deliverables.",
+    "Bullets state the physical result: mass, tolerance, efficiency, test cycles, failure rate, cost.",
+    "Name the hardware platform and the test or validation done."
+   ],
+   "avoid": [
+    "software-only framing for a hardware role",
+    "listing tools without what was built with them",
+    "shop chores"
+   ],
+   "exemplars": [
+    "Designed a 6061 aluminum motor mount in SolidWorks, cutting mass 22% while holding a 2.5 safety factor in FEA.",
+    "Brought up a 4-layer STM32 sensor board in Altium; validated power rails and CAN bus across 50 thermal-cycle tests."
+   ],
+   "norms": {
+    "bullet_chars": [
+     93,
+     169
+    ],
+    "max_chars": 215,
+    "bullets_per_role": "2-4",
+    "bullets_per_project": "1-2",
+    "bullets_total": "13-21",
+    "quantified_min": 0.5
+   },
+   "verbs": [
+    "Developed",
+    "Implemented",
+    "Designed",
+    "Built",
+    "Led",
+    "Wrote",
+    "Engineered",
+    "Improved",
+    "Created",
+    "Integrated",
+    "Owned",
+    "Optimized",
+    "Extended",
+    "Co-developed",
+    "Published",
+    "Migrated"
+   ],
+   "basis": "numbers from 32 public student/new-grad resumes of people at top firms (476 public resumes match this profile)",
+   "stats": {
+    "n": 476,
+    "n_students": 278,
+    "n_students_top_firm": 32,
+    "numbers_from": "students_top_firm",
+    "levels": {
+     "newgrad": 171,
+     "experienced": 198,
+     "intern": 107
+    },
+    "digit_share": 0.29,
+    "quantified_share_strict": 0.22,
+    "weak_opener_share": 0.035,
+    "multi_sentence_share": 0.074,
+    "bullet_chars_p25_50_75_90": [
+     93,
+     115,
+     169,
+     224
+    ],
+    "bullets_total_p25_50_75": [
+     13,
+     18,
+     21
+    ],
+    "roles_median": 3.0,
+    "projects_median": 1.5,
+    "education_first_share": 0.69,
+    "first_section_after_education": [
+     [
+      "experience",
+      20
+     ],
+     [
+      "projects",
+      1
+     ],
+     [
+      "certifications",
+      1
+     ],
+     [
+      "coursework",
+      1
+     ]
+    ],
+    "common_orders": [
+     [
+      [
+       "education",
+       "skills",
+       "experience",
+       "projects"
+      ],
+      3
+     ],
+     [
+      [
+       "education",
+       "experience",
+       "projects",
+       "skills"
+      ],
+      3
+     ],
+     [
+      [
+       "skills",
+       "experience",
+       "projects",
+       "education"
+      ],
+      3
+     ],
+     [
+      [
+       "education",
+       "experience",
+       "projects"
+      ],
+      2
+     ]
+    ],
+    "section_presence": {
+     "education": 1.0,
+     "experience": 1.0,
+     "skills": 0.78,
+     "projects": 0.78,
+     "leadership": 0.16,
+     "research": 0.16,
+     "other": 0.12,
+     "awards": 0.09,
+     "summary": 0.09,
+     "certifications": 0.06,
+     "coursework": 0.06
+    },
+    "skills_labels": [
+     [
+      "languages",
+      11
+     ],
+     [
+      "technologies",
+      5
+     ],
+     [
+      "developer tools",
+      4
+     ],
+     [
+      "tools",
+      2
+     ],
+     [
+      "frameworks",
+      2
+     ],
+     [
+      "programming languages",
+      2
+     ],
+     [
+      "technologies/frameworks",
+      2
+     ],
+     [
+      "backend & data",
+      2
+     ],
+     [
+      "methodologies",
+      1
+     ],
+     [
+      "databases & cloud",
+      1
+     ]
+    ],
+    "skills_lines_median": 4,
+    "headings": {
+     "skills": [
+      [
+       "technical skills",
+       13
+      ],
+      [
+       "skills",
+       10
+      ],
+      [
+       "computer skills",
+       1
+      ],
+      [
+       "technical skills and interests",
+       1
+      ]
+     ],
+     "leadership": [
+      [
+       "leadership",
+       2
+      ],
+      [
+       "activities",
+       1
+      ],
+      [
+       "leadership extracurricular",
+       1
+      ],
+      [
+       "extracurricular activities",
+       1
+      ]
+     ],
+     "experience": [
+      [
+       "experience",
+       25
+      ],
+      [
+       "work experience",
+       4
+      ],
+      [
+       "professional experience",
+       2
+      ],
+      [
+       "engineering experience",
+       1
+      ]
+     ],
+     "awards": [
+      [
+       "notable achievements",
+       1
+      ],
+      [
+       "honors",
+       1
+      ],
+      [
+       "awards & achievements",
+       1
+      ]
+     ]
+    },
+    "has": {
+     "gpa": 0.41,
+     "coursework": 0.47,
+     "publication": 0.12,
+     "competition": 0.31,
+     "startup": 0.22,
+     "open_source": 0.25,
+     "clearance": 0.12,
+     "test_scores": 0.0,
+     "interests": 0.06,
+     "certification": 0.19,
+     "users_metric": 0.06,
+     "latency_metric": 0.12,
+     "money_metric": 0.09,
+     "deal": 0.22
+    }
+   }
+  },
+  "startup": {
+   "label": "startup / founding engineer",
+   "lead_with": "proof of shipping end to end and ownership: a product with users or revenue, a startup or founding role, open-source with adoption; speed and breadth over polish",
+   "order": [
+    "education",
+    "experience",
+    "projects",
+    "skills"
+   ],
+   "skills": "one or two dense lines of the stack actually shipped (frontend, backend, infra), most posting-relevant first",
+   "conventions": [
+    "Bullets read as outcomes a founder cares about: users, revenue, retention, time to ship, things owned alone.",
+    "Side projects and hackathon wins with real usage are first-class evidence; put the best one high.",
+    "Show breadth: one person who took something from idea to production across the stack."
+   ],
+   "avoid": [
+    "large-company process language ('collaborated with stakeholders', 'participated in agile ceremonies')",
+    "projects with no users or outcome",
+    "long skill inventories"
+   ],
+   "exemplars": [
+    "Built and launched a study-matching web app (Next.js, Postgres) solo in 3 weeks; reached 1,200 students in the first semester.",
+    "Owned the billing service end to end at a 10-person startup, shipping Stripe usage-based pricing in 2 sprints."
+   ],
+   "norms": {
+    "bullet_chars": [
+     81,
+     155
+    ],
+    "max_chars": 214,
+    "bullets_per_role": "3-5",
+    "bullets_per_project": "1-3",
+    "bullets_total": "15-23",
+    "quantified_min": 0.5
+   },
+   "verbs": [
+    "Developed",
+    "Built",
+    "Designed",
+    "Implemented",
+    "Created",
+    "Led",
+    "Integrated",
+    "Engineered",
+    "Architected",
+    "Managed",
+    "Optimized",
+    "Conducted",
+    "Wrote",
+    "Deployed",
+    "Improved",
+    "Added"
+   ],
+   "basis": "numbers from 161 public student/new-grad resumes (322 public resumes match this profile)",
+   "stats": {
+    "n": 322,
+    "n_students": 161,
+    "n_students_top_firm": 23,
+    "numbers_from": "students",
+    "levels": {
+     "experienced": 161,
+     "newgrad": 101,
+     "intern": 60
+    },
+    "digit_share": 0.37,
+    "quantified_share_strict": 0.3,
+    "weak_opener_share": 0.022,
+    "multi_sentence_share": 0.067,
+    "bullet_chars_p25_50_75_90": [
+     81,
+     109,
+     155,
+     204
+    ],
+    "bullets_total_p25_50_75": [
+     15,
+     17,
+     23
+    ],
+    "roles_median": 1,
+    "projects_median": 1,
+    "education_first_share": 0.62,
+    "first_section_after_education": [
+     [
+      "experience",
+      82
+     ],
+     [
+      "coursework",
+      6
+     ],
+     [
+      "other",
+      5
+     ],
+     [
+      "projects",
+      4
+     ]
+    ],
+    "common_orders": [
+     [
+      [
+       "education",
+       "experience",
+       "projects",
+       "skills"
+      ],
+      16
+     ],
+     [
+      [
+       "experience",
+       "projects",
+       "education",
+       "skills"
+      ],
+      8
+     ],
+     [
+      [
+       "education",
+       "skills",
+       "experience",
+       "projects"
+      ],
+      7
+     ],
+     [
+      [
+       "education",
+       "experience",
+       "projects",
+       "skills",
+       "awards"
+      ],
+      7
+     ]
+    ],
+    "section_presence": {
+     "experience": 0.95,
+     "education": 0.93,
+     "skills": 0.9,
+     "projects": 0.77,
+     "awards": 0.35,
+     "leadership": 0.21,
+     "other": 0.19,
+     "summary": 0.14,
+     "research": 0.11,
+     "certifications": 0.11,
+     "coursework": 0.1,
+     "links": 0.07,
+     "references": 0.03,
+     "interests": 0.02
+    },
+    "skills_labels": [
+     [
+      "languages",
+      60
+     ],
+     [
+      "technologies",
+      14
+     ],
+     [
+      "programming languages",
+      14
+     ],
+     [
+      "frameworks",
+      13
+     ],
+     [
+      "developer tools",
+      12
+     ],
+     [
+      "tools",
+      9
+     ],
+     [
+      "databases",
+      9
+     ],
+     [
+      "frontend",
+      7
+     ],
+     [
+      "backend",
+      5
+     ],
+     [
+      "programming",
+      5
+     ]
+    ],
+    "skills_lines_median": 4,
+    "headings": {
+     "skills": [
+      [
+       "skills",
+       61
+      ],
+      [
+       "technical skills",
+       58
+      ],
+      [
+       "skills summary",
+       4
+      ],
+      [
+       "skills & interests",
+       3
+      ],
+      [
+       "programming skills",
+       2
+      ],
+      [
+       "core backend & platform skills",
+       1
+      ]
+     ],
+     "leadership": [
+      [
+       "activities",
+       7
+      ],
+      [
+       "leadership extracurricular",
+       5
+      ],
+      [
+       "leadership",
+       3
+      ],
+      [
+       "extracurricular",
+       3
+      ],
+      [
+       "leadership & community",
+       2
+      ],
+      [
+       "curricular activities",
+       1
+      ]
+     ],
+     "experience": [
+      [
+       "experience",
+       99
+      ],
+      [
+       "work experience",
+       19
+      ],
+      [
+       "professional experience",
+       6
+      ],
+      [
+       "professional summary",
+       5
+      ],
+      [
+       "relevant experience",
+       2
+      ],
+      [
+       "research experience",
+       2
+      ]
+     ],
+     "awards": [
+      [
+       "achievements",
+       21
+      ],
+      [
+       "awards",
+       8
+      ],
+      [
+       "honors and awards",
+       2
+      ],
+      [
+       "achievement",
+       2
+      ],
+      [
+       "achievements & leadership",
+       2
+      ],
+      [
+       "honours and awards",
+       1
+      ]
+     ]
+    },
+    "has": {
+     "gpa": 0.24,
+     "coursework": 0.3,
+     "publication": 0.17,
+     "competition": 0.41,
+     "startup": 0.96,
+     "open_source": 0.3,
+     "clearance": 0.02,
+     "test_scores": 0.01,
+     "interests": 0.08,
+     "certification": 0.26,
+     "users_metric": 0.11,
+     "latency_metric": 0.16,
+     "money_metric": 0.07,
+     "deal": 0.25
+    }
+   }
+  },
+  "data": {
+   "label": "data / analytics",
+   "lead_with": "a business question answered with data and the decision it changed, with dataset size and tools (SQL, Python, BI)",
+   "order": [
+    "education",
+    "experience",
+    "projects",
+    "skills"
+   ],
+   "skills": "labeled lines: Languages (SQL, Python, R), Tools (Tableau, Looker, dbt, Excel), Methods (A/B testing, regression)",
+   "conventions": [
+    "Bullets follow question, analysis, decision: what was asked, how it was measured, what changed."
+   ],
+   "avoid": [
+    "dashboards with no user or decision",
+    "tool lists without the question they answered"
+   ],
+   "exemplars": [
+    "Analyzed 2M checkout events in SQL to find a 14% drop-off on mobile; the fix lifted conversion 3 points in an A/B test.",
+    "Built a Looker dashboard tracking weekly retention for 5 product teams, replacing a manual 4-hour report."
+   ],
+   "norms": {
+    "bullet_chars": [
+     85,
+     165
+    ],
+    "max_chars": 215,
+    "bullets_per_role": "2-4",
+    "bullets_per_project": "1-3",
+    "bullets_total": "15-22",
+    "quantified_min": 0.5
+   },
+   "verbs": [
+    "Developed",
+    "Implemented",
+    "Designed",
+    "Built",
+    "Created",
+    "Integrated",
+    "Conducted",
+    "Analyzed",
+    "Engineered",
+    "Led",
+    "Trained",
+    "Optimized",
+    "Managed",
+    "Deployed",
+    "Applied",
+    "Reduced"
+   ],
+   "basis": "numbers from 106 public student/new-grad resumes (187 public resumes match this profile)",
+   "stats": {
+    "n": 187,
+    "n_students": 106,
+    "n_students_top_firm": 8,
+    "numbers_from": "students",
+    "levels": {
+     "experienced": 81,
+     "intern": 54,
+     "newgrad": 52
+    },
+    "digit_share": 0.37,
+    "quantified_share_strict": 0.3,
+    "weak_opener_share": 0.029,
+    "multi_sentence_share": 0.107,
+    "bullet_chars_p25_50_75_90": [
+     85,
+     112,
+     165,
+     214
+    ],
+    "bullets_total_p25_50_75": [
+     15,
+     17,
+     22
+    ],
+    "roles_median": 1.0,
+    "projects_median": 1.0,
+    "education_first_share": 0.65,
+    "first_section_after_education": [
+     [
+      "experience",
+      71
+     ],
+     [
+      "projects",
+      6
+     ],
+     [
+      "other",
+      2
+     ],
+     [
+      "awards",
+      1
+     ]
+    ],
+    "common_orders": [
+     [
+      [
+       "education",
+       "experience",
+       "projects",
+       "skills"
+      ],
+      13
+     ],
+     [
+      [
+       "education",
+       "skills",
+       "experience",
+       "projects"
+      ],
+      6
+     ],
+     [
+      [
+       "education",
+       "experience",
+       "projects",
+       "skills",
+       "awards"
+      ],
+      6
+     ],
+     [
+      [
+       "education",
+       "skills",
+       "experience",
+       "projects",
+       "awards"
+      ],
+      4
+     ]
+    ],
+    "section_presence": {
+     "skills": 0.95,
+     "education": 0.95,
+     "experience": 0.93,
+     "projects": 0.81,
+     "awards": 0.41,
+     "other": 0.2,
+     "certifications": 0.2,
+     "summary": 0.17,
+     "leadership": 0.17,
+     "research": 0.15,
+     "coursework": 0.08,
+     "links": 0.04,
+     "interests": 0.04,
+     "languages": 0.01
+    },
+    "skills_labels": [
+     [
+      "languages",
+      49
+     ],
+     [
+      "programming languages",
+      14
+     ],
+     [
+      "tools",
+      13
+     ],
+     [
+      "developer tools",
+      11
+     ],
+     [
+      "libraries",
+      10
+     ],
+     [
+      "technologies",
+      10
+     ],
+     [
+      "frameworks",
+      9
+     ],
+     [
+      "databases",
+      9
+     ],
+     [
+      "data visualization",
+      6
+     ],
+     [
+      "programming",
+      5
+     ]
+    ],
+    "skills_lines_median": 4.0,
+    "headings": {
+     "skills": [
+      [
+       "technical skills",
+       50
+      ],
+      [
+       "skills",
+       34
+      ],
+      [
+       "skills & interests",
+       2
+      ],
+      [
+       "technical skills and interests",
+       1
+      ]
+     ],
+     "leadership": [
+      [
+       "extracurricular activities",
+       2
+      ],
+      [
+       "leadership extracurricular",
+       2
+      ],
+      [
+       "activities",
+       1
+      ],
+      [
+       "leadership activities",
+       1
+      ],
+      [
+       "leadership",
+       1
+      ]
+     ],
+     "experience": [
+      [
+       "experience",
+       49
+      ],
+      [
+       "work experience",
+       18
+      ],
+      [
+       "professional summary",
+       6
+      ],
+      [
+       "professional experience",
+       4
+      ],
+      [
+       "career objective",
+       2
+      ],
+      [
+       "related experience",
+       2
+      ]
+     ],
+     "awards": [
+      [
+       "achievements",
+       15
+      ],
+      [
+       "awards",
+       6
+      ],
+      [
+       "achievements and certifications",
+       2
+      ],
+      [
+       "certifications & achievements",
+       2
+      ],
+      [
+       "awards & honours",
+       1
+      ]
+     ]
+    },
+    "has": {
+     "gpa": 0.29,
+     "coursework": 0.34,
+     "publication": 0.16,
+     "competition": 0.35,
+     "startup": 0.08,
+     "open_source": 0.14,
+     "clearance": 0.06,
+     "test_scores": 0.02,
+     "interests": 0.11,
+     "certification": 0.38,
+     "users_metric": 0.09,
+     "latency_metric": 0.08,
+     "money_metric": 0.02,
+     "deal": 0.23
+    }
+   }
+  }
+ }
+}

@@ -855,6 +855,22 @@ _mp = subprocess.run([sys.executable, os.path.join(ROOT, 'bin', 'applytwin'), 'm
                      input=(json.dumps({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "José"}}, ensure_ascii=False) + '\n').encode('utf-8'),
                      capture_output=True, env={**os.environ, 'PYTHONIOENCODING': 'cp1252'}, timeout=60)
 res.append(ok('Jos\\u00e9' in _mp.stdout.decode('utf-8', 'replace'), f'MCP reads UTF-8 input under a cp1252 default ({_mp.stdout[:120]!r})'))
+# resume_patterns.json: aggregate norms only. It ships in a public repo, so it must never carry contact details or links.
+import re as _re
+_pt = open(os.path.join(ROOT, 'applytwin', 'resume_patterns.json'), encoding='utf-8').read()
+_pj = json.loads(_pt)
+_pii = _re.findall(r'[\w.+-]+@[\w-]+\.[\w.]+|https?://\S+|www\.\S+|\b(?:linkedin|github)\.com/\S+|\(?\b\d{3}\)?[-. ]\d{3}[-. ]\d{4}\b|\+\d{1,3}[ -]\d{3,}', _pt)
+res.append(ok(not _pii and len(_pj.get('profiles', {})) >= 5, f'resume_patterns.json loads ({len(_pj.get("profiles", {}))} profiles) with no emails, phones or URLs {_pii[:3]}'))
+from applytwin import tailor as _tp
+_prof = [_tp.pattern_profile({'company': c, 'title': t}, '', f)[0] for c, t, f in [
+    ('Wellington Management', 'Equity Research Summer Associate', 'finance'), ('Morgan Stanley', 'Technology Summer Analyst', 'finance'),
+    ('Jane Street', 'Quantitative Trading Intern', 'quant'), ('Google', 'Software Engineering Intern', 'software'),
+    ('Lattice Labs (YC W26)', 'Founding Engineering Intern', 'software'), ('Evercore', 'Investment Banking Summer Analyst', 'finance')]]
+# banking's profile lost the blind review, so a banking posting keeps the plain prompt rather than borrowing a neighbor's
+res.append(ok(_prof == ['asset_mgmt_markets', None, 'quant_trading', 'bigtech_swe', 'startup', None], f'posting -> resume profile ({_prof})'))
+_fl = _tp.pattern_flags({'experience': [{'bullets': ['Worked on the backend for the payments team.', 'Built a cache in Go, cutting p99 latency 30%.']}]})
+res.append(ok(any('weak opener' in f for f in _fl) and not any('Built' in f for f in _fl) and 'ASSET MANAGEMENT' in _tp.prompt(api.get_vault(), {'title': 'Equity Research Summer Associate', 'company': 'Wellington Management'}, 'stocks', {}),
+              'recruiter-norms check flags filler openers; the plan prompt carries the posting\'s profile'))
 
 print(f'\n{sum(res)}/{len(res)} passed')
 sys.exit(0 if all(res) else 1)
