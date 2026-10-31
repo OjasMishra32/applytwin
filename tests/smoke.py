@@ -18,9 +18,33 @@ store.save('resume.json', json.load(open(os.path.join(ROOT, 'examples', 'resume.
 api.update_profile(json.load(open(os.path.join(ROOT, 'examples', 'profile.example.json'))))
 ok = lambda c, m: print(('PASS ' if c else 'FAIL ') + m) or c
 res = []
+from applytwin import ats as _ats
+_norm = lambda s: ' '.join(s.translate(str.maketrans({'\u2019': "'", '\u2018': "'", '\u201c': '"', '\u201d': '"'})).split())
 for t in render.TEMPLATES:
     r = api.render_resume(t)
     res.append(ok(r['pages'] == 1, f'template {t}: 1 page (score {r["score"]})'))
+    # what a resume parser reads: every bullet that made the page, word for word and in order, no ligature glyphs or
+    # words broken onto their own lines, headings in reading order, the email exactly as typed
+    _txt = _norm(render.pdf_text(r['pdf']) or '')
+    _bl = [_norm(_ats.plain(render.clean(b))) for s in ('experience', 'projects', 'leadership') for e in r['resume'].get(s, []) for b in e.get('bullets', [])]
+    _miss = [b[:50] for b in _bl if b not in _txt]
+    _iss = _ats.text_layer_issues(render.pdf_text(r['pdf']), r['resume'])
+    _lint = next(c for c in r['lint'] if c['id'] == 'parse')
+    res.append(ok(_bl and not _miss and not _iss and _lint['level'] == 'pass' and r['scale'] >= .9,
+                  f'template {t}: clean text layer, {len(_bl)} bullets intact at type scale {r["scale"]} {_miss[:2]} {_iss}'))
+# the fitter fills the page: a short resume sets its type a little larger and opens up its spacing instead of ending
+# halfway down; ligature glyphs and invisible characters pasted from a PDF never reach the page
+_short = api.get_vault()
+_short = {**_short, 'experience': _short['experience'][:1], 'projects': _short['projects'][:1], 'research': [], 'leadership': [],
+          'awards': [], 'skills': _short['skills'][:2]}
+_short['experience'] = [{**_short['experience'][0], 'bullets': ['Built an \ufb01nance e\ufb03cient work\ufb02ow\u00ad tool with zero\u200bwidth care.'] + _short['experience'][0]['bullets'][1:]}]
+_rs = render.render(_short, 'classic', os.path.join(os.environ['APPLYTWIN_HOME'], 'short.pdf'))
+_ts = render.pdf_text(_rs['pdf']) or ''
+res.append(ok(_rs['pages'] == 1 and _rs['scale'] > 1 and _rs.get('spacing', 1) > 1 and 'efficient workflow tool with zerowidth' in _ts
+              and not _ats.text_layer_issues(_ts), f'short resume fills the page (scale {_rs["scale"]}, spacing {_rs.get("spacing")}); pasted ligatures cleaned'))
+_rl = render.render(json.load(open(os.path.join(ROOT, 'examples', 'resume.example.json'))), 'latex', os.path.join(os.environ['APPLYTWIN_HOME'], 'l.pdf'))
+_tl = render.pdf_text(_rl['pdf']) or ''
+res.append(ok(_rl['pages'] == 1 and not _ats.text_layer_issues(_tl), f'latex template: 1 page, no ligature glyphs in the text layer {_ats.text_layer_issues(_tl)}'))
 jd = 'Software Engineer Intern. Requirements: Python, Go, Kafka, PostgreSQL, Kubernetes, CI/CD, distributed systems, data structures.'
 j = api.add_job('https://example.com/jobs/1', 'Software Engineer Intern, Summer 2027', 'Example Co', jd)
 r = api.tailor_apply(j['id'], None, 'classic', 'heuristic')
