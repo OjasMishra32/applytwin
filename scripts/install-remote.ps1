@@ -121,4 +121,5 @@ Start-Sleep 3
 Start-Process 'http://localhost:4747'
 Write-Host "`nApplyTwin is running at http://localhost:4747" -ForegroundColor White
 Write-Host "  Open it any time: ApplyTwin in the Start menu, that address, or type: applytwin"
+Write-Host "  This is the app: sign in with Google there, add your resume, press Start. (apply.twinly.tech only shows your results.)"
 }

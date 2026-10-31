@@ -110,7 +110,7 @@ export default function Site() {
       <section id="start" className="px-4 pt-24 sm:pt-36">
         <div className="mx-auto max-w-[1120px] min-[1800px]:max-w-[1360px] text-center">
           <Reveal><h2 className="display-l text-[clamp(38px,6vw,72px)]">Set up in one line.</h2></Reveal>
-          <Reveal delay={0.05} className="mx-auto mt-4 max-w-[560px] text-[19px] leading-[1.45] muted [text-wrap:balance]">Paste this into your terminal. It installs ApplyTwin, connects your agent and opens the app.</Reveal>
+          <Reveal delay={0.05} className="mx-auto mt-4 max-w-[560px] text-[19px] leading-[1.45] muted [text-wrap:balance]">Paste this into your terminal. It installs ApplyTwin on your computer, connects your agent, and opens the app in your browser at localhost:4747.</Reveal>
           <Reveal delay={0.1} className="mx-auto mt-10 max-w-[760px] text-left"><InstallBox /></Reveal>
           <p className="mt-4 text-[14px] faint">Mac, Windows and Linux. Needs Python 3.9+, Node.js, and Claude Code or Codex.</p>
           <Reveal delay={0.12} className="mx-auto mt-8 flex max-w-[760px] flex-wrap items-center justify-center gap-x-5 gap-y-3 rounded-[18px] px-6 py-5" style={{ background: 'var(--bg-2)' }}>
@@ -118,7 +118,7 @@ export default function Site() {
             <StarButton n={stars} size="sm" />
           </Reveal>
           <ol className="mx-auto mt-14 grid max-w-[880px] gap-8 sm:grid-cols-3 sm:gap-6">
-            {[['Paste the command', 'in Terminal, or PowerShell on Windows.'], ['Drop in your resume', 'and answer the setup questions once.'],
+            {[['Paste the command', 'in Terminal, or PowerShell on Windows.'], ['It opens at localhost:4747', 'Sign in with Google there and drop in your resume. It runs on your computer, not this website.'],
               ['Press Start', 'and watch it apply in its own window.']].map(([t, d], i) => (
               <Reveal key={t} delay={i * 0.06}>
                 <li className="list-none">

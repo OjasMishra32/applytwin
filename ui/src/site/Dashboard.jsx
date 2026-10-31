@@ -61,12 +61,12 @@ export default function Dashboard() {
       let s = load()
       if (h.get('access_token')) {
         s = { access_token: h.get('access_token'), refresh_token: h.get('refresh_token'), expires_at: Date.now() / 1000 + +(h.get('expires_in') || 3600) }
-        history.replaceState(null, '', location.pathname)
+        window.history.replaceState(null, '', location.pathname)
         try { s.user = await sb('/auth/v1/user', s) } catch {}
         save(s)
       }
       setSession(await fresh(s))
-    })()
+    })().catch(() => { save(null); setSession(null) })
   }, [])
 
   useEffect(() => {
@@ -91,7 +91,7 @@ export default function Dashboard() {
   // roles you applied to before ApplyTwin (imported from your tracker) are your history, not applications your twin sent
   const past = a => a.notes === 'From your history'
   const count = s => (apps || []).filter(a => a.status === s && !past(a)).length
-  const history = (apps || []).filter(past).length
+  const pastCount = (apps || []).filter(past).length
   const week = (apps || []).filter(a => a.status === 'Applied' && !past(a) && Date.now() - new Date(a.created_at) < 7 * 864e5).length
   const p = account?.profile || {}
   const first = (p.name || session?.user?.user_metadata?.full_name || '').split(' ')[0]
@@ -130,7 +130,7 @@ export default function Dashboard() {
               <p className="mt-1 text-[13.5px] text-white/50">{account?.updated_at ? `Last synced ${new Date(account.updated_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : ''}</p>
               <section className="mt-7 grid grid-cols-2 gap-3 md:grid-cols-4">
                 {[['Sent by your twin', count('Applied'), GREEN], ['Waiting on you', count('Needs User'), ORANGE], ['Sent this week', week, BLUE],
-                  history ? ['Applied before ApplyTwin', history, '#7d869f'] : ['Skipped', count('Skipped'), '#7d869f']].map(([l, v, c], i) => (
+                  pastCount ? ['Applied before ApplyTwin', pastCount, '#7d869f'] : ['Skipped', count('Skipped'), '#7d869f']].map(([l, v, c], i) => (
                   <motion.div key={l} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ ...spring, delay: 0.1 + i * 0.05 }}
                     className="rounded-[20px] bg-[#111526]/90 px-5 py-4 ring-1 ring-white/[.06] backdrop-blur">
                     <div className="text-[34px] font-semibold leading-none tracking-[-0.04em] text-white tabular-nums">{v.toLocaleString()}</div>
@@ -185,11 +185,13 @@ export default function Dashboard() {
 
 function Connect() {
   const steps = [['Install ApplyTwin on your computer', 'One line in your terminal. It runs on your Claude Code or Codex plan, no API keys.', true],
-    ['Open it and press Sign in with Google', 'Use this same Google account. Everything you have already applied to uploads right away.'],
+    ['It opens at localhost:4747. Press Sign in with Google there', 'Use this same Google account. If it did not open, go to http://localhost:4747 or type applytwin in your terminal.'],
     ['Press Start in Autopilot', 'Every application your twin fills shows up here, with the exact resume it sent.']]
   return (
     <motion.section initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={spring} className="mt-7 max-w-[640px]">
-      <p className="text-[17px] text-white/75">Your account is ready. Connect your computer and your applications appear here.</p>
+      <p className="text-[17px] text-white/75">Your account is ready. One thing to know: ApplyTwin is not a website you use here. It is an app that runs on your own computer, and this page just shows what it sent.</p>
+      <div className="mt-4 rounded-[16px] bg-[#0a84ff]/10 px-4 py-3 text-[14px] leading-relaxed text-white/85 ring-1 ring-[#0a84ff]/30">
+        After you run the install line, ApplyTwin opens in your browser at <span className="font-mono text-white">http://localhost:4747</span>. That address only works on the computer you installed it on. Already installed? <a href="http://localhost:4747" className="font-semibold text-[#64b5ff] underline">Open ApplyTwin</a></div>
       <div className="mt-5 overflow-hidden rounded-[20px] bg-[#111526]/90 ring-1 ring-white/[.06] backdrop-blur [&>*+*]:border-t [&>*+*]:border-white/[.06]">
         {steps.map(([t, d, install], i) => (
           <div key={t} className="flex gap-4 px-5 py-4">
@@ -210,7 +212,8 @@ function SignedOut() {
       <motion.button whileTap={{ scale: 0.96 }} onClick={signIn} className="mx-auto mt-8 flex h-12 items-center gap-2.5 rounded-full bg-white px-7 text-[16px] font-semibold text-[#0b1020]">
         <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.8 1.1 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z" /><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3 0 5.8 1.1 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z" /><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z" /><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z" /></svg>
         Sign in with Google</motion.button>
-      <p className="mt-10 text-[14px] text-white/55">New to ApplyTwin? Install it first:</p>
+      <p className="mx-auto mt-6 max-w-[440px] text-[13.5px] leading-relaxed text-white/55">This page only shows your results. ApplyTwin itself runs on your computer: after you install it, it opens at <a href="http://localhost:4747" className="font-mono text-white/80 underline">localhost:4747</a>, and that's where you sign in, add your resume and press Start.</p>
+      <p className="mt-8 text-[14px] text-white/55">New to ApplyTwin? Install it first:</p>
       <div className="mx-auto mt-3 max-w-[520px] text-left"><Install /></div>
     </motion.div>
   )

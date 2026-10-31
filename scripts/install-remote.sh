@@ -126,3 +126,4 @@ esac
 echo
 b "ApplyTwin is running at http://localhost:4747"
 echo "  Open it any time: the ApplyTwin app icon, that address, or type: applytwin"
+echo "  This is the app: sign in with Google there, add your resume, press Start. (apply.twinly.tech only shows your results.)"
