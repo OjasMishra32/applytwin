@@ -335,6 +335,60 @@ needs. Retail, food service and unrelated part-time jobs go only if nothing stro
 
 
 _SINK = __import__('threading').local()   # where a running build wants live "characters written" counts
+# a job that can be stopped from another request (resume import): _SINK.tag names it, its agent process is RUNNING[tag],
+# and a tag in CANCELLED stops the agent and skips the next one; _SINK.deadline caps all tries together
+RUNNING, CANCELLED = {}, set()
+
+
+def _started(p):
+    tag = getattr(_SINK, 'tag', None)
+    if tag:
+        RUNNING[tag] = p
+        if tag in CANCELLED:   # cancelled while it was starting
+            from . import store
+            store.kill_tree(p)
+
+
+def _ended(p):
+    tag = getattr(_SINK, 'tag', None)
+    if tag and RUNNING.get(tag) is p:
+        RUNNING.pop(tag, None)
+
+
+def _left(timeout):
+    """Seconds this agent call may take, or 0 when the job was cancelled or its time is up."""
+    if getattr(_SINK, 'tag', None) in CANCELLED:
+        return 0
+    dl = getattr(_SINK, 'deadline', None)
+    return timeout if dl is None else max(0, min(timeout, dl - __import__('time').time()))
+
+
+def cancel(tag):
+    """Stop a running agent job now (its caller falls back to the built-in way)."""
+    from . import store
+    CANCELLED.add(tag)
+    p = RUNNING.get(tag)
+    if p:
+        store.kill_tree(p)
+    return {"cancelled": bool(p)}
+
+
+def _run(cmd, text, timeout, env=None):
+    """subprocess.run(input=text, capture_output=True, timeout=...) that cancel() can stop."""
+    import subprocess
+    from . import store
+    p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding='utf-8',
+                         errors='replace', cwd=store.HOME, env=env, **store.NOWIN)
+    _started(p)
+    try:
+        out, err = p.communicate(text, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        store.kill_tree(p)
+        p.communicate()
+        raise
+    finally:
+        _ended(p)
+    return subprocess.CompletedProcess(cmd, p.returncode, out, err)
 
 
 def _claude_stream(cmd, text, timeout, env, sink):
@@ -348,6 +402,7 @@ def _claude_stream(cmd, text, timeout, env, sink):
     p = subprocess.Popen(cmd + ['--output-format', 'stream-json', '--verbose', '--include-partial-messages'], stdin=subprocess.PIPE,
                          stdout=subprocess.PIPE, stderr=errf, text=True, encoding='utf-8', errors='replace',
                          cwd=store.HOME, env=env, **store.NOWIN)
+    _started(p)
     killer = threading.Timer(timeout, lambda: store.kill_tree(p))
     killer.start()
     parts, result, n = [], None, 0
@@ -373,6 +428,7 @@ def _claude_stream(cmd, text, timeout, env, sink):
     finally:
         killer.cancel()
         store.kill_tree(p)   # no-op when it finished; never leaves a zombie or an orphaned node.exe
+        _ended(p)
         p.wait()
         p.stdout.close()
         errf.seek(0)
@@ -386,12 +442,14 @@ def agent_llm(text, timeout=600, fast=False, think=True):
     """Run one prompt on the user's own Claude Code or Codex subscription (no API key). Returns the reply text or None.
     fast: a short checking job, so Claude uses its quickest model. think=False: no extended thinking (a resume plan is as
     good without it and takes ~20 seconds instead of ~2 minutes); careful checks keep it."""
-    import subprocess
     import tempfile
     from . import agents, store
     if os.environ.get('APPLYTWIN_NO_AGENT'):   # tests: the same result on a laptop with Claude as on CI without it
         return None
     for name in agents.preferred(store.profile()):
+        timeout = _left(timeout)
+        if not timeout:   # cancelled, or out of time: the caller uses its built-in fallback
+            return None
         try:
             if name == 'claude':
                 # a one-shot plan doesn't need the biggest model; Sonnet is several times faster for this
@@ -404,19 +462,20 @@ def agent_llm(text, timeout=600, fast=False, think=True):
                         return reply
                     _llm_log('claude', type('R', (), {'returncode': 1, 'stderr': err, 'stdout': ''})())
                     continue
-                r = subprocess.run(base + ['--output-format', 'text'], input=text, capture_output=True,
-                                   text=True, encoding='utf-8', errors='replace', timeout=timeout, cwd=store.HOME, env=env, **store.NOWIN)
+                r = _run(base + ['--output-format', 'text'], text, timeout, env)
                 if r.returncode == 0 and r.stdout.strip():
                     return r.stdout
                 _llm_log('claude', r)
             else:
                 for _ in range(8):   # each refused model is remembered, so this walk happens once per machine
+                    if not _left(timeout):
+                        return None
                     with tempfile.NamedTemporaryFile('r', suffix='.txt', delete=False) as f:
                         out = f.name
                     cmd = [agents.exe('codex'), 'exec', '--skip-git-repo-check', '--ephemeral', '-s', 'read-only', '-o', out,
                            *agents.codex_model_args(), '-']
                     try:
-                        r = subprocess.run(cmd, input=text, capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=timeout, cwd=store.HOME, **store.NOWIN)
+                        r = _run(cmd, text, _left(timeout))
                         reply = open(out, encoding='utf-8').read() if os.path.exists(out) else ''
                     finally:   # also when it timed out: a temp file per call otherwise piles up
                         if os.path.exists(out):

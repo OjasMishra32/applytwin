@@ -125,25 +125,59 @@ def push():
     return {"ok": True}
 
 
+def _blank(v):
+    return v is None or v == '' or v == [] or v == {}
+
+
+def fill(local, cloud):
+    """Field by field: what this computer has always stays; the cloud copy only fills what's blank or missing here
+    (someone who answered setup questions before signing in must never lose them to an older cloud copy)."""
+    if not isinstance(local, dict) or not isinstance(cloud, dict):
+        return cloud if _blank(local) else local
+    out = dict(local)
+    for k, v in cloud.items():
+        out[k] = fill(local.get(k), v) if k in local else v
+    return out
+
+
+def merge_answers(local, cloud):
+    """Your answers here, plus the ones you wrote on another computer that this one doesn't have."""
+    keys = {r.get('key') for r in local if r.get('key')}
+    qs = {(r.get('question') or '').strip().lower() for r in local}
+    return list(local) + [r for r in cloud or [] if isinstance(r, dict) and r.get('source') == 'user' and r.get('key') not in keys
+                          and (r.get('key') or (r.get('question') or '').strip().lower() not in qs)]
+
+
 def pull():
-    """On sign-in: if this machine has no vault yet, restore everything from the cloud."""
+    """On sign-in: bring in what the cloud copy has and this computer doesn't. Never overwrites anything already filled
+    in here, and keeps a backup of each file it changes. Returns True when anything came from the cloud."""
     t = token()
     s = _session()
     rows = _req('GET', f"/rest/v1/applytwin_accounts?user_id=eq.{s['user']['id']}&select=*", t)
     if not rows:
         return False
-    r = rows[0]
-    local = store.resume()
-    if not (local.get('experience') or local.get('projects')) and (r.get('vault') or {}).get('experience') is not None:
-        store.save('resume.json', r['vault'])
-        if r.get('profile'):
-            store.save('profile.json', r['profile'])
-        if r.get('answers'):
-            store.save('answers.json', r['answers'])
-        if r.get('learnings'):
-            store.save('learnings.json', r['learnings'])
-        return True
-    return False
+    r, changed = rows[0], False
+
+    def put(name, old, new):
+        nonlocal changed
+        if new != old:
+            store.backup_file(name)
+            store.save(name, new)
+            changed = True
+    # the vault: entries are never mixed (two copies of each role); the cloud's fills an empty vault, basics merge by field
+    local_v = store.load('resume.json', None) or {}
+    if not store._has_content(local_v) and store._has_content(r.get('vault')):
+        put('resume.json', local_v, fill(local_v, r['vault']))
+    if isinstance(r.get('profile'), dict):   # the raw file: a field never saved here counts as blank, not as its default
+        local_p = store.load('profile.json', None) or {}
+        put('profile.json', local_p, fill(local_p, r['profile']))
+    if isinstance(r.get('answers'), list):
+        local_a = store.load('answers.json', None) or []
+        put('answers.json', local_a, merge_answers(local_a, r['answers']))
+    if isinstance(r.get('learnings'), dict):
+        local_l = store.load('learnings.json', None) or {}
+        put('learnings.json', local_l, fill(local_l, r['learnings']))
+    return changed
 
 
 def upload(local_path, key):

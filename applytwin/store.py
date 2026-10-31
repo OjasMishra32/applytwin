@@ -144,6 +144,38 @@ def backup_vault():
             pass
 
 
+def backup_file(name):
+    """A copy of any data file (profile, answers, learnings) in backups/ before something replaces it (last 30 kept)."""
+    if name == 'resume.json':
+        return backup_vault()
+    cur = path(name)
+    if not os.path.exists(cur):
+        return
+    import shutil
+    d = path('backups')
+    os.makedirs(d, exist_ok=True)
+    stem = os.path.splitext(name)[0]
+    shutil.copy2(cur, os.path.join(d, stem + time.strftime('-%Y%m%d-%H%M%S.json')))
+    for f in sorted(f for f in os.listdir(d) if f.startswith(stem + '-'))[:-30]:
+        try:
+            os.remove(os.path.join(d, f))
+        except OSError:
+            pass
+
+
+@contextlib.contextmanager
+def quiet_pypdf():
+    """pypdf logs "EOF marker not found" and the like for every damaged PDF it's handed; callers report those themselves."""
+    import logging
+    lg = logging.getLogger('pypdf')
+    old = lg.level
+    lg.setLevel(logging.CRITICAL)
+    try:
+        yield
+    finally:
+        lg.setLevel(old)
+
+
 def vault_backups():
     d = path('backups')
     out = []
@@ -392,7 +424,7 @@ def latest_status(job_id):
     return (rows('select status, notes, at from applications where job_id=? order by at desc, id desc limit 1', (job_id,)) or [None])[0]
 
 
-def log_application(job_id, status, notes='', resume_path='', agent=False):
+def log_application(job_id, status, notes='', resume_path='', agent=False, company='', title=''):
     status, notes = normalize_status(status, notes or '')
     if agent and status in ('Needs User', 'Skipped', 'Failed'):
         # an agent re-opening a submitted application (a refill, a duplicate posting) never turns it back into "not applied"
@@ -401,6 +433,11 @@ def log_application(job_id, status, notes='', resume_path='', agent=False):
             return {"ok": False, "status": last['status'], "note": f"Already {last['status']} on "
                     f"{time.strftime('%Y-%m-%d', time.localtime(last['at']))}; kept. Never submit this one again."}
     j = (rows('select * from jobs where id=?', (job_id,)) or [{}])[0]
+    if not j:   # not in the job list (added elsewhere, or removed since): the caller's names, else its last application's
+        prev = (rows('select company, title, url from applications where job_id=? order by at desc, id desc limit 1', (job_id,)) or [{}])[0]
+        j = {'company': company or prev.get('company') or '', 'title': title or prev.get('title') or '', 'url': prev.get('url') or ''}
+        if not (j['company'] or j['title']):
+            raise RuntimeError(f"ApplyTwin doesn't know job {job_id}. Add it first, or send its company and title with the log.")
     execute('insert into applications(job_id,company,title,url,status,resume_path,notes,at) values(?,?,?,?,?,?,?,?)',
             (job_id, j.get('company', ''), j.get('title', ''), j.get('apply_url') or j.get('url', ''),
              status, resume_path, notes, time.time()))
@@ -444,8 +481,20 @@ def applied_count_today():
     return rows(f"select count(distinct job_id) n from applications where {COUNTED} and at>?", (start,))[0]['n']
 
 
+CYCLE_SECS = 270 * 86400   # one recruiting cycle (~9 months): last season's applications don't use up this season's cap
+
+
+def company_counts():
+    """company key -> applications that count toward its cap in the current recruiting cycle."""
+    from .match import company_key
+    out = {}
+    for r in rows(f"select company, count(distinct job_id) n from applications where {COUNTED} and at>? group by company",
+                  (time.time() - CYCLE_SECS,)):
+        k = company_key(r['company'] or '')
+        out[k] = out.get(k, 0) + r['n']
+    return out
+
+
 def company_count(company):
     from .match import company_key
-    k = company_key(company)
-    return sum(r['n'] for r in rows(f"select company, count(distinct job_id) n from applications where {COUNTED} group by company")
-               if company_key(r['company']) == k)
+    return company_counts().get(company_key(company or ''), 0)

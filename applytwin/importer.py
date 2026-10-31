@@ -40,7 +40,8 @@ def extract_text(name='', data=None, text=None):
     if low.endswith('.pdf') or raw[:4] == b'%PDF':
         try:
             from pypdf import PdfReader
-            return '\n'.join(p.extract_text() or '' for p in PdfReader(io.BytesIO(raw)).pages), None
+            with store.quiet_pypdf():   # a damaged PDF gets our own message below, not pypdf's log line
+                return '\n'.join(p.extract_text() or '' for p in PdfReader(io.BytesIO(raw)).pages), None
         except ImportError:
             import shutil
             import subprocess
@@ -411,6 +412,64 @@ def clean_location(loc, name=''):
     return f"{' '.join(city)}, {rest}" if city else loc
 
 
+IMPORT = {}   # the agent read running now: {"t0", "avg", "limit", "chars"}
+
+
+def _import_secs():
+    """How long your agent usually takes to read a resume on this computer (learned from finished imports)."""
+    t = store.load('import_timing.json', {}) or {}
+    return float(t.get('avg') or 40.0)
+
+
+def import_progress():
+    """For the page: time left from how long reads take here, honest when it runs long, and how much has been written."""
+    if not IMPORT:
+        return {"running": False}
+    el, avg = time.time() - IMPORT['t0'], IMPORT['avg']
+    return {"running": True, "elapsed": round(el, 1), "eta": round(max(avg - el, min(20.0, 0.15 * el + 3)), 1),
+            "slow": el > avg * 1.5 + 10, "limit": round(IMPORT['limit']), "written": IMPORT.get('chars', 0)}
+
+
+def cancel_import():
+    """Stop the agent's read; the import carries on at once with the built-in reader."""
+    from . import tailor
+    return tailor.cancel('import') if IMPORT else {"cancelled": False}
+
+
+def _agent_read(txt):
+    """Your agent structures the resume, within a time limit (3x its usual time, 90 s to 4 min) and cancellable.
+    Returns (parsed or None, why it fell back or '')."""
+    from . import tailor
+    avg = _import_secs()
+    limit = min(240.0, max(90.0, avg * 3))
+    tailor.CANCELLED.discard('import')
+    IMPORT.update(t0=time.time(), avg=avg, limit=limit, chars=0)
+    tailor._SINK.tag, tailor._SINK.deadline = 'import', time.time() + limit
+    tailor._SINK.fn = lambda n, parts: IMPORT.__setitem__('chars', n)   # Claude streams, so the page sees it writing
+    parsed, err = None, False
+    try:
+        parsed = tailor.call_llm(LLM_PROMPT + txt[:24000], timeout=limit, think=False)   # structuring needs no extended thinking
+    except Exception:
+        err = True
+    finally:
+        took = time.time() - IMPORT['t0']
+        for a in ('tag', 'deadline', 'fn'):
+            setattr(tailor._SINK, a, None)
+        tailor.RUNNING.pop('import', None)
+        IMPORT.clear()
+    if parsed:
+        t = store.load('import_timing.json', {}) or {}
+        n = int(t.get('n') or 0)
+        store.save('import_timing.json', {"avg": took if not n else 0.6 * float(t.get('avg') or took) + 0.4 * took, "n": n + 1})
+        return parsed, ''
+    if 'import' in tailor.CANCELLED:
+        tailor.CANCELLED.discard('import')
+        return None, ' You stopped your agent, so the built-in reader read it instead.'
+    if took >= limit - 1:
+        return None, f' Your agent took over {limit / 60:.0f} minutes, so the built-in reader read it instead.'
+    return None, " Your agent couldn't read it" + (' (it hit an error)' if err else '') + ', so the built-in reader did.'
+
+
 def import_resume(name='', data=None, text=None):
     from . import match, tailor
     txt, source_tex = extract_text(name, data, text)
@@ -422,14 +481,11 @@ def import_resume(name='', data=None, text=None):
             f.write(source_tex)
     from . import api
     api.save_dump(f'# imported: {name or "pasted text"}\n{txt}')
-    structured, parsed = False, None
+    structured, parsed, why = False, None, ''
     from . import agents
     if os.environ.get('ANTHROPIC_API_KEY') or os.environ.get('OPENAI_API_KEY') or agents.any_ready():
-        try:
-            parsed = tailor.call_llm(LLM_PROMPT + txt[:24000])
-            structured = bool(parsed)
-        except Exception:
-            parsed = None
+        parsed, why = _agent_read(txt)
+        structured = bool(parsed)
     if not parsed:
         parsed = parse(txt)
     b = parsed.get('basics') or {}
@@ -451,4 +507,5 @@ def import_resume(name='', data=None, text=None):
     found = ', '.join(f'{n} {k}' for k, n in counts.items() if n)
     return {"structured": True, "ai": structured, "vault": vault, "counts": counts, "name": b.get('name', ''), "suggest_roles": suggest,
             "latex_source": bool(source_tex), "filled": sorted(patch),
-            "message": f"Found {found or 'your details'}." + ('' if structured else ' Check it in Resume Studio; your agent can polish it.')}
+            "fallback": why.strip(),
+            "message": f"Found {found or 'your details'}." + why + ('' if structured else ' Check it in Resume Studio; your agent can polish it.')}

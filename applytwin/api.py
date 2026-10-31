@@ -300,14 +300,27 @@ def company_cap(company, cap):
     k = match.company_key(company or '')
     hit = _limits.get(k)
     if not hit or time.time() - hit[0] > 600:
-        lim = match.application_limit(company)
-        for r in store.rows("select description from jobs where company=? and (description like '%only one%' or description like "
-                            "'%no more than%' or description like '%per candidate%' or description like '%maximum of%' or description "
-                            "like '%single role%' or description like '%one role%' or description like '%per applicant%') limit 20", (company,)):
-            n = match.application_limit('', r['description'])
-            lim = min(lim, n) if lim and n else (lim or n)
-        hit = _limits[k] = (time.time(), lim)
+        lim, n = match.application_limit(company), _posting_limits().get(k)
+        hit = _limits[k] = (time.time(), min(lim, n) if lim and n else (lim or n))
     return min(cap, hit[1]) if hit[1] else cap
+
+
+_posted = [0.0, {}]   # (when read, company key -> the lowest limit any of its postings states)
+
+
+def _posting_limits():
+    """Limits written in postings, by company KEY (every spelling: "Jane Street", "Jane Street Capital, LLC"), read in one
+    pass every 10 minutes instead of one query per company."""
+    if time.time() - _posted[0] > 600:
+        out = {}
+        for r in store.rows("select company, description from jobs where description like '%only one%' or description like "
+                            "'%no more than%' or description like '%per candidate%' or description like '%maximum of%' or description "
+                            "like '%single role%' or description like '%one role%' or description like '%per applicant%'"):
+            n, k = match.application_limit('', r['description']), match.company_key(r['company'] or '')
+            if n:
+                out[k] = min(out.get(k, n), n)
+        _posted[:] = [time.time(), out]
+    return _posted[1]
 
 
 def next_jobs(n=10):
@@ -321,12 +334,12 @@ def next_jobs(n=10):
         return {"remaining_today": 0, "jobs": [], "note": "Today's limit is reached (counting applications in progress). Stop here."}
     for r in store.rows('select j.company from claims c join jobs j on j.id=c.job_id where c.at>?', (time.time() - store.CLAIM_TTL,)):
         per[match.company_key(r['company'] or '')] = per.get(match.company_key(r['company'] or ''), 0) + 1   # in progress counts too
-    skip = p['search'].get('companies_skip', [])
+    skip, applied = p['search'].get('companies_skip', []), store.company_counts()
     for j in list_jobs(status='new', limit=400):
         if already_done(j, done, ids) or any(match.same_company(s, j['company']) for s in skip):
             continue
         c = match.company_key(j['company'])
-        if store.company_count(j['company']) + per.get(c, 0) >= company_cap(j['company'], cap):
+        if applied.get(c, 0) + per.get(c, 0) >= company_cap(j['company'], cap):
             continue
         if store.rows('select 1 from claims where job_id=?', (j['id'],)):
             continue
@@ -583,12 +596,15 @@ def release_claims(since=0.0, older_than=None, who=None):
             continue
         if r['at'] < since or (older_than and time.time() - r['at'] < older_than):
             continue
-        store.log_application(r['job_id'], 'Needs User', 'The run ended before this one was finished. Check whether it was '
-                                                         'submitted; if not, press Refill or tell your twin to finish it.')
+        try:
+            store.log_application(r['job_id'], 'Needs User', 'The run ended before this one was finished. Check whether it was '
+                                                             'submitted; if not, press Refill or tell your twin to finish it.')
+        except RuntimeError:   # the job is gone from the list: nothing to show, just drop the claim
+            store.execute('delete from claims where job_id=?', (r['job_id'],))
 
 
-def log_application(job_id, status='Applied', notes='', resume_path='', agent=False):
-    out = store.log_application(job_id, status, notes, resume_path, agent=agent)
+def log_application(job_id, status='Applied', notes='', resume_path='', agent=False, company='', title=''):
+    out = store.log_application(job_id, status, notes, resume_path, agent=agent, company=company, title=title)
     if not out.get('ok'):
         return out
     if agent and out['status'] in ('Needs User', 'Skipped', 'Failed') and not store.normalize_status(status, notes or '')[1].strip():
@@ -821,16 +837,23 @@ def import_resume(name='', data=None, text=None):
     return importer.import_resume(name, data, text)
 
 
+def import_progress():
+    from . import importer
+    return importer.import_progress()
+
+
+def cancel_import():
+    from . import importer
+    return importer.cancel_import()
+
+
 def queue(n=50, for_agent=False):
     """Everything worth applying to, in order: dream companies first, then by fit. Respects caps and the skip list."""
     p = store.profile()
     dream = p['search'].get('companies_priority', [])
     cap = p['apply'].get('per_company_cap', 3)
     rows = list_jobs(status='new', limit=20000)
-    applied = {}
-    for r in store.rows(f"select company, count(distinct job_id) n from applications where {store.COUNTED} group by company"):
-        k = match.company_key(r['company'])
-        applied[k] = applied.get(k, 0) + r['n']
+    applied = store.company_counts()   # this recruiting cycle's applications, by company key
     claimed = {r['job_id'] for r in store.rows('select job_id from claims')}
     out, per, done, ids = [], {}, done_roles(), done_url_ids()
     skip = p['search'].get('companies_skip', [])

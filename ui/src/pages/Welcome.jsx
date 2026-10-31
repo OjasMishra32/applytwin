@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { toast } from 'sonner'
 import { ArrowLeft, Check, Copy, FileText, Loader2 } from 'lucide-react'
 import { AgentConnect } from '../components/AgentConnect'
+import { ImportWait } from '../components/ImportWait'
 import { api } from '../lib/api'
 import { useApp } from '../App'
 import { Sky } from '../components/Sky'
@@ -55,6 +56,7 @@ export default function Welcome() {
     setBusy(true)
     try {
       const r = await api('/api/import', body); setImp(r); setPasted(null)
+      if (r.fallback) toast(r.fallback, { description: 'Check it in Resume Studio; your agent can polish it later.' })
       if (r.vault) setState(st => ({ ...st, vault: r.vault }))
       const fresh = (await api('/api/state')).profile
       setP(x => ({ ...structuredClone(fresh), search: { ...fresh.search, roles: fresh.search.roles?.length ? fresh.search.roles : (r.suggest_roles || []) } }))
@@ -129,7 +131,7 @@ export default function Welcome() {
         {busy ? <div className="grid place-items-center rounded-[24px] bg-white/[.05] py-16 ring-1 ring-white/10 backdrop-blur"><Loader2 className="size-8 animate-spin text-signal" />
           <AnimatePresence mode="wait"><motion.div key={tick} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
             className="mt-4 text-[16px] text-white/80">{READING[Math.min(tick, READING.length - 1)]}</motion.div></AnimatePresence>
-          <div className="mt-1 text-[13px] text-faint">About half a minute</div></div>
+          <ImportWait className="mt-1 text-center text-[13px] text-faint" /></div>
           : imp ? <motion.div initial={{ opacity: 0, y: 10, scale: .98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={SPRING}
             className="rounded-[24px] bg-white/[.06] p-7 text-center ring-1 ring-white/10 backdrop-blur">
             <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ ...SPRING, delay: .1 }} className="mx-auto grid size-12 place-items-center rounded-full bg-good text-white"><Check className="size-6" strokeWidth={3} /></motion.div>

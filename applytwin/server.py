@@ -36,6 +36,7 @@ GET = {
     r'/api/answers': lambda m, qs, b: api.get_answers(),
     r'/api/applications': lambda m, qs, b: api.applications(history=_q(qs, 'history') == '1'),
     r'/api/scan': lambda m, qs, b: api.scan_status(),
+    r'/api/import': lambda m, qs, b: api.import_progress(),
     r'/api/dump': lambda m, qs, b: {"text": api.get_dump()},
     r'/api/ats': lambda m, qs, b: api.ats_report(),
     r'/api/next': lambda m, qs, b: api.next_jobs(int(_q(qs, 'n', 10))),
@@ -68,10 +69,12 @@ POST = {
     r'/api/jobs/([\w-]+)/status': lambda m, qs, b: api.set_job_status(m.group(1), b['status']),
     r'/api/jobs/([\w-]+)/tailor': lambda m, qs, b: api.tailor_apply(m.group(1), b.get('plan'), b.get('template'), b.get('mode', 'auto'), bool(b.get('fresh'))),
     r'/api/jobs/([\w-]+)/prompt': lambda m, qs, b: api.tailor_prompt(m.group(1)),
-    r'/api/jobs/([\w-]+)/log': lambda m, qs, b: api.log_application(m.group(1), b.get('status', 'Applied'), b.get('notes', '')),
+    r'/api/jobs/([\w-]+)/log': lambda m, qs, b: api.log_application(m.group(1), b.get('status', 'Applied'), b.get('notes', ''),
+                                                                       company=b.get('company', ''), title=b.get('title', '')),
     r'/api/render': lambda m, qs, b: api.render_resume(b.get('template'), b.get('job_id')),
     r'/api/ats': lambda m, qs, b: api.ats_report(b.get('job_id'), b.get('jd'), b.get('resume')),
     r'/api/import': lambda m, qs, b: api.import_resume(b.get('name', ''), b.get('data'), b.get('text')),
+    r'/api/import/cancel': lambda m, qs, b: api.cancel_import(),
     r'/api/run': lambda m, qs, b: api.start_run(b.get('agent', 'claude'), int(b.get('n', 25))),
     r'/api/run/stop': lambda m, qs, b: api.stop_run(),
     r'/api/update': lambda m, qs, b: update_now(),
@@ -170,7 +173,7 @@ class H(BaseHTTPRequestHandler):
                 if u.path not in _UNKNOWN:   # say it once per path, not on every poll
                     _UNKNOWN.add(u.path)
                     print(f'Unknown request: GET {u.path} (an old tab? reload it)', flush=True)
-                self._send(404, {"error": "ApplyTwin is switching to a new version. Try again in a few seconds."})
+                self._send(404, {"error": not_found()})
             return
         if u.path == '/preview':
             try:
@@ -199,17 +202,42 @@ class H(BaseHTTPRequestHandler):
         except ValueError:
             return self._send(400, {"error": "bad json"})
         if self._route(POST, body) is None:
-            self._send(404, {"error": "ApplyTwin is switching to a new version. Try again in a few seconds."})
+            self._send(404, {"error": not_found()})
+
+
+_RESTARTING = []   # non-empty once this process is handing over to new code
+
+
+def not_found():
+    """An unknown API request: "switching versions" only while an update or restart is really under way (an old tab during
+    one); otherwise it's a plain not-found."""
+    try:
+        busy = bool(_RESTARTING) or _code_stamp() > _STARTED_CODE + 1 or os.path.exists(
+            os.path.join(os.path.dirname(store.APP), '.applytwin-updating'))
+    except OSError:   # the app folder is being swapped right now
+        busy = True
+    if busy:
+        return "ApplyTwin is switching to a new version. Try again in a few seconds."
+    return "ApplyTwin doesn't know that request. Reload the page; if it keeps happening, update ApplyTwin in Settings."
+
+
+def _restart_cmd():
+    """(folder, argv) to start again on the new code: `python -m applytwin <same args>` from the install folder, never the
+    old argv[0] relative to a working directory the update may have replaced or deleted."""
+    return store.APP, [os.path.abspath(sys.executable), '-m', 'applytwin'] + sys.argv[1:]
 
 
 def _restart():
     """Start again on the new code. The new process waits for this one's port instead of picking another."""
+    _RESTARTING.append(1)
     os.environ['APPLYTWIN_RESTART'] = '1'
+    cwd, argv = _restart_cmd()
+    os.chdir(cwd)
     if os.name == 'nt':
         import subprocess
-        subprocess.Popen([sys.executable] + sys.argv, env=os.environ.copy())
+        subprocess.Popen(argv, env=os.environ.copy(), cwd=cwd)
         os._exit(0)
-    os.execv(sys.executable, [sys.executable] + sys.argv)
+    os.execv(argv[0], argv)
 
 
 def _self_update(restart=True):
