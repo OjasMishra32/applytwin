@@ -1356,7 +1356,7 @@ def help_prompt(text):
             f"Recent errors from their agent calls: {errs or 'none'}\n\n"
             f"The conversation so far:\n{convo}\n\n"
             "Do what their last message asks. Then answer with applytwin_reply('help', text): two or three plain sentences on "
-            "what you found and what you did, and anything they still need to do.")
+            "what you found and what you did, and anything they still need to do. Plain words, no em dashes, no markdown.")
 
 
 def message(job_id, text):
