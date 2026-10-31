@@ -1166,6 +1166,8 @@ def pick_agent(agent):
 
 
 def start_run(agent='claude', n=25, model=None, prompt=None, restarts=0):
+    if agent not in agents.NAMES:   # only ever Claude Code or Codex, never another program named in a request
+        raise ValueError('unknown agent')
     with _RUN_LOCK:   # two clicks at once must never start two agents on one browser
         return _start_run(agent, n, model, prompt, restarts)
 

@@ -22,7 +22,7 @@ def _get(url, timeout=8):
 
 
 def is_checkout():
-    return os.path.isdir(os.path.join(APP, '.git'))
+    return os.path.exists(os.path.join(APP, '.git'))   # in a git worktree .git is a file; updating would overwrite the checkout
 
 
 def installed():
