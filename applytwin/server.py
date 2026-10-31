@@ -59,6 +59,7 @@ GET = {
     r'/api/agents': lambda m, qs, b: api.agent_status(),
     r'/api/auth': lambda m, qs, b: cloud.status(),
     r'/api/inbox': lambda m, qs, b: api.inbox_poll(),
+    r'/api/needs-you': lambda m, qs, b: api.needs_you(),
     r'/api/jobs/([\w-]+)/thread': lambda m, qs, b: {"thread": api.thread(m.group(1))},
     r'/api/auth/login': lambda m, qs, b: {"url": cloud.login_url(_login_redirect(_q(qs, 'redirect', 'http://localhost:4747/')))},
 }
@@ -89,6 +90,7 @@ POST = {
     r'/api/run/stop': lambda m, qs, b: api.stop_run(),
     r'/api/update': lambda m, qs, b: update_now(),
     r'/api/finish': lambda m, qs, b: api.finish_jobs(b.get('job_ids') or [], bool(b.get('submit'))),
+    r'/api/finish/site': lambda m, qs, b: api.finish_site(b.get('site') or '', bool(b.get('submit'))),
     r'/api/open-twin': lambda m, qs, b: api.open_in_twin_browser(b['url']),
     r'/api/history': lambda m, qs, b: api.import_history(text=b.get('text', '')),
     r'/api/agents/(claude|codex)/connect': lambda m, qs, b: api.connect_agent(m.group(1)),

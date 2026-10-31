@@ -16,3 +16,5 @@
 - Steps are paginated (Contact, Resume, Questions, EEO, Review). Upload the PDF on the resume step, verify the
   parsed fields, answer questions from the bank, and stop at Review unless auto_submit.
 - "You have already applied for this job" = duplicate: log Skipped "duplicate: already applied on iCIMS".
+- "This job is no longer accepting applications" = log Skipped "closed: ...".
+- Profile step with a resume already on file: replace it with the tailored PDF (Remove, then upload) and confirm the name.

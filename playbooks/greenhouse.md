@@ -16,4 +16,10 @@
 - Verify chosen values via `[class*=single-value]` / `[class*=multi-value]` text before submitting.
 - Upload the resume LAST; after upload take a screenshot so keyboard focus returns to the page.
 - Submit: click "Submit application"; success = URL contains /confirmation or a thank-you message.
-- Email security code page = hard stop (Needs User). It appears after many rapid submits; slow down.
+- Email security code page = hard stop unless `email_codes` is `agent` (Needs User, notes "emailed code at <url>",
+  form left filled). It appears after several rapid submits from one browser: `applytwin_next_jobs` already spaces
+  Greenhouse jobs out; keep 4-5 minutes between Greenhouse submits and do other ATSes in between.
+- Graduation date/year selects that stop before the user's year: pass the options to `applytwin_answer_questions`;
+  `action: "knockout"` = log Skipped with its `skip_reason`. If "Other" is offered, pick it and type the real date.
+- "There was an error processing your application" on submit: wait a minute, submit once more; still failing = log
+  Failed with that message (it is retried later), never hammer the button.

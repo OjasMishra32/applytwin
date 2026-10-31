@@ -6,7 +6,7 @@ import threading
 import time
 
 from . import answers as ans
-from . import agents, ats, learn, match, render, sources, store, tailor
+from . import agents, ats, blockers, learn, match, render, sources, store, tailor
 
 APP = store.APP
 _scan = {"running": False, "stats": None, "started": None, "finished": None}
@@ -117,12 +117,13 @@ def answer_questions(questions, job_id=None, notify_user=True):
     """questions: list of strings or {question, options}. Returns an answer (or 'ask') for each. When a form asks
     something you haven't told ApplyTwin, you get a 'Needs you' item saying exactly what to add (once per question)."""
     bank = store.answers()
+    ctx = answer_context(job_id)
     out = []
     for q in questions or []:
         if isinstance(q, dict):
-            out.append(ans.match(q.get('question') or q.get('label', ''), bank, q.get('options')))
+            out.append(ans.match(q.get('question') or q.get('label', ''), bank, q.get('options'), ctx))
         else:
-            out.append(ans.match(q, bank))
+            out.append(ans.match(q, bank, None, ctx))
     profile_keys = {r['key'] for r in ans.default_bank(store.profile())}
     for r in out:
         if notify_user and r.get('answer') is None and (r.get('action') or '').startswith('ask'):   # open-ended ones the agent writes; never ask
@@ -134,6 +135,24 @@ def answer_questions(questions, job_id=None, notify_user=True):
                                "Answer it on the Answers page; your twin reuses it everywhere."),
                        job_id=job_id or '', kind='question')
     return out
+
+
+def answer_context(job_id):
+    """What ApplyTwin itself knows about the user and this job's company, for company-specific questions: whether the
+    vault lists a job there ("Have you worked for X?") and whether ApplyTwin's records show an application there."""
+    j = (store.rows('select company from jobs where id=?', (job_id,)) or [None])[0] if job_id else None
+    if not j or not j.get('company'):
+        return {}
+    co = j['company']
+    vault = store.resume()
+    orgs = [e.get('org') or e.get('company') or '' for e in (vault.get('experience') or [])]
+    applied = any(match.same_company(r['company'] or '', co) for r in store.rows(
+        "select company from applications where job_id!=? and status in ('Applied','Interview','OA','Offer','Rejected')", (job_id,)))
+    applied = applied or any(match.same_company(r.get('company') or '', co) for r in applied_elsewhere())
+    ctx = {"company": co, "applied_before": applied}
+    if orgs:   # without a vault there is nothing to check against: the bank's answer stands
+        ctx['worked_here'] = any(o and match.same_company(o, co) for o in orgs)
+    return ctx
 
 
 def profile_questions():
@@ -251,6 +270,18 @@ def job_for_agent(job_id):
     if last and last['status'] in store.OUTCOMES:
         j['already_applied'].insert(0, {"job_id": job_id, "title": j['title'], "status": last['status'],
                                         "on": time.strftime('%Y-%m-%d', time.localtime(last['at']))})
+    if last and last['status'] == 'Needs User':   # coming back to one: pick up where it stopped instead of starting over
+        j['resume_from'] = {"blocker": blockers.classify(last.get('notes')), "notes": (last.get('notes') or '')[:400],
+                            "how": "Continue this application where it stopped: reuse the open tab if it is still there, keep "
+                                   "what is filled, fix only what is missing. If the site now shows it as submitted, log Applied "
+                                   "(never submit twice)."}
+    h = blockers.host(j.get('apply_url') or j.get('url'))
+    if h and h in blocked_hosts() and not j.get('resume_from'):
+        j['site_waiting'] = (f"Another application on {h} is waiting for the user to sign in. If this one asks for a sign-in too, "
+                             "don't stop to report it separately: log Needs User 'sign-in required at <url> (same site)', and move on.")
+    if blockers.homepage_link(j.get('apply_url') or j.get('url')):
+        j['link_warning'] = ("This link only opens the company homepage. Look for this exact role on the company's careers page "
+                             "once; if it isn't there, log Skipped 'Broken link: listing points to the company homepage'.")
     return j
 
 
@@ -285,9 +316,9 @@ def job_questions(job_id):
         opts = [v.get('label') for f in q.get('fields', []) for v in (f.get('values') or [])]
         qs.append({"question": q.get('label'), "required": q.get('required'), "options": opts,
                    "type": (q.get('fields') or [{}])[0].get('type')})
-    bank = store.answers()
+    bank, ctx = store.answers(), answer_context(job_id)
     for q in qs:
-        q['suggested'] = ans.match(q['question'], bank, q['options'] or None)
+        q['suggested'] = ans.match(q['question'], bank, q['options'] or None, ctx)
     return qs
 
 
@@ -334,9 +365,19 @@ def next_jobs(n=10):
         return {"remaining_today": 0, "jobs": [], "note": "Today's limit is reached (counting applications in progress). Stop here."}
     for r in store.rows('select j.company from claims c join jobs j on j.id=c.job_id where c.at>?', (time.time() - store.CLAIM_TTL,)):
         per[match.company_key(r['company'] or '')] = per.get(match.company_key(r['company'] or ''), 0) + 1   # in progress counts too
+    down = browser_down()
+    if down:
+        return {"remaining_today": left, "jobs": [], "stop": True, "note": down}
     skip, applied = p['search'].get('companies_skip', []), store.company_counts()
+    waiting, later, deferred = blocked_hosts(), retry_later(), {}
     for j in list_jobs(status='new', limit=400):
         if already_done(j, done, ids) or any(match.same_company(s, j['company']) for s in skip):
+            continue
+        if not_applyable(j, p) or j['id'] in later:   # a homepage link, a clear knockout, or a page error retried later
+            continue
+        h = blockers.host(j.get('apply_url') or j.get('url'))
+        if h in waiting:   # this site is waiting for the user's sign-in: its other jobs would stop at the same wall
+            deferred[h] = deferred.get(h, 0) + 1
             continue
         c = match.company_key(j['company'])
         if applied.get(c, 0) + per.get(c, 0) >= company_cap(j['company'], cap):
@@ -347,7 +388,84 @@ def next_jobs(n=10):
         out.append(j)
         if len(out) >= min(n, left):
             break
-    return {"remaining_today": left, "jobs": out}
+    out = pace(out)
+    res = {"remaining_today": left, "jobs": out}
+    if deferred:
+        res['waiting_on_you'] = [{"site": h, "jobs": k, "blocker": waiting[h]} for h, k in deferred.items()]
+        res['note'] = ("Jobs on sites waiting for the user's sign-in or account are held back (waiting_on_you); they continue "
+                       "after the user signs in. Don't open them now.")
+    return res
+
+
+# ------------------------------------------------------------------ what real runs taught: skip early, wait smart
+
+def not_applyable(job, prof=None):
+    """Why the agent should never be handed this job, or '': its link is only a company homepage (no posting to apply to),
+    or its title/location rule the user out. Cheap: no description fetch. A job the user added by hand always goes through."""
+    if job.get('source') == 'manual':
+        return ''
+    if blockers.homepage_link(job.get('apply_url') or job.get('url')):
+        return 'Broken link: listing points to the company homepage, not the job posting.'
+    k = match.quick_knockouts(job, prof or store.profile())
+    return k[0] if k else ''
+
+
+def blocked_hosts():
+    """Sites (host -> blocker) where an application is waiting for the user's sign-in or account right now. Cleared when
+    the user resolves its Needs-you item, or once any application on that site goes through."""
+    out = {}
+    resolved = {r['job_id'] for r in store.rows('select job_id from inbox where resolved is not null and job_id is not null')}
+    open_items = {r['job_id'] for r in store.rows('select job_id from inbox where resolved is null and job_id is not null')}
+    since = time.time() - 24 * 3600
+    pend = pending_jobs()
+    for r in pend:
+        if r['at'] < since or (r['job_id'] in resolved and r['job_id'] not in open_items):
+            continue
+        cat = blockers.classify(r.get('notes'))
+        if cat in ('signin', 'account'):
+            h = blockers.host(r.get('url'))
+            if h:
+                out.setdefault(h, cat)
+    if out:   # a later success on the site means the user is signed in there now
+        for r in store.rows("select url, at from applications where status='Applied' and at>?", (since,)):
+            h = blockers.host(r['url'])
+            if h in out and any(blockers.host(p['url']) == h and p['at'] < r['at'] for p in pend):
+                out.pop(h, None)
+    return out
+
+
+RETRY_AFTER = 30 * 60   # a page that errored gets one more try, at least this much later
+
+
+def retry_later():
+    """Job ids that hit a page error or timeout and wait for their one retry."""
+    now = time.time()
+    return {k for k, v in (store.load('retries.json', {}) or {}).items() if now - v.get('at', 0) < RETRY_AFTER and v.get('n', 0) <= 1}
+
+
+def browser_down():
+    """The agent reported its browser tools unusable this run (twice): a note saying so, or ''."""
+    h = store.load('run_health.json', {}) or {}
+    if h.get('browser_failures', 0) >= 2 and time.time() - h.get('at', 0) < 3600:
+        return ("The browser tools failed twice in this run, so no more jobs are handed out (each would fail the same way). "
+                "Stop now: call applytwin_notify once with the browser error, then end the run. Jobs stay in the queue.")
+    return ''
+
+
+def pace(jobs):
+    """Order a batch so Greenhouse submits are spaced out: Greenhouse starts asking for emailed security codes after a few
+    rapid submits (the most common 'Needs you' in real runs). Two Greenhouse jobs never sit back to back when there is
+    anything else to do in between, and the first is pushed back if Greenhouse was just used."""
+    gh = lambda j: (j.get('ats') or '').lower() == 'greenhouse'
+    recent = store.rows("select url from applications where at>? order by at desc limit 3", (time.time() - 300,))
+    last_gh = bool(recent) and 'greenhouse' in (recent[0].get('url') or '')
+    rest, out = list(jobs), []
+    while rest:
+        pick = next((j for j in rest if not (last_gh and gh(j))), rest[0])
+        rest.remove(pick)
+        out.append(pick)
+        last_gh = gh(pick)
+    return out
 
 
 STOP = {'the', 'a', 'an', 'and', 'of', 'for', 'to', 'in', 'at', 'hq', 'remote', 'hybrid', 'onsite', 'us', 'usa'}
@@ -408,7 +526,7 @@ def already_done(job, done=None, ids=None):
 def claim(job_id, who='agent'):
     """The one gate every application passes: never twice, never a skipped company, never past today's limit or a
     company's cap."""
-    j = (store.rows('select id, company, title, status, url, apply_url from jobs where id=?', (job_id,)) or [None])[0]
+    j = (store.rows('select id, company, title, status, url, apply_url, source from jobs where id=?', (job_id,)) or [None])[0]
     if not j:
         return {"claimed": False, "reason": "No job with that id. Use an id from applytwin_next_jobs, or applytwin_add_job(url) first."}
     if j['status'] in ('needs user', 'failed'):
@@ -423,6 +541,13 @@ def claim(job_id, who='agent'):
         return {"claimed": True, "reason": "Already in progress: continue this application (check first that it wasn't submitted)."}
     if j and (j['status'] != 'new' or already_done(j)):
         return {"claimed": False, "reason": "You already applied to this role (or a listing of the same role). Skip it."}
+    down = browser_down()
+    if down:
+        return {"claimed": False, "stop": True, "reason": down}
+    if blockers.homepage_link(j.get('apply_url') or j.get('url')) and j['source'] != 'manual':
+        log_application(job_id, 'Skipped', 'Broken link: listing points to the company homepage, not the job posting.')
+        return {"claimed": False, "reason": "This listing's link is only the company homepage, so there is no posting to apply to. "
+                                            "Logged Skipped; take the next job."}
     p = store.profile()
     if j and any(match.same_company(s, j['company']) for s in p['search'].get('companies_skip', [])):
         return {"claimed": False, "reason": "The user asked never to apply to this company. Skip it."}
@@ -603,10 +728,65 @@ def release_claims(since=0.0, older_than=None, who=None):
             store.execute('delete from claims where job_id=?', (r['job_id'],))
 
 
+def triage(job_id, status, notes, agent=False):
+    """Read an agent's Needs User / Failed log the way real outcomes showed it should be read. Returns (status, notes, action)
+    where action is None (log it as given), 'requeue' (don't log: the job goes back to the queue) or 'skip' (re-filed as
+    Skipped). Only the user's real to-dos stay in Needs you:
+    - the posting is closed / the page doesn't exist / the link is a homepage / already applied -> Skipped (nothing to do)
+    - the agent's own browser tools failed -> back to the queue untouched, and after two the run is told to stop
+    - a page error or timeout (not on the submit step) -> back to the queue once, retried at least 30 minutes later."""
+    st, nt = store.normalize_status(status, notes or '')
+    if st not in ('Needs User', 'Failed'):
+        return st, nt, None
+    cat = blockers.classify(nt)
+    if cat in ('closed', 'broken_link', 'duplicate'):
+        prefix = {'closed': 'closed', 'broken_link': 'broken link', 'duplicate': 'duplicate'}[cat]
+        return 'Skipped', nt if nt.lower().startswith(prefix) else f'{prefix}: {nt}', 'skip'
+    if not agent:
+        return st, nt, None
+    if cat == 'browser':
+        return st, nt, 'requeue'
+    if cat == 'transient' and not re.search(r'submit|confirm|thank', nt, re.I) and \
+            (store.load('retries.json', {}) or {}).get(job_id, {}).get('n', 0) < 1:
+        return st, nt, 'requeue'
+    return st, nt, None
+
+
+def _requeue(job_id, cat, notes):
+    store.execute('delete from claims where job_id=?', (job_id,))
+    if cat == 'browser':
+        store.update('run_health.json', lambda h: {"browser_failures": (h or {}).get('browser_failures', 0) + 1, "at": time.time(),
+                                                   "last": (notes or '')[:300]}, {})
+        down = browser_down()
+        return {"ok": True, "status": "requeued", "requeued": True, "stop": bool(down),
+                "note": down or ("Your browser tools failed, which is not the user's to fix per job, so this job went back to the "
+                                 "queue unlogged. Check your browser tool once (open about:blank). If it works, continue; if it fails "
+                                 "again, log the next job the same way and ApplyTwin will tell you to stop.")}
+
+    def bump(r):
+        r = r or {}
+        r[job_id] = {"n": r.get(job_id, {}).get('n', 0) + 1, "at": time.time(), "why": (notes or '')[:200]}
+        return r
+    store.update('retries.json', bump, {})
+    return {"ok": True, "status": "requeued", "requeued": True,
+            "note": "A page error or timeout: this job goes back to the queue for one more try in 30+ minutes (not logged). Move on."}
+
+
 def log_application(job_id, status='Applied', notes='', resume_path='', agent=False, company='', title=''):
+    st, nt, action = triage(job_id, status, notes, agent)
+    if action == 'requeue' and store.rows('select 1 from jobs where id=?', (job_id,)):
+        last = store.latest_status(job_id)
+        if not (last and last['status'] in store.OUTCOMES):
+            return _requeue(job_id, blockers.classify(nt), nt)
+    if action == 'skip':
+        status, notes = st, nt
     out = store.log_application(job_id, status, notes, resume_path, agent=agent, company=company, title=title)
     if not out.get('ok'):
         return out
+    if action == 'skip':
+        out['note'] = "Filed as Skipped: nothing here for the user to do (closed posting, broken link or already applied)."
+    elif out['status'] == 'Needs User' and agent:
+        out['blocker'] = blockers.classify(notes)
     if agent and out['status'] in ('Needs User', 'Skipped', 'Failed') and not store.normalize_status(status, notes or '')[1].strip():
         out['warning'] = ("Log it again with notes saying exactly why (e.g. 'Workday sign-in required at <url>', 'hCaptcha on submit', "
                           "'graduation window Dec 2027 - Aug 2028; user graduates May 2029'), so the user knows what to do.")
@@ -768,7 +948,7 @@ def suggest_template(job):
 
 
 PLAYBOOK_ALIAS = {'jobvite': 'others', 'workable': 'others', 'rippling': 'others', 'paylocity': 'others', 'pinpoint': 'others',
-                  'gem': 'others', 'oracle': 'others', 'oraclecloud': 'others', 'oraclehcm': 'others', 'taleo': 'others',
+                  'gem': 'others', 'oraclecloud': 'oracle', 'oraclehcm': 'oracle', 'taleo': 'others',
                   'eightfold': 'others', 'successfactors': 'others', 'avature': 'others',
                   'community': 'general', 'manual': 'general', 'other': 'general'}
 
@@ -780,8 +960,16 @@ ALWAYS = """
   upload to a top-level temporary input and copy it over with a DataTransfer).
 - Before Submit: `applytwin_get_job` showed no `already_applied` and the site doesn't say "already applied". Duplicate =
   log Skipped "duplicate: <what you saw>".
-- Never type passwords, never solve CAPTCHAs, never type emailed codes unless `email_codes` is `agent`, never invent a fact
-  (birth date, a recommender's name): `applytwin_notify`, then log Needs User with the exact blocker and URL in notes.
+- Never type passwords, never solve CAPTCHAs, never type emailed codes unless `email_codes` is `agent`, never create an
+  account, never invent a fact (birth date, a recommender's name): fill everything else first, `applytwin_notify`, then log
+  Needs User with notes that START with the blocker ("sign-in required at <url>", "emailed code at <url>", "hCaptcha on
+  submit", "required question: <text>").
+- A resume already attached (from the site's profile or an earlier application) is not the tailored one: remove it, upload
+  the tailored PDF, and confirm the shown file name.
+- "Page doesn't exist", 404, "no longer accepting applications" = log Skipped "closed: <what you saw>", never Needs User.
+  A page error or timeout: reload once; still broken = log Failed with the error (ApplyTwin retries it later).
+- A graduation dropdown whose options all end before the user's grad year is the posting's graduation window:
+  `applytwin_answer_questions` returns `action: "knockout"` with a `skip_reason` to log as Skipped.
 """
 
 
@@ -860,7 +1048,7 @@ def queue(n=50, for_agent=False):
     for j in rows:
         c = match.company_key(j['company'])
         if (already_done(j, done, ids) or j['id'] in claimed or applied.get(c, 0) + per.get(c, 0) >= company_cap(j['company'], cap)
-                or any(match.same_company(s, j['company']) for s in skip)):
+                or any(match.same_company(s, j['company']) for s in skip) or not_applyable(j, p)):
             continue
         per[c] = per.get(c, 0) + 1
         j['dream'] = any(match.same_company(d, j['company']) for d in dream)
@@ -876,15 +1064,28 @@ _run = {"proc": None, "agent": None, "log": None, "stopped": False}
 
 def run_prompt(n):
     return (f"Use the applytwin-apply skill. Apply to the next {n} jobs in my ApplyTwin queue (applytwin_queue / applytwin_next_jobs), "
-            "dream companies first. For every job: claim it, get its tailored resume with applytwin_tailor_apply(job_id) and NO plan (a dedicated writer builds it while you open the application), "
-            "open the application in the browser, follow applytwin_playbook for its ATS, answer from applytwin_answer_questions, "
-            "submit only if my profile allows auto_submit, and log the result with applytwin_log_application. "
+            "dream companies first. FIRST check your browser tool works (open about:blank in your own tab). If it doesn't, call "
+            "applytwin_notify once with the exact error and stop: never log jobs as blocked because your browser is down. "
+            "For every job: claim it, get its tailored resume with applytwin_tailor_apply(job_id) and NO plan (a dedicated writer builds it while you open the application), "
+            "open the application in the browser, follow applytwin_playbook for its ATS, answer from applytwin_answer_questions (pass job_id, and the "
+            "options of every dropdown/radio), submit only if my profile allows auto_submit, and log the result with applytwin_log_application. "
             "If a site asks for an emailed verification code: if my profile.apply.email_codes is 'agent', read the newest code from that company "
             "in my email (your email/Gmail tool, or my webmail tab in the browser) and enter it; otherwise call applytwin_notify and move on. "
-            "For sign-ins, passwords, CAPTCHAs or anything only I can do: applytwin_notify, log Needs User, leave the tab open, and go straight to the next job. "
-            "Never wait for me and never retry a blocked page more than twice: anything that is not moving in a few minutes gets logged Needs User and skipped. "
-            "At the end, check applytwin_pending_jobs and finish any I have unblocked. Judge class-year and start-date requirements by my standing DURING the internship (applytwin_get_profile class_standing: a sophomore now is a rising junior next summer); skip only when I am clearly ineligible, and when unsure, apply. "
-            "A graduation window in the posting (applytwin_get_job knockouts, or text like 'graduating Dec 2027 - Aug 2028') that my grad date is outside of IS clearly ineligible: log Skipped with that exact reason. "
+            "For sign-ins, passwords, CAPTCHAs or anything only I can do: fill everything you can first (on a no-account form fill the whole form; "
+            "where an account is required, leave the tab on the sign-in / create-account page), then applytwin_notify, log Needs User with notes that "
+            "START with the blocker ('sign-in required at <url>', 'account required at <url>', 'emailed code at <url>', 'hCaptcha on submit', "
+            "'required question: <exact text>'), leave the tab open, and go straight to the next job. Never create an account or type a password. "
+            "applytwin_next_jobs holds back other jobs on a site that is waiting for my sign-in (waiting_on_you): don't go looking for them. "
+            "A posting that is closed or says the page doesn't exist: log Skipped 'closed: <what you saw>' (never Needs User). "
+            "A page error or timeout: reload once; if it persists, log Failed with the error (ApplyTwin retries it later by itself). "
+            "If a resume is already attached from an earlier application, remove it and upload the tailored PDF, then check the shown file name. "
+            "Never wait for me and never retry a blocked page more than twice: anything that is not moving in a few minutes gets logged and skipped. "
+            "If a tool result says stop, stop the run. "
+            "At the end, call applytwin_needs_you and tell me, grouped, what only I can do (one sign-in per site unblocks all its jobs); then "
+            "check applytwin_pending_jobs and finish any I have unblocked, continuing each where it stopped (applytwin_get_job resume_from). "
+            "Judge class-year and start-date requirements by my standing DURING the internship (applytwin_get_profile class_standing: a sophomore now is a rising junior next summer); skip only when I am clearly ineligible, and when unsure, apply. "
+            "A graduation window in the posting (applytwin_get_job knockouts, or text like 'graduating Dec 2027 - Aug 2028'), or a graduation dropdown "
+            "whose options all end before my grad date (applytwin_answer_questions says knockout), that my grad date is outside of IS clearly ineligible: log Skipped with that exact reason. "
             "If applytwin_get_job shows already_applied, or the site says I already applied, log Skipped as a duplicate and never submit twice. "
             "Never invent facts (no guessed birth dates or recommender names: log Needs User with the exact question). Give a 1-line update every 5 jobs.")
 
@@ -1256,6 +1457,7 @@ def _start_run(agent, n, model, prompt, restarts):
     if not (cloud.status()['signed_in'] or os.environ.get('APPLYTWIN_SKIP_SIGNIN') or os.environ.get('CI')):
         raise RuntimeError('Sign in first: open ApplyTwin (type applytwin in a terminal) and continue with Google.')
     prompt = prompt or run_prompt(n)
+    store.save('run_health.json', {})   # a new run gets a fresh chance at its browser
     if agent == 'claude':
         # runs on the user's own Claude subscription; only ApplyTwin's tools and a browser are pre-approved, so it never stalls on a prompt
         tools = ('mcp__plugin_applytwin_applytwin,mcp__applytwin,mcp__playwright,mcp__claude-in-chrome,'
@@ -1421,8 +1623,21 @@ _app_seen = [0.0]   # last time the app (open in a browser tab) checked its inbo
 def notify(title, message='', url='', job_id='', kind='needs_you'):
     """Tell the user something needs them (a code, a sign-in, a CAPTCHA, a question). In-app inbox, plus a notification:
     the open app shows its own (click it to answer); if the app isn't open, a system notification says where to go."""
+    # one ping per site and blocker: five NVIDIA jobs waiting on one Workday sign-in are one thing to do, not five alerts
+    cat = blockers.classify(f'{title}. {message}')
+    h = blockers.host(url or ((store.rows('select apply_url, url from jobs where id=?', (job_id,)) or [{}])[0].get('apply_url') or ''))
+    repeat = False
+    if h and cat in ('signin', 'account', 'email_code', 'captcha'):
+        for r in store.rows('select title, message, url, job_id from inbox where resolved is null and at>?', (time.time() - 6 * 3600,)):
+            ru = r['url'] or ((store.rows('select apply_url from jobs where id=?', (r['job_id'] or '',)) or [{}])[0].get('apply_url') or '')
+            if blockers.host(ru) == h and blockers.classify(f"{r['title']}. {r['message']}") == cat:
+                repeat = True
+                break
     store.execute('insert into inbox(kind,title,message,url,job_id,at) values(?,?,?,?,?,?)', (kind, title, message, url, job_id, time.time()))
     _say(job_id, 'twin', f"{title}. {message}".strip(' .') + '.' if message else title)
+    if repeat:
+        return {"ok": True, "batched": True, "note": f"The user already has a {blockers.LABELS.get(cat, cat).lower()} item for {h}; "
+                                                       "this one is grouped with it (no second alert). Log Needs User and move on."}
     if store.profile()['apply'].get('notify_desktop', True) and time.time() - _app_seen[0] > 60:
         from .install import notify as desk
         desk('ApplyTwin: ' + title, 'Open ApplyTwin (localhost:4747) to handle it. ' + (message or url))
@@ -1458,6 +1673,36 @@ def pending_jobs():
             seen.add(r['job_id'])
             out.append(r)
     return out
+
+
+def needs_you():
+    """Everything waiting on the user, batched so each thing is done once: one sign-in per site unblocks all of that site's
+    applications, one Answers-page visit covers every question. Groups are ordered by how many applications they unblock."""
+    groups = {}
+    for r in pending_jobs():
+        cat = blockers.classify(r.get('notes'))
+        h = blockers.host(r.get('url'))
+        key = (cat, h if cat in ('signin', 'account', 'email_code') else '')
+        g = groups.setdefault(key, {"blocker": cat, "label": blockers.LABELS.get(cat, cat), "site": key[1], "jobs": []})
+        g['jobs'].append({"job_id": r['job_id'], "company": r['company'], "title": r['title'], "url": r['url'],
+                          "notes": (r.get('notes') or '')[:240]})
+    out = []
+    for g in sorted(groups.values(), key=lambda g: -len(g['jobs'])):
+        g['count'] = len(g['jobs'])
+        g['action'] = blockers.ACTIONS.get(g['blocker'], 'Open each one and finish it ({n}).').format(host=g['site'] or 'the site', n=g['count'])
+        out.append(g)
+    return {"total": sum(g['count'] for g in out), "groups": out,
+            "how": "After the user handles a group (e.g. signs in to a site), finish that group's jobs with finish_jobs / "
+                   "applytwin_pending_jobs: each continues where it stopped (applytwin_get_job shows resume_from)."}
+
+
+def finish_site(site, submit=False, agent=None):
+    """The user signed in to one site: continue every application that was waiting on it, in one run."""
+    ids = [j['job_id'] for g in needs_you()['groups'] if g['site'] == site for j in g['jobs']]
+    if not ids:
+        return {"done": True, "note": f"Nothing is waiting on {site}."}
+    store.execute('update inbox set resolved=? where resolved is null and job_id in (%s)' % ','.join('?' * len(ids)), (time.time(), *ids))
+    return finish_jobs(ids, submit, agent)
 
 
 HISTORY_COLS = {   # column names used by Simplify, Huntr, Teal, Notion, Google Sheets and hand-made trackers

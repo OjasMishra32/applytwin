@@ -35,7 +35,8 @@ value that *looks* filled but never registered with the page's framework.
   website / careers page, else job board / online, else Other). Never "Referral", "Career fair" or a recruiter
   unless the user said so. `applytwin_answer_questions` with the options picks one for you.
 - **AI interview / AI screening consent** (HireVue, "AI-assisted interview"): Yes, unless the user's profile says no.
-- **Every question:** `applytwin_answer_questions([{question, options}])`. Answers under the confidence threshold
+- **Every question:** `applytwin_answer_questions([{question, options}], job_id)`; `action: "knockout"` means the form's own
+  options rule the user out (log Skipped with `skip_reason`). Answers under the confidence threshold
   come back null: ask the user, then `applytwin_save_answer` so you never ask again.
 - **Truthful only.** Never invent experience, skills, GPA, dates or availability. If a question asks for
   something the vault doesn't have (date of birth, a recommender's or referrer's name, an emergency contact, an
@@ -53,7 +54,14 @@ value that *looks* filled but never registered with the page's framework.
   never solve or click through a CAPTCHA (including "I'm not a robot" boxes and hCaptcha), never type a one-time code
   unless `email_codes` is `agent`. The notes must name the exact blocker and where, e.g. "Workday sign-in required at
   <url>", "hCaptcha on the submit step", "emailed code requested by Greenhouse", "required question: date of birth".
-- At the end of every run: `applytwin_pending_jobs`, finish whatever the user unblocked.
+- Before stopping for any of these, fill everything else (whole form on no-account sites; on account sites leave the tab
+  on the sign-in / create-account step). Notes START with the blocker, so ApplyTwin can group them: one sign-in per site
+  unblocks all of that site's applications, and `applytwin_next_jobs` holds the site's other jobs back meanwhile.
+- Not the user's to fix, so never Needs User: a closed posting / "page doesn't exist" (Skipped "closed: ..."), a link
+  that is only the company homepage (Skipped "broken link"), already applied (Skipped "duplicate: ..."), your own
+  browser tools failing (notify once and stop the run), a page error or timeout (Failed with the error; retried later).
+- At the end of every run: `applytwin_needs_you` (tell the user group by group), then `applytwin_pending_jobs` and
+  finish whatever the user unblocked, continuing where each stopped (`applytwin_get_job` -> `resume_from`).
 
 ## Submitting
 - **No duplicates.** Right before Submit, make sure this is not a second application: `applytwin_get_job` showed

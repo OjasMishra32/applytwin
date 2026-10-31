@@ -9,4 +9,8 @@
 - EEO: selects `eeo[gender|veteran|disability]`, radio `eeo[race]`. If disability is filled, Lever also wants
   `eeo[disabilitySignature]` (full name) and `eeo[disabilitySignatureDate]` (MM/DD/YYYY today).
 - Custom card questions are named `cards[<uuid>][fieldN]`.
+- "There was an error verifying your application" (or a silent no-op twice) = Lever's invisible hCaptcha refused the
+  submit. Never retry more than once: log Needs User "hCaptcha on submit (Lever)", leave the filled tab open for the
+  user's Submit click, and do Lever jobs later in the run (after other ATSes), not back to back.
+- An earlier resume can be pre-attached from autofill: replace it with the tailored PDF and confirm `resumeStorageId`.
 - Hide (don't accept) the cookie banner. Success = /thanks "Application submitted".

@@ -872,5 +872,138 @@ _fl = _tp.pattern_flags({'experience': [{'bullets': ['Worked on the backend for 
 res.append(ok(any('weak opener' in f for f in _fl) and not any('Built' in f for f in _fl) and 'ASSET MANAGEMENT' in _tp.prompt(api.get_vault(), {'title': 'Equity Research Summer Associate', 'company': 'Wellington Management'}, 'stocks', {}),
               'recruiter-norms check flags filler openers; the plan prompt carries the posting\'s profile'))
 
+# ---- apply mechanism, from real outcomes: skip early, never park non-user problems in "Needs you", batch what is the user's
+from applytwin import blockers as _bk, answers as _an
+_notes = {'Workday sign-in required at https://acme.wd5.myworkdayjobs.com/x': 'signin', 'Account creation required; left Create Account page open': 'account',
+          "The page you are looking for doesn't exist. Tab 3 open.": 'closed', 'Posting URL returns 404 (Page not found)': 'closed',
+          'Queue link opens the corporate homepage, not the job posting': 'broken_link',
+          'Browser access blocked: browser host unavailable and Computer Use denied Google Chrome': 'browser',
+          'Playwright reports profile /x/.applytwin/browser already in use': 'browser', 'Filled; awaiting GH code; tab open': 'email_code',
+          'hCaptcha on submit': 'captcha', 'The Workday application page stopped responding during page load': 'transient',
+          'Ready to submit (auto_submit off), tab open': 'ready', 'required question: SAT score': 'question',
+          'duplicate: already applied on Ashby': 'duplicate', 'Required arbitration agreement checkbox': 'agreement'}
+_bad = {n: _bk.classify(n) for n, c in _notes.items() if _bk.classify(n) != c}
+res.append(ok(not _bad, f'blocker notes are classified (sign-in, closed, homepage, browser, code, captcha, timeout...) {_bad}'))
+_hp = [_bk.homepage_link(u) for u in ('https://www.riotgames.com', 'https://acme.com/careers/', 'https://acme.com/en-us/jobs',
+                                       'https://acme.com/careers/job/123', 'https://boards.greenhouse.io/acme', 'https://acme.com/careers?gh_jid=4567',
+                                       'https://jobs.lever.co/acme')]
+res.append(ok(_hp == [True, True, True, False, False, False, False], f'homepage-only links are told apart from postings and ATS boards {_hp}'))
+api.update_profile({'apply': {'daily_limit': 500, 'per_company_cap': 10}, 'search': {'companies_skip': []}})
+store.execute("update jobs set status='zz-old' where status='new'")
+store.execute('delete from claims')
+store.save('run_health.json', {})
+store.save('retries.json', {})
+
+
+def _mkjob(jid, company, url, ats='greenhouse', title='Software Engineer Intern', loc='Austin, TX', source='t', fit=90):
+    store.execute("insert or replace into jobs(id,source,company,title,location,url,apply_url,ats,found_at,fit,status) values(?,?,?,?,?,?,?,?,?,?,'new')",
+                  (jid, source, company, title, loc, url, url, ats, time.time(), fit))
+
+
+_mkjob('hp1', 'Homepage Co', 'https://www.homepageco.com/', ats='other')
+_mkjob('hp2', 'Homepage Manual', 'https://www.manualco.com/', ats='other', source='manual')
+_mkjob('ok1', 'Good Co', 'https://job-boards.greenhouse.io/embed/job_app?for=good&token=111111')
+_nj = [j['id'] for j in api.next_jobs(10)['jobs']]
+_cl = api.claim('hp1')
+res.append(ok('hp1' not in _nj and 'ok1' in _nj and 'hp2' in _nj and _cl['claimed'] is False and store.latest_status('hp1')['status'] == 'Skipped',
+              f'homepage links never reach the agent (a hand-added one does), and claiming one files it Skipped ({_nj}, {_cl.get("reason", "")[:40]})'))
+# a US-only role for someone abroad without US work authorization is a knockout before any page is opened
+_pf = {'work_authorized_us': False, 'location': 'Mumbai, India', 'willing_to_relocate': False, 'search': {}}
+_kq = (match.quick_knockouts({'title': 'Data Intern', 'location': 'Remote - USA'}, _pf), match.quick_knockouts({'title': 'Data Intern', 'location': 'Bengaluru, India'}, _pf),
+       match.quick_knockouts({'title': 'Data Intern', 'location': 'Remote - USA'}, {**_pf, 'work_authorized_us': True}))
+res.append(ok(_kq[0] and not _kq[1] and not _kq[2], f'US-only role for a non-authorized user abroad is a quick knockout {_kq}'))
+# closed postings and duplicates logged as Needs User are filed Skipped (nothing for the user to do)
+_mkjob('cl1', 'Closed Co', 'https://closed.wd5.myworkdayjobs.com/en-US/ext/job/123', ats='workday')
+api.claim('cl1')
+_lc = api.log_application('cl1', 'Needs User', "Workday page says the page you are looking for doesn't exist", agent=True)
+res.append(ok(_lc['status'] == 'Skipped' and store.latest_status('cl1')['notes'].startswith('closed:') and
+              not any(r['job_id'] == 'cl1' for r in api.pending_jobs()), f'a closed posting logged Needs User is filed Skipped ({_lc})'))
+# the agent's own browser failing: the job goes back to the queue, and after two the run is told to stop
+_mkjob('br1', 'Browser Co', 'https://jobs.lever.co/browserco/1', ats='lever')
+_mkjob('br2', 'Browser Two', 'https://jobs.lever.co/browsertwo/2', ats='lever')
+api.claim('br1')
+_b1 = api.log_application('br1', 'Needs User', 'Browser access blocked: browser host unavailable; Computer Use denied Google Chrome.', agent=True)
+_q1 = 'br1' in [j['id'] for j in api.next_jobs(10)['jobs']]
+api.claim('br2')
+_b2 = api.log_application('br2', 'Failed', 'Playwright reports the ApplyTwin browser profile already in use', agent=True)
+_nj2, _c2 = api.next_jobs(10), api.claim('ok1')
+res.append(ok(_b1.get('requeued') and not _b1.get('stop') and store.latest_status('br1') is None and _q1 and _b2.get('stop') and _nj2.get('stop')
+              and _nj2['jobs'] == [] and _c2['claimed'] is False, f'browser failures requeue the job unlogged and stop the run after two ({_b2.get("note", "")[:50]})'))
+store.save('run_health.json', {})
+# a page error gets one retry, later; the second one is logged
+_mkjob('tr1', 'Transient Co', 'https://jobs.lever.co/transient/1', ats='lever')
+api.claim('tr1')
+_t1 = api.log_application('tr1', 'Failed', 'The application page stopped responding during page load', agent=True)
+_held = 'tr1' not in [j['id'] for j in api.next_jobs(10)['jobs']]
+store.update('retries.json', lambda r: {**r, 'tr1': {**r['tr1'], 'at': time.time() - 3600}}, {})
+_back = 'tr1' in [j['id'] for j in api.next_jobs(10)['jobs']]
+api.claim('tr1')
+_t2 = api.log_application('tr1', 'Failed', 'The application page stopped responding during page load', agent=True)
+res.append(ok(_t1.get('requeued') and _held and _back and _t2.get('status') == 'Failed', f'a page error is retried once, 30+ minutes later, then logged ({_t2})'))
+# a site waiting for the user's sign-in: its other jobs wait too, the user gets one alert, and one action unblocks the group
+_mkjob('wd1', 'Nvidia', 'https://nvidia.wd5.myworkdayjobs.com/ext/job/1', ats='workday')
+_mkjob('wd2', 'Nvidia', 'https://nvidia.wd5.myworkdayjobs.com/ext/job/2', ats='workday', title='Hardware Engineer Intern')
+api.claim('wd1')
+_n1 = api.notify('Sign in needed for Nvidia', 'Workday sign-in required', url='https://nvidia.wd5.myworkdayjobs.com/ext/job/1', job_id='wd1')
+api.log_application('wd1', 'Needs User', 'Workday sign-in required at https://nvidia.wd5.myworkdayjobs.com/ext/job/1', agent=True)
+_n2 = api.notify('Sign in needed for Nvidia', 'Workday sign-in required', url='https://nvidia.wd5.myworkdayjobs.com/ext/job/2', job_id='wd2')
+_wn = api.next_jobs(10)
+_ny = api.needs_you()
+_grp = next((g for g in _ny['groups'] if g['site'] == 'nvidia.wd5.myworkdayjobs.com'), {})
+_gj = api.job_for_agent('wd1')
+res.append(ok('wd2' not in [j['id'] for j in _wn['jobs']] and _wn.get('waiting_on_you', [{}])[0].get('site') == 'nvidia.wd5.myworkdayjobs.com'
+              and not _n1.get('batched') and _n2.get('batched') and _grp.get('blocker') == 'signin' and 'Sign in once' in _grp.get('action', '')
+              and _gj.get('resume_from', {}).get('blocker') == 'signin',
+              f'one sign-in wall holds back that site, alerts once, and groups in needs_you ({_wn.get("waiting_on_you")}, {_grp.get("action", "")[:40]})'))
+for _r in api.inbox():
+    if _r['job_id'] in ('wd1', 'wd2'):
+        api.resolve(_r['id'])
+res.append(ok('wd2' in [j['id'] for j in api.next_jobs(10)['jobs']], 'resolving the sign-in releases the site\'s other jobs'))
+# Greenhouse jobs are spaced apart in a batch (rapid Greenhouse submits trigger emailed security codes)
+_pc = [j['ats'] for j in api.pace([{'ats': 'greenhouse'}, {'ats': 'greenhouse'}, {'ats': 'lever'}, {'ats': 'greenhouse'}, {'ats': 'ashby'}])]
+res.append(ok(_pc == ['greenhouse', 'lever', 'greenhouse', 'ashby', 'greenhouse'], f'Greenhouse jobs never back to back when there is other work {_pc}'))
+# answers: company-aware, form options that rule the user out, strict school/major/degree picks, dates in every format
+_bank = _an.default_bank({'grad_month': 'May', 'grad_year': '2029', 'email': 'a@ufl.edu', 'start_month': 'August', 'start_year': '2025',
+                          'major': 'Computer Engineering', 'degree': 'Bachelor of Science', 'school': 'University of Florida'})
+_m = lambda q, o=None, c=None: _an.match(q, _bank, o, c or {})
+_ans = [
+    _m('What is your graduation year?', ['2026', '2027', '2028']).get('action') == 'knockout',
+    _m('Expected graduation date', ['May 2027', 'May 2028', 'Other']).get('answer') == 'Other',
+    _m('Graduation year', ['2028', '2029', '2030']).get('answer') == '2029',
+    _m('Expected graduation date').get('formats', {}).get('MM/YYYY') == '05/2029',
+    _m('University start date').get('answer') == 'August 2025',
+    _m('Are you currently enrolled in a degree program?').get('key') == 'enrolled',
+    _m('High school graduation year').get('key') == 'hs_grad_year' and _m('High school graduation year').get('answer') is None,
+    _m('School email address').get('answer') == 'a@ufl.edu',
+    _m('Discipline', ['Computer Science', 'Aerospace Engineering', 'Engineering', 'Other']).get('answer') == 'Engineering',
+    _m('Discipline', ['Computer Science', 'Aerospace Engineering']).get('answer') is None,
+    _m('Major', ['Electrical and Computer Engineering', 'Computer Science']).get('answer') == 'Electrical and Computer Engineering',
+    _m('Degree', ["Bachelor's Degree", "Master's Degree"]).get('answer') == "Bachelor's Degree",
+    _m('School', ['UF', 'FSU']).get('answer') == 'UF',
+    _m('Have you ever worked for Acme?', None, {'worked_here': True}).get('answer') == 'Yes',
+    _m('Have you ever worked for Acme?', None, {'worked_here': False}).get('answer') == 'No',
+    _m('Have you previously applied to Acme?', None, {'applied_before': True}).get('answer') == 'Yes',
+    _m('Have you previously applied to Acme?').get('answer') is None,
+    _m('Before submitting your application, please acknowledge the privacy policy').get('key') == 'privacy',
+    _m('Do you have any relatives employed by Acme?').get('key') == 'knows_employee',
+    _m('How did you hear about us? (friend, employee, website)', ['Company website', 'Friend']).get('answer') == 'Company website',
+]
+res.append(ok(all(_ans), f'answers: grad-option knockouts, dates, school/major/degree never a sibling, company-aware facts {_ans}'))
+_sp = _an.pick_option('No', ['I will require sponsorship', 'I will not require sponsorship'])
+res.append(ok(_sp == 'I will not require sponsorship', f'Yes/No onto options that only differ by a negation ({_sp})'))
+# with a job, "Have you worked for <company>?" is checked against the vault (Northwind Labs is in the example vault)
+_mkjob('nw1', 'Northwind Labs', 'https://jobs.lever.co/northwind/1', ats='lever')
+_nw = api.answer_questions(['Have you ever been employed by Northwind Labs?'], job_id='nw1', notify_user=False)[0]
+_ok1 = api.answer_questions(['Have you ever been employed by Good Co?'], job_id='ok1', notify_user=False)[0]
+res.append(ok(_nw['answer'] == 'Yes' and _ok1['answer'] == 'No', f'prior-employer questions answered from the vault ({_nw["answer"]}, {_ok1["answer"]})'))
+_pb = api.playbook('oraclecloud')
+res.append(ok('Oracle Recruiting Cloud' in _pb and 'remove it, upload' in _pb and 'knockout' in api.playbook('greenhouse'),
+              'Oracle has its own playbook; every playbook carries the re-upload and closed-posting rules'))
+_rp = api.run_prompt(5)
+res.append(ok('about:blank' in _rp and 'applytwin_needs_you' in _rp and "closed: " in _rp and 'never log jobs as blocked because your browser' in _rp,
+              'Autopilot instructions: browser check first, closed = Skipped, batched needs-you at the end'))
+from applytwin import mcp as _mcp
+res.append(ok('applytwin_needs_you' in _mcp.BY and 'waiting_on_you' in _mcp.BY['applytwin_next_jobs'][1], 'MCP exposes the batched needs-you list'))
+
 print(f'\n{sum(res)}/{len(res)} passed')
 sys.exit(0 if all(res) else 1)
