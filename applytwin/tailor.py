@@ -23,6 +23,8 @@ GUIDE = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file
 ENTRY_SECS = ('experience', 'projects', 'leadership', 'volunteering')
 # raise when how a plan becomes a page gets meaningfully better: saved resumes from older versions are rebuilt from their plan
 PIPELINE = 3
+# the recruiter-norms pass (pattern_flags) can be switched off for A/B runs: APPLYTWIN_PATTERN_FIX=0
+FLAG_FIX = os.environ.get('APPLYTWIN_PATTERN_FIX', '1') != '0'
 
 
 def slug(s):
@@ -243,11 +245,128 @@ def heuristic_plan(v, jd, max_bullets=None, title='', ctx=None):
     return plan
 
 
+# ---------------------------------------------------------------- what strong resumes look like, per target
+
+_PATTERNS = None
+
+
+def patterns():
+    """resume_patterns.json: aggregate norms from public resumes (no personal data), one profile per target kind."""
+    global _PATTERNS
+    if os.environ.get('APPLYTWIN_PATTERNS') == '0':
+        return {"profiles": {}, "detect": {}}
+    if _PATTERNS is None:
+        try:
+            with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'resume_patterns.json'), encoding='utf-8') as f:
+                _PATTERNS = json.load(f)
+        except (OSError, ValueError):
+            _PATTERNS = {"profiles": {}, "detect": {}}
+    return _PATTERNS
+
+
+def pattern_profile(job, jd='', field=''):
+    """Which profile this posting hires for: the firm and title first ("Jane Street", "Summer Analyst"), then the posting text,
+    then the field. Returns (profile id, profile dict) or (None, None)."""
+    P = patterns()
+    profs, det = P.get('profiles', {}), P.get('detect', {})
+    who = f"{job.get('company', '')}".lower()
+    title = f"{job.get('title', '')}".lower()
+    body = (jd or '')[:5000].lower()
+    vetoed = set()
+    for pid in P.get('detect_order', list(det)):
+        d = det.get(pid) or {}
+        if d.get('unless_title') and re.search(d['unless_title'], title):
+            vetoed.add(pid)   # "Technology Summer Analyst" is not a banking role, even through the field fallback
+        hit = (d.get('firms') and re.search(d['firms'], who)) or (d.get('title') and re.search(d['title'], title)) or \
+            (d.get('body') and len(re.findall(d['body'], body)) >= d.get('body_min', 1))
+        if not hit or (d.get('need_title') and not re.search(d['need_title'], title)) or \
+                (d.get('unless_title') and re.search(d['unless_title'], title)):
+            continue
+        # a target whose profile is not shipped (it lost the blind review) keeps the plain prompt instead of a neighbor's profile
+        return (pid, profs[pid]) if pid in profs else (None, None)
+    pid = (P.get('by_field') or {}).get(field)
+    return (pid, profs[pid]) if pid in profs and pid not in vetoed else (None, None)
+
+
+def pattern_brief(prof):
+    """The profile as a short prompt block: what strong pages for this target lead with, how their bullets read, what to avoid."""
+    if not prof:
+        return ''
+    n = prof.get('norms') or {}
+    lines = [f"WHAT STRONG {prof.get('label', '').upper()} RESUMES DO ({prof.get('basis', 'from public resumes')}; style and "
+             "structure only: never borrow a fact, number or tool from here):"]
+    if prof.get('lead_with'):
+        lines.append('- Top third leads with: ' + prof['lead_with'])
+    if prof.get('order'):
+        lines.append('- Typical section order: ' + ' > '.join(prof['order']))
+    if n:
+        lines.append(f"- Bullets: about {n.get('bullet_chars', [90, 150])[0]}-{n.get('bullet_chars', [90, 150])[1]} characters (one line, at "
+                     f"most two), {n.get('bullets_per_role', '2-4')} per role, {n.get('bullets_per_project', '1-3')} per project, "
+                     f"{n.get('bullets_total', '14-20')} on the page." + (f" {n['quantified']}" if n.get('quantified') else ''))
+    if prof.get('verbs'):
+        lines.append('- Openers they use (vary them, none more than twice): ' + ', '.join(prof['verbs'][:14]))
+    if prof.get('skills'):
+        lines.append('- Skills: ' + prof['skills'])
+    for c in prof.get('conventions', [])[:6]:
+        lines.append('- ' + c)
+    if prof.get('avoid'):
+        lines.append('- Avoid: ' + '; '.join(prof['avoid'][:6]))
+    if prof.get('exemplars'):
+        lines.append('- Bullet shapes that work here (invented examples, for shape only):')
+        lines += ['    ' + x for x in prof['exemplars'][:4]]
+    return '\n'.join(lines) + '\n'
+
+
+WEAK_OPEN = re.compile(r'^\W*(responsible for|worked on|helped|assisted|participated|involved in|tasked with|duties|various|utilized|'
+                       r'used|learned|gained|exposed|familiar|was |were |had )', re.I)
+
+
+def pattern_flags(res, prof=None):
+    """A recruiter's quick read of the page against the norms strong resumes share: filler openers, the same verb over and
+    over, run-on or two-sentence bullets, and too few measured results. Returns short, fixable notes (bullet text included)."""
+    n = (prof or {}).get('norms') or {}
+    hi = int(n.get('max_chars', 215))
+    flags, verbs, bl = [], {}, []
+    for sec in ENTRY_SECS:
+        for e in res.get(sec, []):
+            for b in e.get('bullets', []):
+                t = ats.plain(b)
+                bl.append(t)
+                w = (re.match(r'\W*([A-Za-z]+)', t) or [None, ''])[1].lower()
+                if w:
+                    verbs[w] = verbs.get(w, 0) + 1
+                if WEAK_OPEN.search(t) or WEAK.search(t):
+                    flags.append(f'weak opener: "{t[:90]}"')
+                elif len(t) > hi:
+                    flags.append(f'over {hi} characters, tighten to one or two lines: "{t[:90]}"')
+                elif re.search(r'[a-z]{2}\. [A-Z]', t):
+                    flags.append(f'two sentences in one bullet, make it one: "{t[:90]}"')
+    for sec in ('projects', 'leadership', 'volunteering'):
+        es = res.get(sec) or []
+        if len(es) == 1 and len(es[0].get('bullets', [])) <= 1:
+            flags.append(f'orphan {sec} section (one entry, one line): give it a second true bullet, or fold it away for a stronger entry')
+    if isinstance(res.get('awards'), list) and len(res['awards']) == 1:
+        flags.append('a one-line Awards section: add the other relevant vault awards, or move the single award into education')
+    for w, c in verbs.items():
+        if c > 2 and w not in ('the', 'a'):
+            flags.append(f'"{w.capitalize()}" opens {c} bullets: vary the verbs')
+    if bl:
+        share = sum(bool(re.search(r'\d', t)) for t in bl) / len(bl)
+        target = float(n.get('quantified_min', 0.5))
+        if share < target:
+            flags.append(f'only {round(share * 100)}% of bullets carry a number or scale; strong {(prof or {}).get("label", "")} pages are at '
+                         f'{round(target * 100)}%+: where the vault has a number for a kept bullet, use that bullet or surface its number')
+    return flags
+
+
 # ---------------------------------------------------------------- agent / LLM tailor
 
 def prompt(v, job, jd, ctx=None):
     v = ensure_ids(copy.deepcopy(v))
     ctx = ctx or {}
+    if 'pattern' not in ctx:   # agents asking for the prompt directly get the same per-target norms as Autopilot
+        ctx = dict(ctx)
+        ctx['pattern_id'], ctx['pattern'] = pattern_profile(job, jd, ctx.get('field'))
     rules = ctx.get('rules') or {}
     you = ''
     if ctx.get('notes'):
@@ -303,6 +422,7 @@ RULES (hard):
 - Order sections for this reader. Ideal order for this field: {', '.join(rules.get('order', []))}.
 - What hiring managers in this field look for first: {rules.get('emphasize', 'the posting requirements and measurable results')}.
 {you}
+{pattern_brief(ctx.get('pattern'))}
 
 OUTPUT: only a JSON object, written in THIS order (decide the strategy first, then build the page from it):
 {{"requirements": ["requirement 1 (what this hiring manager screens for first)", "requirement 2", "requirement 3"],
@@ -794,6 +914,9 @@ def audit(res, rep):
             for e in res.get(sec, []):
                 e['bullets'] = [r['from'] if b == r['to'] else b for b in e.get('bullets', [])]
         rep['rejected'].append({"bullet": r['bullet'], "reason": 'overclaims: ' + flagged[str(i)], "text": r['to']})
+    for sec in ENTRY_SECS:   # a reverted rewrite can land on a line the entry already shows: never print a bullet twice
+        for e in res.get(sec, []):
+            e['bullets'] = list(dict.fromkeys(e.get('bullets', [])))
     rep['rewrites'] = keep
     return len(flagged)
 
@@ -1288,6 +1411,7 @@ def tailor(v, job, jd, mode='auto', plan=None, style=None, out_dir=None):
 def _tailor(v, job, jd, mode, plan, style, out_dir, track):
     from . import learn, render, store
     ctx = learn.context_for(job)
+    ctx['pattern_id'], ctx['pattern'] = pattern_profile(job, jd, ctx.get('field'))
     style = style or ctx['template']
     if plan is None:
         if mode in ('auto', 'api'):
@@ -1313,22 +1437,32 @@ def _tailor(v, job, jd, mode, plan, style, out_dir, track):
         mode = 'agent'
     res, rep = apply(v, plan, jd)
     _house_rules(res, ctx)
-    if mode == 'api' and rep['rejected']:   # one revision: show the model exactly what the fact checker refused, and why
+    flags = pattern_flags(res, ctx.get('pattern')) if FLAG_FIX else []
+    if mode == 'api' and (rep['rejected'] or len(flags) >= 2):   # one revision: what the fact checker refused, and what reads weak
         track.stage('fix')
-        fix = (prompt(v, job, jd, ctx) + '\n\nYOUR PREVIOUS PLAN:\n' + json.dumps(plan, ensure_ascii=False)[:12000] +
-               '\n\nTHE FACT CHECKER REJECTED THESE REWRITES (bullet, reason, your text):\n' +
-               '\n'.join(f"- {r['bullet']}: {r['reason']}: {r['text']}" for r in rep['rejected']) +
-               '\n\nReturn the same JSON plan with each rejected rewrite fixed: keep its facts exactly as the vault states them '
-               '(no new numbers, tools or claims), or use the bullet id as-is. Change nothing else.')
+        fix = prompt(v, job, jd, ctx) + '\n\nYOUR PREVIOUS PLAN:\n' + json.dumps(plan, ensure_ascii=False)[:12000]
+        if rep['rejected']:
+            fix += ('\n\nTHE FACT CHECKER REJECTED THESE REWRITES (bullet, reason, your text):\n' +
+                    '\n'.join(f"- {r['bullet']}: {r['reason']}: {r['text']}" for r in rep['rejected']) +
+                    '\nFix each one: keep its facts exactly as the vault states them (no new numbers, tools or claims), or use the '
+                    'bullet id as-is.')
+        if flags:
+            fix += ('\n\nA RECRUITER READING THE PAGE NOTED (fix by rewording or by choosing a stronger true bullet from the same '
+                    'entry; numbers, titles, employers, degrees and awards stay exactly as in the vault):\n' +
+                    '\n'.join('- ' + f for f in flags[:10]))
+        fix += '\n\nReturn the same JSON plan with these fixed. Change nothing else.'
         try:
             plan2 = call_llm(fix, timeout=200, think=False)
             if plan2:
                 res2, rep2 = apply(v, plan2, jd)
                 _house_rules(res2, ctx)
-                if len(rep2['rejected']) < len(rep['rejected']):
-                    plan, res, rep = plan2, res2, rep2
+                flags2 = pattern_flags(res2, ctx.get('pattern')) if flags else []
+                if len(rep2['rejected']) < len(rep['rejected']) or (
+                        flags and len(rep2['rejected']) <= len(rep['rejected']) and len(flags2) < len(flags)):
+                    plan, res, rep, flags = plan2, res2, rep2, flags2
         except Exception:
             pass
+    rep['quality'] = flags
     if mode in ('api', 'agent') and rep['rewrites']:   # Autopilot's own plans get the same honesty check
         track.stage('audit')
         audit(res, rep)
@@ -1368,7 +1502,8 @@ def _tailor(v, job, jd, mode, plan, style, out_dir, track):
            "coverage_vault": before.get('coverage'), "coverage": after.get('coverage'), "score": after['score'],
            "missing": [m['term'] for m in after.get('missing', []) if m['hard']][:12],
            "rewrites": len(rep["rewrites"]), "rejected": rep["rejected"], "notes": rep["notes"], "field": ctx["field"], "added": rep.get("added", []),
-           "positioning": rep.get("positioning", ''), "requirements": rep.get("requirements", [])}
+           "positioning": rep.get("positioning", ''), "requirements": rep.get("requirements", []),
+           "profile": ctx.get('pattern_id'), "quality": rep.get('quality', [])}
     with open(os.path.join(out_dir, 'tailor.json'), 'w', encoding='utf-8') as f:
         json.dump({"plan": plan, "resume": res, "report": rep, "render": r, "mode": mode, "style": style, "field": ctx['field'],
                    "pipeline": PIPELINE, "result": out}, f, indent=1, ensure_ascii=False)
