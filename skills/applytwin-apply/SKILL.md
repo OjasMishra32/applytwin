@@ -54,7 +54,9 @@ themselves on a careful day.
      (Gmail connector, or their already-signed-in webmail in the browser), open the newest message from that company/ATS in
      the last 15 minutes, read the code, type it. Never forward, store or show codes anywhere else.
    - otherwise: `applytwin_notify(title="Code needed for <company>", message="Check your email and type it in the open tab", url, job_id)`,
-     log "Needs User", leave the tab open, and move on.
+     log "Needs User", leave the tab open, and move on. Tabs close when the run ends, so the note you write must never
+     promise an open tab: say what the user does (answer <question> in ApplyTwin, sign in at <site>); pressing Finish
+     in ApplyTwin refills the application from where it stopped.
 9. **Only-the-user steps** (sign-in, password, account creation, CAPTCHA, arbitration, assessments, essays over ~250 words,
    a required fact the vault doesn't have such as a date of birth or a recommender's name): `applytwin_notify(...)` with
    exactly what is needed and the URL, log "Needs User" with notes naming the exact blocker ("Workday sign-in required at
