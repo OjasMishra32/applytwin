@@ -6,6 +6,7 @@ keep="$(mktemp -d)"; [ -d site/.vercel ] && cp -R site/.vercel "$keep/"   # the 
 (cd ui && npm run build >/dev/null && npx vite build -c vite.site.config.js >/dev/null)
 [ -d "$keep/.vercel" ] && cp -R "$keep/.vercel" site/; rm -rf "$keep"
 mv site/site.html site/index.html
+node scripts/seo/build.mjs   # icons, titles, structured data, landing pages, sitemap
 cp scripts/install-remote.sh site/install.sh
 cp scripts/install-remote.ps1 site/install.ps1
 tar -czf site/applytwin.tar.gz -s ',^\.,applytwin,' --exclude './ui/node_modules' --exclude './site' --exclude '*/__pycache__' \
