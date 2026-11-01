@@ -91,7 +91,8 @@ POST = {
     r'/api/run': lambda m, qs, b: api.start_run(b.get('agent', 'claude'), int(b.get('n', 25))),
     r'/api/run/stop': lambda m, qs, b: api.stop_run(),
     r'/api/update': lambda m, qs, b: update_now(),
-    r'/api/finish': lambda m, qs, b: api.finish_jobs(b.get('job_ids') or [], bool(b.get('submit'))),
+    r'/api/finish': lambda m, qs, b: api.finish_jobs(b.get('job_ids') or [], bool(b['submit']) if 'submit' in b   # not said: your setting
+                                                     else bool(api.store.profile()['apply'].get('auto_submit'))),
     r'/api/finish/site': lambda m, qs, b: api.finish_site(b.get('site') or '', bool(b.get('submit'))),
     r'/api/open-twin': lambda m, qs, b: api.open_in_twin_browser(b['url']),
     r'/api/history': lambda m, qs, b: api.import_history(text=b.get('text', '')),

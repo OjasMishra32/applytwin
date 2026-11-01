@@ -354,7 +354,7 @@ function NeedsYou({ item, onDone }) {
       if (answered) await api('/api/answer', { question, answer: text.trim() })
       await api(`/api/inbox/${item.id}/resolve`, {})
       // the application it came from closed with the run: send the twin back to fill it again, now with this answer
-      const r = answered && item.job_id ? await api('/api/finish', { job_ids: [item.job_id], submit: false }).catch(() => null) : null
+      const r = answered && item.job_id ? await api('/api/finish', { job_ids: [item.job_id] }).catch(() => null) : null   // submits if your settings say to
       toast.success(answered ? 'Saved to your answers' : 'Done', { description: !answered ? undefined
         : r?.queued ? 'Your twin finishes that application with it right after its current run.'
         : r ? 'Your twin is filling that application again with your answer.' : 'Used here and on every similar question.' })
@@ -445,7 +445,12 @@ function SiteRow({ st, onDone }) {
   const name = st.title.replace(/^(Sign in to|Create your|Type the emailed code for)\s+/, '').replace(/ account$/, '')
   const act = async (label, fn, ok) => {
     setBusy(label)
-    try { const r = await fn(); toast.success(r?.queued ? 'Queued' : ok.title, { description: r?.queued ? 'Your twin finishes these right after its current run.' : ok.body }); if (label === 'finish') onDone() }
+    try {
+      const r = await fn()
+      if (r?.done) toast(r.note || 'Nothing to finish here.')   // the server said nothing started: never a success toast for that
+      else toast.success(r?.queued ? 'Queued' : r?.note || ok.title, { description: r?.queued ? 'Your twin finishes these right after its current run.' : ok.body })
+      if (label === 'finish') onDone()
+    }
     catch (err) { toast.error(err.message) }
     setBusy('')
   }

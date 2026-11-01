@@ -1280,6 +1280,18 @@ _rl = [r for r, syn in match.ROLE_SYNONYMS.items() if any(_re.search(r'\b' + _re
 res.append(ok({'software engineer', 'machine learning', 'data science'} <= set(_rl) and 'biology' not in
               [r for r, syn in match.ROLE_SYNONYMS.items() if any(_re.search(r'\b' + _re.escape(x), 'human-centered computing lab') for x in syn)],
               f'role guesses come from real evidence, not the word "lab" ({_rl})'))
+# Finish on the Gmail sign-in the email-history search stopped at (no job): it starts that search again and clears the item
+store.execute("insert into inbox(kind,title,message,url,job_id,at) values('needs_you','Sign in to your email in your twin''s browser','sign-in required','https://mail.google.com/mail/u/0/','',?)", (time.time(),))
+_runs, _sr = [], api.start_run
+api.start_run = lambda agent='claude', n=25, model=None, prompt=None, restarts=0: (_runs.append(prompt), {"running": True})[1]
+try:
+    _fs = api.finish_site('mail.google.com')
+    _fs2 = api.finish_site('nothing.example.com')
+finally:
+    api.start_run = _sr
+res.append(ok(_runs and 'applytwin-history' in (_runs[0] or '') and _fs.get('running') and not _fs.get('done')
+              and not [r for r in api.inbox() if 'mail.google.com' in (r['url'] or '')] and _fs2.get('done'),
+              f'Finish on the email sign-in restarts the email search ({_fs}, {_fs2})'))
 # Greenhouse jobs are spaced apart in a batch (rapid Greenhouse submits trigger emailed security codes)
 _pc = [j['ats'] for j in api.pace([{'ats': 'greenhouse'}, {'ats': 'greenhouse'}, {'ats': 'lever'}, {'ats': 'greenhouse'}, {'ats': 'ashby'}])]
 res.append(ok(_pc == ['greenhouse', 'lever', 'greenhouse', 'ashby', 'greenhouse'], f'Greenhouse jobs never back to back when there is other work {_pc}'))

@@ -1783,6 +1783,8 @@ def _start_run(agent, n, model, prompt, restarts):
         tools = ('mcp__plugin_applytwin_applytwin,mcp__applytwin,mcp__playwright,mcp__claude-in-chrome,'
                  'Read,Write,Bash(ls:*),Bash(open:*)')
         cmd = [exe, '-p', '--allowedTools', tools, '--permission-mode', 'acceptEdits', '--output-format', 'text']
+        if os.environ.get('APPLYTWIN_AGENT_MCP_CONFIG'):   # an isolated run (end-to-end tests): only these tool servers, not the user's
+            cmd += ['--strict-mcp-config', '--mcp-config', os.environ['APPLYTWIN_AGENT_MCP_CONFIG']]
     else:
         cmd = [exe, 'exec', '--skip-git-repo-check', '-s', 'workspace-write', '-c', 'approval_policy=never', *(['-m', model] if model else agents.codex_model_args()),
                *agents.codex_browser_args(exe), '-']
@@ -2174,11 +2176,24 @@ def needs_you():
                    "applytwin_pending_jobs: each continues where it stopped (applytwin_get_job shows resume_from)."}
 
 
+WEBMAIL = re.compile(r'(^|\.)(mail\.google\.com|gmail\.com|outlook\.(live|office|office365)\.com|mail\.yahoo\.com|icloud\.com)$', re.I)
+
+
 def finish_site(site, submit=False, agent=None):
-    """The user signed in to one site: continue every application that was waiting on it, in one run."""
+    """The user signed in to one site: continue everything that was waiting on it. Applications continue in one run; a
+    sign-in the email-history search was waiting on (no job, mail.google.com) starts that search again."""
+    _todo_cache['v'] = None
     ids = [j['job_id'] for g in needs_you()['groups'] if g['site'] == site for j in g['jobs']]
+    ids += [e['job_id'] for g in todo() if g['kind'] == 'sites' for st in g['sites'] if st['site'] == site
+            for e in st['entries'] if e['job_id'] and e['job_id'] not in ids]
+    loose = [r for r in store.rows("select id, url, title, message from inbox where resolved is null and coalesce(job_id,'')=''")
+             if blockers.host(r['url'] or '') == site]
+    if loose:
+        store.execute('update inbox set resolved=? where id in (%s)' % ','.join('?' * len(loose)), (time.time(), *[r['id'] for r in loose]))
+    if not ids and loose and WEBMAIL.search(site or ''):
+        return {**start_run(agent or _agent(), 1, prompt=email_history_prompt()), "note": "Searching your email again."}
     if not ids:
-        return {"done": True, "note": f"Nothing is waiting on {site}."}
+        return {"done": True, "note": f"Nothing is waiting on {site}." if not loose else f"Cleared the {site} item."}
     store.execute('update inbox set resolved=? where resolved is null and job_id in (%s)' % ','.join('?' * len(ids)), (time.time(), *ids))
     return finish_jobs(ids, submit, agent)
 
