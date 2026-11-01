@@ -1175,6 +1175,13 @@ _f = lambda t, p: match.fit({'title': t, 'company': 'JPMorgan Chase', 'descripti
 res.append(ok(match.student_level(_ug) == 'undergrad' and all(_f(t, _ug) == 0 for t in _gt) and all(_f(t, _ug) > 0 for t in _ok)
               and _f(_gt[0], _ms) > 0 and bool(match.level_gate({'title': 'Quant Intern', 'description': "Must be pursuing a Master's or PhD."}, _ug)),
               'graduate-only roles are kept from undergrads, and MS/PhD roles still reach master\'s students'))
+# the live preview shows the resume this run built for the job it's on, never one from an older run
+os.makedirs(store.path('resumes', 'pv1'), exist_ok=True)
+_pv = store.path('resumes', 'pv1', 'R.pdf'); open(_pv, 'wb').write(b'%PDF-1.4')
+json.dump({"result": {"pdf": _pv, "score": 81, "pages": 1, "rewrites": [{}, {}]}}, open(store.path('resumes', 'pv1', 'tailor.json'), 'w'))
+_b = api.built_resume('pv1', 0)
+res.append(ok(_b and _b['pdf'] == _pv and _b['rewrites'] == 2 and api.built_resume('pv1', time.time() + 60) is None and api.built_resume('nope') is None,
+              f'the live resume preview is this run\'s build ({_b})'))
 # Greenhouse jobs are spaced apart in a batch (rapid Greenhouse submits trigger emailed security codes)
 _pc = [j['ats'] for j in api.pace([{'ats': 'greenhouse'}, {'ats': 'greenhouse'}, {'ats': 'lever'}, {'ats': 'greenhouse'}, {'ats': 'ashby'}])]
 res.append(ok(_pc == ['greenhouse', 'lever', 'greenhouse', 'ashby', 'greenhouse'], f'Greenhouse jobs never back to back when there is other work {_pc}'))

@@ -34,6 +34,36 @@ function ResumeLine({ p }) {
     </div>)
 }
 
+/* The resume your twin just wrote for the job it's applying to: the real page, small, so you see what's being sent. */
+function ResumePreview({ r, company, title }) {
+  const src = `/file?path=${encodeURIComponent(r.pdf)}`
+  const W = 612, H = 792, S = 0.3
+  return (
+    <motion.section key={r.pdf} layout initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
+      transition={{ type: 'spring', stiffness: 260, damping: 28 }} className="card mt-4 flex items-center gap-6 p-5 sm:p-6">
+      <a href={src} target="_blank" rel="noreferrer" aria-label="Open this resume full size"
+        className="group relative shrink-0 overflow-hidden rounded-[6px] bg-white shadow-[0_8px_30px_rgba(0,0,0,.45)] ring-1 ring-white/10 transition-transform hover:-translate-y-0.5"
+        style={{ width: W * S, height: H * S }}>
+        <iframe title="Resume preview" src={`${src}#toolbar=0&navpanes=0&scrollbar=0&view=Fit`} tabIndex={-1}
+          className="pointer-events-none origin-top-left border-0" style={{ width: W, height: H, transform: `scale(${S})` }} />
+        <motion.div className="absolute inset-x-0 top-0 h-full bg-gradient-to-b from-transparent via-white/40 to-transparent"
+          initial={{ y: '-100%' }} animate={{ y: '100%' }} transition={{ duration: 1.1, ease: 'easeInOut' }} />
+      </a>
+      <div className="min-w-0">
+        <div className="text-[13px] font-medium text-muted">Resume written for this job</div>
+        <div className="mt-1 truncate text-[19px] font-semibold tracking-[-0.01em] text-white">{company.replace(/^\W+/, '')}</div>
+        <div className="truncate text-[14px] text-muted">{title}</div>
+        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-white/80">
+          {r.score != null && <span className="tabular-nums">{r.score}% keyword match</span>}
+          {r.rewrites > 0 && <span className="tabular-nums">{r.rewrites} bullet{r.rewrites === 1 ? '' : 's'} rewritten for this role</span>}
+          {r.pages === 1 && <span>One page</span>}
+        </div>
+        {r.positioning && <p className="mt-2 line-clamp-2 max-w-md text-[13px] leading-snug text-faint">{r.positioning}</p>}
+        <a href={src} target="_blank" rel="noreferrer" className="mt-3 inline-block text-[13px] font-medium" style={{ color: BLUE }}>Open full size</a>
+      </div>
+    </motion.section>)
+}
+
 /* Autopilot, Apple-style: one quiet hero that says what your twin is doing, grouped lists for everything else. */
 
 const SIZES = [5, 10, 25, 50, 100, 250]
@@ -158,6 +188,9 @@ export default function Agents() {
             </div>
           </div>
         </section>
+        <AnimatePresence mode="wait">
+          {running && now?.built && <ResumePreview key={now.built.pdf} r={now.built} company={now.company || ''} title={now.title || ''} />}
+        </AnimatePresence>
 
         <StarAsk count={apps.filter(a => a.status === 'Applied' || a.status === 'Needs User').length} />
 
