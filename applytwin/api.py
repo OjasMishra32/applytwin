@@ -3,6 +3,7 @@ import functools
 import json
 import os
 import re
+import sys
 import threading
 import time
 
@@ -1512,7 +1513,7 @@ def reply(job_id, text):
     if store.profile()['apply'].get('notify_desktop', True) and time.time() - _app_seen[0] > 60:
         from .install import notify as desk
         j = (store.rows('select company from jobs where id=?', (job_id,)) or [{'company': ''}])[0]
-        desk(f"ApplyTwin: {j['company']}".strip(), text[:180])
+        desk(f"ApplyTwin: {j['company']}".strip(), text[:180], 'http://localhost:4747/#agents')
     return {"ok": True}
 
 
@@ -2050,7 +2051,9 @@ def notify(title, message='', url='', job_id='', kind='needs_you'):
                                                        "this one is grouped with it (no second alert). Log Needs User and move on."}
     if store.profile()['apply'].get('notify_desktop', True) and time.time() - _app_seen[0] > 60:
         from .install import notify as desk
-        desk('ApplyTwin: ' + title, 'Open ApplyTwin (localhost:4747) to handle it. ' + (message or url))
+        page = 'settings' if kind == 'question' and 'Settings' in (message or '') else 'answers' if kind == 'question' else 'agents'
+        desk('ApplyTwin: ' + title, (message or url) + ('' if os.name == 'nt' or sys.platform == 'darwin' else ' Open localhost:4747 to handle it.'),
+             'http://localhost:4747/#' + page)
     return {"ok": True}
 
 

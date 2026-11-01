@@ -18,24 +18,98 @@ APP = store.APP
 APPLYTWIN_BIN = os.path.join(APP, 'bin', 'applytwin')
 
 
-def notify(title, msg):
-    # title and message can come from a job page via the agent: they go in as data (argv / environment), never into
-    # AppleScript or PowerShell source, where a quote would let them run commands
-    title, msg = str(title)[:120], str(msg)[:200]
+APP_URL = 'http://localhost:4747/'
+NOTIFIER = os.path.join(store.HOME, 'ApplyTwin.app')
+# A tiny app ApplyTwin builds for itself (macOS's own osacompile, nothing downloaded) so its notifications come from
+# "ApplyTwin" and clicking one opens the page it's about. Plain osascript notifications belong to Script Editor, and a
+# click opened Script Editor. The text arrives in a file, read as data, never as AppleScript source.
+# (AppleScript names ignore case: every variable below must differ by more than case.)
+_NOTIFIER_SRC = """on run
+	set base to do shell script "dirname " & quoted form of (POSIX path of (path to me))
+	set pendingFile to base & "/notify-pending.txt"
+	set lastFile to base & "/notify-last.txt"
+	try
+		set parts to paragraphs of (read (POSIX file pendingFile) as «class utf8»)
+		do shell script "mv -f " & quoted form of pendingFile & " " & quoted form of lastFile
+		display notification (item 2 of parts) with title (item 1 of parts) sound name "Glass"
+		delay 1
+	on error
+		set u to "%s"
+		try
+			set u to item 3 of paragraphs of (read (POSIX file lastFile) as «class utf8»)
+		end try
+		open location u
+	end try
+end run
+""" % APP_URL
+_NOTIFIER_VERSION = '4'
+
+
+def _notifier():
+    """The ApplyTwin.app that posts macOS notifications (built on first use), or None if it can't be built."""
+    mark = os.path.join(NOTIFIER, 'Contents', 'Resources', 'applytwin-' + _NOTIFIER_VERSION)
+    if os.path.exists(mark):
+        return NOTIFIER
+    try:
+        import tempfile
+        shutil.rmtree(NOTIFIER, ignore_errors=True)
+        src = os.path.join(tempfile.mkdtemp(), 'n.applescript')
+        open(src, 'w', encoding='utf-8').write(_NOTIFIER_SRC)
+        if subprocess.run(['osacompile', '-o', NOTIFIER, src], capture_output=True, timeout=30).returncode:
+            return None
+        icon = os.path.join(APP, 'scripts', 'seo', 'icon-512.png')
+        if os.path.exists(icon):
+            subprocess.run(['sips', '-s', 'format', 'icns', icon, '--out', os.path.join(NOTIFIER, 'Contents', 'Resources', 'applet.icns')],
+                           capture_output=True, timeout=30)
+        plist = os.path.join(NOTIFIER, 'Contents', 'Info.plist')
+        subprocess.run(['plutil', '-replace', 'CFBundleIdentifier', '-string', 'tech.twinly.applytwin.notifier', plist], capture_output=True)
+        subprocess.run(['plutil', '-replace', 'LSUIElement', '-bool', 'YES', plist], capture_output=True)   # no Dock icon flash
+        open(mark, 'wb').close()
+        # edited, so sign it again (last: anything written into it afterwards breaks the signature and it won't open)
+        if subprocess.run(['codesign', '--force', '--deep', '-s', '-', NOTIFIER], capture_output=True, timeout=60).returncode:
+            os.remove(mark)
+            return None
+        return NOTIFIER
+    except Exception:
+        return None
+
+
+def _app_link(url):
+    """Where clicking the notification goes: a page of the local app, never anywhere else."""
+    return url if isinstance(url, str) and re.match(r'^http://(localhost|127\.0\.0\.1):\d+/[\w#/.?=&%-]*$', url) else APP_URL
+
+
+def notify(title, msg, url=''):
+    # title and message can come from a job page via the agent: they go in as data (argv / environment / a file), never
+    # into AppleScript or PowerShell source, where a quote would let them run commands
+    title, msg, url = ' '.join(str(title).split())[:120], ' '.join(str(msg).split())[:200], _app_link(url)
     try:
         if platform.system() == 'Darwin':
+            app = _notifier()
+            if app:
+                pending = os.path.join(os.path.dirname(app), 'notify-pending.txt')   # outside the app: it's signed
+                for _ in range(30):   # one at a time: the last one is still being shown
+                    if not os.path.exists(pending):
+                        break
+                    __import__('time').sleep(0.1)
+                with open(pending, 'w', encoding='utf-8') as f:
+                    f.write(f'{title}\n{msg}\n{url}\n')
+                if not subprocess.run(['open', '-n', '-g', app], capture_output=True, timeout=15).returncode:
+                    return
             subprocess.run(['osascript', '-e', 'on run argv', '-e',
                             'display notification (item 2 of argv) with title (item 1 of argv) sound name "Glass"', '-e', 'end run',
                             title, msg], capture_output=True)
         elif platform.system() == 'Windows':
+            # launch + protocol: clicking the toast opens the page in the browser (it used to do nothing)
             ps = ("[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] > $null;"
-                  "$t = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent(1);"
-                  "$x = $t.GetElementsByTagName('text'); $x.Item(0).AppendChild($t.CreateTextNode($env:APPLYTWIN_NOTE_TITLE)) > $null;"
-                  "$x.Item(1).AppendChild($t.CreateTextNode($env:APPLYTWIN_NOTE_MSG)) > $null;"
-                  "[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\\WindowsPowerShell\\v1.0\\powershell.exe').Show([Windows.UI.Notifications.ToastNotification]::new($t))")
+                  "[Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] > $null;"
+                  "$e = [Security.SecurityElement];"
+                  "$x = New-Object Windows.Data.Xml.Dom.XmlDocument;"
+                  "$x.LoadXml('<toast activationType=''protocol'' launch=''' + $e::Escape($env:APPLYTWIN_NOTE_URL) + '''><visual><binding template=''ToastGeneric''><text>' + $e::Escape($env:APPLYTWIN_NOTE_TITLE) + '</text><text>' + $e::Escape($env:APPLYTWIN_NOTE_MSG) + '</text></binding></visual></toast>');"
+                  "[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\\WindowsPowerShell\\v1.0\\powershell.exe').Show([Windows.UI.Notifications.ToastNotification]::new($x))")
             # the app id is PowerShell's own: Windows drops toasts from an unregistered one (like 'ApplyTwin') without a word
             subprocess.run(['powershell', '-NoProfile', '-Command', ps], capture_output=True, creationflags=0x08000000,
-                           env={**os.environ, 'APPLYTWIN_NOTE_TITLE': title, 'APPLYTWIN_NOTE_MSG': msg})
+                           env={**os.environ, 'APPLYTWIN_NOTE_TITLE': title, 'APPLYTWIN_NOTE_MSG': msg, 'APPLYTWIN_NOTE_URL': url})
         elif shutil.which('notify-send'):
             subprocess.run(['notify-send', '--', title, msg], capture_output=True)
     except Exception:

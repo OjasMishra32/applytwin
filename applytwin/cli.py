@@ -152,7 +152,8 @@ def main():
                 print(time.strftime('%H:%M'), int(j['fit']), j['company'], '|', j['title'], '|', j['apply_url'])
             if new:
                 from .install import notify
-                notify('ApplyTwin: new match', f"{new[0]['company']}: {new[0]['title']}" + (f' (+{len(new) - 1})' if len(new) > 1 else ''))
+                notify('ApplyTwin: new match', f"{new[0]['company']}: {new[0]['title']}" + (f' (+{len(new) - 1})' if len(new) > 1 else ''),
+                       f"http://localhost:4747/#jobs/{new[0]['id']}" if len(new) == 1 else 'http://localhost:4747/#jobs')
             time.sleep(every)
     else:
         print(__doc__)

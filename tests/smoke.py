@@ -1386,5 +1386,22 @@ res.append(ok(time.time() - store.load('app_seen.json', {})['at'] < 5, 'an app p
 res.append(ok(_idle and _go and _r2['pdf'] == '/x2.pdf' and _calls == ['lead with robotics'] and not _late['ok']
               and not os.path.exists(api._review_file('rvjob')), 'review window: skips when unwatched, send-it and change both work'))
 
+# clicking a notification opens ApplyTwin's own page (it used to open Script Editor); links can only point at the local app
+from applytwin import install as _inst
+_names = _re.findall(r'\bset (\w+) to', _inst._NOTIFIER_SRC)
+res.append(ok(_inst._app_link('http://localhost:4747/#jobs/ma_1') == 'http://localhost:4747/#jobs/ma_1'
+              and _inst._app_link('https://evil.example/') == _inst.APP_URL and _inst._app_link('http://localhost:4747/" & x') == _inst.APP_URL
+              and len({n.lower() for n in _names}) == len(set(_names)), 'notification links stay on localhost; notifier variables never clash'))
+if sys.platform == 'darwin':
+    _nh = _tf.mkdtemp()
+    _old = _inst.NOTIFIER
+    _inst.NOTIFIER = os.path.join(_nh, 'ApplyTwin.app')
+    try:
+        _built = _inst._notifier()
+        _sig = subprocess.run(['codesign', '-v', _built], capture_output=True).returncode == 0 if _built else False
+    finally:
+        _inst.NOTIFIER = _old
+    res.append(ok(bool(_built) and _sig, 'macOS notifier app builds and its signature checks out'))
+
 print(f'\n{sum(res)}/{len(res)} passed')
 sys.exit(0 if all(res) else 1)
