@@ -92,7 +92,8 @@ def _hw_tools(t):
 
 def check_rewrite(orig, new, vault_txt, jd, entry_txt=None):
     """Return None if the rewrite is allowed, else the reason it was rejected. Numbers are locked: every number must come from
-    the same role/project (entry_txt) and keep its meaning; a scale claim can't grow. Wording, tools and outcomes can move."""
+    the same role/project (entry_txt) and keep its meaning; a scale claim can't grow. Wording and tools can move; outcomes
+    are checked by the audit (only ones the vault states)."""
     o, n = ats.plain(orig), ats.plain(new)
     scope = ats.plain(entry_txt or orig)
     if len(n) < 25:
@@ -121,7 +122,8 @@ def check_rewrite(orig, new, vault_txt, jd, entry_txt=None):
     tools = _hw_tools(n) - _hw_tools(scope)
     if tools:
         return 'adds a tool this entry does not list: ' + ', '.join(sorted(tools))
-    # tools, methods and outcomes may be framed toward the posting (the user's call); numbers, scale and links may not.
+    # tools and methods may be framed toward the posting (the user's call); numbers, scale and links may not. Outcomes
+    # (shipped, adopted, cut costs) must already be in the vault: the audit checks that, since it needs to read meaning.
     # Titles, employers, awards and team leadership are checked by the honesty read (audit), which understands context.
     for link in re.findall(r'\]\(([^)]+)\)', orig):
         if link not in new:
@@ -560,8 +562,9 @@ RULES (hard):
 - No fact twice: an honor in education is not repeated in awards, a placement in a bullet is not repeated in awards.
 - No orphan section: a section with one entry and one short bullet either earns a second bullet or gives way to a
   stronger entry.
-- Reframe toward the posting: stronger verbs, the purpose and outcome of the work, the posting's vocabulary, and closely
-  related tools or methods. Numbers are locked (never a new or changed number, metric or scale), and so are titles,
+- Reframe toward the posting: stronger verbs, the purpose of the work, the posting's vocabulary, and closely related
+  tools or methods. Outcomes and results only as the vault states them: never add one ("adopted by the team", "cut
+  costs", "shipped to production") the original bullet or its entry doesn't say. Numbers are locked (never a new or changed number, metric or scale), and so are titles,
   employers, degrees, awards and placements; never claim leading people they didn't lead.
 - Refer to bullets by the exact ids shown in the vault ("drift.0"). A number keeps its meaning ("40K events/sec" never
   becomes "40K users").
@@ -1044,7 +1047,9 @@ qualifiers. Flag ONLY claims a recruiter, interviewer or reference check would c
   "regional finalist" -> "finalist", "estimated $310K" -> "$310K")
 - a job title, employer, degree, award, rank/placement or date that differs from the original or the item's "entry"
 - leading or managing people or teams they only joined or supported
-New tools, methods, technologies, outcomes and purposes are ALLOWED (the candidate chose this); never flag them.
+- an outcome or result the original and its entry don't state: "deployed to production", "adopted by the team", "cut
+  costs", "improved reliability", "used by customers", when the original only says the work was built or done
+New tools, methods, technologies and purposes are ALLOWED (the candidate chose this); never flag them.
 Reply with ONLY JSON: {"overclaims": [{"id": "<item id>", "why": "<short reason>"}]}
 
 ITEMS:

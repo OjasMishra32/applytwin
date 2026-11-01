@@ -111,6 +111,33 @@ def codex_model_args():
     return []
 
 
+DESKTOP_BROWSER_FEATURES = ('browser_use', 'browser_use_external', 'computer_use', 'in_app_browser')
+DESKTOP_BROWSER_SERVERS = ('node_repl', 'computer-use')
+
+
+def codex_browser_args(exe='codex'):
+    """Turn off Codex's desktop browser for an unattended run so the twin's browser (Playwright) is the only one it has.
+    The ChatGPT app registers a desktop browser (node_repl) that only works inside the app: in `codex exec` its first call
+    fails with "The browser access host is unavailable" and the run stops before applying anywhere. Only features this
+    CLI knows and servers the config has are named (an unknown one would stop the run)."""
+    if 'codex_features' not in _cache:
+        try:
+            out = subprocess.run([exe, 'features', 'list'], capture_output=True, text=True, encoding='utf-8', errors='replace',
+                                 timeout=20, **store.NOWIN).stdout
+            _cache['codex_features'] = {ln.split()[0] for ln in out.splitlines() if ln.strip()}
+        except Exception:
+            _cache['codex_features'] = set()
+    args = [a for f in DESKTOP_BROWSER_FEATURES if f in _cache['codex_features'] for a in ('--disable', f)]
+    try:
+        txt = open(os.path.expanduser('~/.codex/config.toml'), encoding='utf-8').read()
+    except OSError:
+        txt = ''
+    for name in DESKTOP_BROWSER_SERVERS:
+        if re.search(rf'^\[mcp_servers\.(?:"{re.escape(name)}"|{re.escape(name)})\]', txt, re.M):
+            args += ['-c', f'mcp_servers.{name}.enabled=false']
+    return args
+
+
 def rejected_models():
     try:
         return set(json.load(open(store.path('codex_rejected.json'), encoding='utf-8')))

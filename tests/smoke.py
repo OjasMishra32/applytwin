@@ -1154,6 +1154,27 @@ for _r in api.inbox():
     if _r['job_id'] in ('wd1', 'wd2'):
         api.resolve(_r['id'])
 res.append(ok('wd2' in [j['id'] for j in api.next_jobs(10)['jobs']], 'resolving the sign-in releases the site\'s other jobs'))
+# the agent's browser failing is one plain card with a fix, never a pile of raw tool errors; old ones are cleared on start
+_b1 = api.notify('ApplyTwin browser unavailable', 'The browser access host is unavailable')
+_b2 = api.notify('Email browser access needed', 'Browser access is currently unavailable: Chrome computer access was not approved.')
+_bi = [r for r in api.inbox() if 'browser' in (r['title'] + r['message']).lower()]
+res.append(ok(len(_bi) == 1 and _bi[0]['title'] == "Your twin's browser didn't start" and 'access host' not in _bi[0]['message']
+              and _b2.get('batched'), f"browser failures make one clear card ({[(r['title'], r['message'][:50]) for r in _bi]})"))
+store.execute('insert into inbox(kind,title,message,url,job_id,at) values(?,?,?,?,?,?)',
+              ('needs_you', 'ApplyTwin browser unavailable', 'The browser access host is unavailable', '', '', time.time()))
+api.tidy_inbox()
+res.append(ok(not [r for r in api.inbox() if 'browser' in (r['title'] + r['message']).lower()], 'old browser errors are cleared on start'))
+# graduate programs never reach an undergrad: "Undergraduate" once read as "graduate", "Systems" as an M.S., and banks'
+# "Summer Associate" (the MBA/MS/PhD program) slipped through; a master's student still sees MS/PhD roles
+_ug = {'degree': 'Bachelor of Science in Information Systems', 'class_standing': 'Undergraduate'}
+_ms = {'degree': 'MS Computer Science', 'class_standing': 'Graduate student'}
+_gt = ['2027 Quantitative Research Summer Associate - Masters/PhD', 'Software Engineer Program - Summer Associate (Master\'s)',
+       'Data Science Summer Associate - Graduate Students']
+_ok = ['2027 Investment Banking Summer Analyst', 'Systems Engineering Intern', 'Intern - BS/MS Software', 'Mastercard Software Intern']
+_f = lambda t, p: match.fit({'title': t, 'company': 'JPMorgan Chase', 'description': ''}, p)[0]
+res.append(ok(match.student_level(_ug) == 'undergrad' and all(_f(t, _ug) == 0 for t in _gt) and all(_f(t, _ug) > 0 for t in _ok)
+              and _f(_gt[0], _ms) > 0 and bool(match.level_gate({'title': 'Quant Intern', 'description': "Must be pursuing a Master's or PhD."}, _ug)),
+              'graduate-only roles are kept from undergrads, and MS/PhD roles still reach master\'s students'))
 # Greenhouse jobs are spaced apart in a batch (rapid Greenhouse submits trigger emailed security codes)
 _pc = [j['ats'] for j in api.pace([{'ats': 'greenhouse'}, {'ats': 'greenhouse'}, {'ats': 'lever'}, {'ats': 'greenhouse'}, {'ats': 'ashby'}])]
 res.append(ok(_pc == ['greenhouse', 'lever', 'greenhouse', 'ashby', 'greenhouse'], f'Greenhouse jobs never back to back when there is other work {_pc}'))

@@ -312,7 +312,11 @@ GENERIC_ONLY = re.compile(r'^(current|undergraduate|undergrad|graduate|college|u
 POSTDOC = re.compile(r'\bpost[- ]?doc(?:toral)?\b', re.I)
 PHD_ONLY = re.compile(r"currently (?:enrolled|pursuing)[^.\n]{0,40}\b(?:ph\.?d|doctora)|\bph\.?d\.? (?:students?|candidates?)\b|"
                       r"pursuing an? (?:ph\.?d|doctora)|enrolled in an? (?:ph\.?d|doctora)|\bdoctoral (?:students?|candidates?)\b", re.I)
-MS_ONLY = re.compile(r"currently (?:enrolled|pursuing)[^.\n]{0,40}\bmaster'?s|pursuing an? master'?s|\bmaster'?s (?:students?|candidates?)\b", re.I)
+MS_ONLY = re.compile(r"currently (?:enrolled|pursuing)[^.\n]{0,40}\bmaster'?s|pursuing an? master'?s|\bmaster'?s (?:students?|candidates?)\b|"
+                     r"\bmaster'?s or ph\.?d\b|\bm\.?s\.?\s*(?:/|or)\s*ph\.?d\b|\bgraduate (?:degree )?(?:students?|candidates?|program)\b", re.I)
+# titles for graduate students: banks' "Summer Associate" is the MBA/MS/PhD program ("Summer Analyst" is the undergrad one)
+GRAD_TITLE = re.compile(r"\bsummer associate\b|\bgraduate students?\b|\((?:graduate|masters?|master'?s|ms|m\.s\.)\)|"
+                        r"\b(?:m\.?s\.?|masters?|master'?s)\s*(?:/|or|&)\s*ph\.?d\b", re.I)
 OPEN_TO_UNDERGRAD = re.compile(r"\b(?:bachelor'?s?|undergrad\w*|b\.?s\.?/m\.?s|bs/ms|ba/bs|all (?:degree|academic) levels|any degree)\b", re.I)
 
 
@@ -323,7 +327,7 @@ def student_level(prof):
         return 'doctorate'
     if re.search(r'ph\.?d|doctor', d, re.I):
         return 'phd'
-    if re.search(r'master|m\.?s\.?\b|mba|m\.?eng|graduate student', d, re.I):
+    if re.search(r"\bmaster|\bm\.?s\.?(?=\s|$|,|/)|\bmba\b|\bm\.?eng\b|(?<!under)graduate student", d, re.I):
         return 'masters'
     return 'undergrad'
 
@@ -338,8 +342,11 @@ def level_gate(job, prof):
     if lv in ('undergrad', 'masters') and '\U0001F393' in title:   # the internship lists' mark for "advanced degree required"
         return 'advanced degree required'
     if lv in ('undergrad', 'masters') and (re.search(r'\bph\.?d\b', title, re.I) or PHD_ONLY.search(desc)) \
-            and not OPEN_TO_UNDERGRAD.search(f"{title} {desc}" if lv == 'undergrad' else title):
+            and not OPEN_TO_UNDERGRAD.search(f"{title} {desc}" if lv == 'undergrad' else title) \
+            and not (lv == 'masters' and re.search(r"\bmasters?\b|\bmaster'?s\b|\bm\.?s\.?(?=\s*(?:/|or|&))", title, re.I)):
         return 'PhD students only'
+    if lv == 'undergrad' and GRAD_TITLE.search(title) and not OPEN_TO_UNDERGRAD.search(title):
+        return 'graduate students only'
     if lv == 'undergrad' and MS_ONLY.search(desc) and not OPEN_TO_UNDERGRAD.search(desc):
         return "master's students only"
     return ''
@@ -415,7 +422,7 @@ def fit(job, prof, vault_terms=None):
     if any(same_company(c, company) for c in s.get('companies_skip', [])):
         return 0, 'company on skip list'
     # graduate-only programs ("Intern, MS, Software Engineering", "PhD Intern") for an undergrad
-    undergrad = not re.search(r'master|mba|ph\.?d|doctor|graduate', f"{prof.get('degree', '')} {prof.get('class_standing', '')}", re.I)
+    undergrad = student_level(prof) == 'undergrad'   # "Undergraduate" once read as "graduate" here and let MS-only roles through
     if undergrad and re.search(r"\b(M\.?S\.?|Masters?|Master's|Ph\.?D\.?|MBA)\b(?!\s*(Excel|Office|Word|Teams))", title) and \
             not re.search(r"\b(B\.?S\.?|B\.?A\.?|Bachelor'?s?|undergrad\w*)\b", title, re.I):
         return 0, 'graduate students only'

@@ -1092,7 +1092,10 @@ _run = {"proc": None, "agent": None, "log": None, "stopped": False}
 
 def run_prompt(n):
     return (f"Use the applytwin-apply skill. Apply to the next {n} jobs in my ApplyTwin queue (applytwin_queue / applytwin_next_jobs), "
-            "dream companies first. FIRST check your browser tool works (open about:blank in your own tab). If it doesn't, call "
+            "dream companies first. Use the Playwright browser tools (browser_navigate etc.): that is the twin's browser ApplyTwin set up, "
+            "with my sign-ins saved. Don't use Claude in Chrome, computer use or a built-in Chrome/browser tool: they need approvals "
+            "nobody is there to give. If any other browser tool fails, switch to the Playwright tools before giving up. "
+            "FIRST check your browser tool works (open about:blank in your own tab). If Playwright doesn't work either, call "
             "applytwin_notify once with the exact error and stop: never log jobs as blocked because your browser is down. "
             "For every job: claim it, get its tailored resume with applytwin_tailor_apply(job_id) and NO plan (a dedicated writer builds it while you open the application), "
             "open the application in the browser, follow applytwin_playbook for its ATS, answer from applytwin_answer_questions (pass job_id, and the "
@@ -1575,13 +1578,18 @@ def _start_run(agent, n, model, prompt, restarts):
         raise RuntimeError('Sign in first: open ApplyTwin (type applytwin in a terminal) and continue with Google.')
     prompt = prompt or run_prompt(n)
     store.save('run_health.json', {})   # a new run gets a fresh chance at its browser
+    from . import install
+    install.ensure_browser(agent)
+    if not install.has_browser(agent) and not shutil.which('npx'):
+        raise RuntimeError("Your twin's browser needs Node.js. Install it from nodejs.org, then press Start again.")
     if agent == 'claude':
         # runs on the user's own Claude subscription; only ApplyTwin's tools and a browser are pre-approved, so it never stalls on a prompt
         tools = ('mcp__plugin_applytwin_applytwin,mcp__applytwin,mcp__playwright,mcp__claude-in-chrome,'
                  'Read,Write,Bash(ls:*),Bash(open:*)')
         cmd = [exe, '-p', '--allowedTools', tools, '--permission-mode', 'acceptEdits', '--output-format', 'text']
     else:
-        cmd = [exe, 'exec', '--skip-git-repo-check', '-s', 'workspace-write', '-c', 'approval_policy=never', *(['-m', model] if model else agents.codex_model_args()), '-']
+        cmd = [exe, 'exec', '--skip-git-repo-check', '-s', 'workspace-write', '-c', 'approval_policy=never', *(['-m', model] if model else agents.codex_model_args()),
+               *agents.codex_browser_args(exe), '-']
     logf = store.path('autopilot.log')
     keep = os.path.exists(logf) and os.path.getsize(logf) < 2_000_000 and restarts   # a continuation adds to its run's log
     f = open(logf, 'a' if keep else 'w', encoding='utf-8')
@@ -1742,6 +1750,10 @@ def notify(title, message='', url='', job_id='', kind='needs_you'):
     the open app shows its own (click it to answer); if the app isn't open, a system notification says where to go."""
     # one ping per site and blocker: five NVIDIA jobs waiting on one Workday sign-in are one thing to do, not five alerts
     cat = blockers.classify(f'{title}. {message}')
+    if cat == 'browser':   # the agent's own tooling, not something on a site: one plain card with the fix, never a pile of raw errors
+        title, message, url, job_id = "Your twin's browser didn't start", browser_fix(f'{title}. {message}'), '', ''
+        if store.rows("select id from inbox where resolved is null and title=?", (title,)):
+            return {"ok": True, "batched": True, "note": "The user already has a browser item. Stop the run now."}
     h = blockers.host(url or ((store.rows('select apply_url, url from jobs where id=?', (job_id,)) or [{}])[0].get('apply_url') or ''))
     repeat = False
     if h and cat in ('signin', 'account', 'email_code', 'captcha'):
@@ -1759,6 +1771,27 @@ def notify(title, message='', url='', job_id='', kind='needs_you'):
         from .install import notify as desk
         desk('ApplyTwin: ' + title, 'Open ApplyTwin (localhost:4747) to handle it. ' + (message or url))
     return {"ok": True}
+
+
+def tidy_inbox():
+    """On start: clear browser errors left by earlier runs. They were the agent's own tooling failing (now set up on
+    start), never something the user had to do on a site."""
+    for r in store.rows('select id, title, message from inbox where resolved is null'):
+        if r['title'] == "Your twin's browser didn't start" or blockers.classify(f"{r['title']}. {r['message']}") == 'browser':
+            store.execute('update inbox set resolved=? where id=?', (time.time(), r['id']))
+
+
+def browser_fix(err=''):
+    """What the user should do when the agent's browser didn't start, in plain words."""
+    import shutil
+    from . import install
+    if not shutil.which('npx'):
+        return "It needs Node.js. Install it from nodejs.org, then press Start again."
+    if re.search(r'already in use|profile', err, re.I):
+        return "A twin's browser window was still open. Close it and press Start again."
+    if not any(install.has_browser(a) for a in agents.NAMES):
+        return "It wasn't set up yet. Restart ApplyTwin (it sets it up on start), then press Start again."
+    return "Press Start again. If it happens again, restart ApplyTwin; your jobs stay in the queue."
 
 
 def inbox_poll():
@@ -1907,7 +1940,8 @@ def import_applied(items, source='email'):
 
 def email_history_prompt():
     return ("Use the applytwin-history skill. Find every job I already applied to by reading my email in your browser, and "
-            "record them with applytwin_import_applied so ApplyTwin never applies to them again. Open my webmail (Gmail, "
+            "record them with applytwin_import_applied so ApplyTwin never applies to them again. Use the Playwright browser tools "
+            "(the twin's browser), not Claude in Chrome or computer use. Open my webmail (Gmail, "
             "Outlook, or my school email; if I'm not signed in, applytwin_notify me to sign in in your browser and wait for "
             "me, never type a password). Search the last 12 months for application confirmations: \"thank you for applying\", "
             "\"application received\", \"we received your application\", \"your application was sent\" (LinkedIn), and mail from "
@@ -1927,7 +1961,7 @@ def rescore(force=False):
     terms = {t for t, pat in ats.PATTERNS.items() if pat.search(vt)}
     here = os.path.dirname(os.path.abspath(__file__))
     code = b''.join(open(os.path.join(here, f), 'rb').read() for f in ('match.py', 'sources.py'))
-    keys = ('search', 'grad_year', 'grad_month', 'needs_sponsorship', 'citizenship', 'school', 'earliest_start', 'class_standing')
+    keys = ('search', 'grad_year', 'grad_month', 'needs_sponsorship', 'citizenship', 'school', 'earliest_start', 'class_standing', 'degree')
     mark = hashlib.sha1(json.dumps([{k: prof.get(k) for k in keys}, sorted(terms)], sort_keys=True, default=str).encode() + code).hexdigest()
     if not force and (store.load('rescore.json', {}) or {}).get('mark') == mark:
         return {"rescored": 0, "unchanged": True}

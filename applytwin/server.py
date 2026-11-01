@@ -405,7 +405,7 @@ def serve(port=4747, open_browser=True):
     # on start: re-apply the current matching rules to saved jobs (so fixes like the skip list reach existing queues),
     # then refresh jobs if the last scan is old
     from . import install
-    threading.Thread(target=lambda: (install.refresh_skills(), install.refresh_agents(), api.rescore(), api.scan_if_stale()), daemon=True).start()
+    threading.Thread(target=lambda: (install.refresh_skills(), install.refresh_agents(), api.tidy_inbox(), api.rescore(), api.scan_if_stale()), daemon=True).start()
     threading.Thread(target=_update_loop, daemon=True).start()
     threading.Thread(target=_code_watch, daemon=True).start()
     # update after the app is up (the page opens right away), and only in the copy that owns the port

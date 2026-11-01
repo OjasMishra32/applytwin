@@ -179,9 +179,38 @@ def install():
     print('\nDone. In Claude Code or Codex, say: "set me up with applytwin" to onboard, then "twin: apply to my top 10".')
 
 
+def has_browser(agent):
+    """The twin's browser (Playwright, on its own profile) is registered with this agent."""
+    try:
+        if agent == 'claude':
+            cj = os.path.expanduser('~/.claude.json')
+            return bool(os.path.exists(cj) and (json.load(open(cj, encoding='utf-8')).get('mcpServers') or {}).get('playwright'))
+        cfg = os.path.expanduser('~/.codex/config.toml')
+        return os.path.exists(cfg) and '[mcp_servers.playwright]' in open(cfg, encoding='utf-8').read()
+    except (OSError, ValueError):
+        return False
+
+
+def ensure_browser(agent):
+    """Register the twin's browser when it's missing: it only got written at install time, so anyone who installed
+    Node.js after ApplyTwin had no browser, and their agent fell back to Chrome or computer-use tools that can't run
+    unattended ("browser access host is unavailable")."""
+    if has_browser(agent) or not shutil.which('npx'):
+        return
+    try:
+        if agent == 'claude' and shutil.which('claude'):
+            _add_playwright(shutil.which('claude'))
+        elif agent == 'codex' and os.path.isdir(os.path.expanduser('~/.codex')):
+            install_codex()
+    except Exception:
+        pass
+
+
 def refresh_browser():
     """Bring the twin's browser setup in Claude Code and Codex up to date when it was registered by an older version
-    (it only gets written at install time)."""
+    (it only gets written at install time), and add it where it's missing."""
+    for a in ('claude', 'codex'):
+        ensure_browser(a)
     try:
         cj = os.path.expanduser('~/.claude.json')
         cur = (json.load(open(cj, encoding='utf-8')).get('mcpServers') or {}).get('playwright') if os.path.exists(cj) else None

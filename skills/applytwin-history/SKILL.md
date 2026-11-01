@@ -9,7 +9,8 @@ Goal: every role the user already applied to goes into ApplyTwin with `applytwin
 forever (even if a later scan finds it again). Truthful only: record what an email shows, never guess.
 
 ## 1. Open their email in your browser
-- Use the browser ApplyTwin set up for you (Playwright, or Claude in Chrome). Open Gmail (mail.google.com), Outlook
+- Use the browser ApplyTwin set up for you: the Playwright tools (the twin's browser). In an unattended run never use
+  Claude in Chrome or computer use; they wait for approvals nobody gives. Open Gmail (mail.google.com), Outlook
   (outlook.live.com / outlook.office.com) or the school's webmail, whichever the user uses (ask once if unclear).
 - If you see a sign-in page: do NOT type a password. `applytwin_notify("Sign in to your email in your twin's browser",
   "<url>")`, tell the user, and wait for them to say they're signed in. Then continue.

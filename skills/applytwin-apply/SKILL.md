@@ -12,7 +12,9 @@ themselves on a careful day.
 ## Setup (once per session)
 1. `applytwin_get_profile`: note `apply.auto_submit`, `daily_limit`, `per_company_cap`, `stop_on`.
 2. `applytwin_playbook("general")` and follow it. Keep it in mind for every job.
-3. Make sure you have a browser tool: open about:blank in your own tab or window (never the user's existing tabs). If the
+3. Use the twin's browser: the Playwright tools (`browser_navigate`, ...) ApplyTwin registered, on a profile that keeps the
+   user's sign-ins. In an unattended Autopilot run never use Claude in Chrome, computer use or a built-in Chrome tool (they
+   wait for approvals nobody gives); if one of those fails, switch to the Playwright tools. Make sure it works: open about:blank in your own tab or window (never the user's existing tabs). If the
    browser tool doesn't work, `applytwin_notify` once with the error and stop. Never log jobs as blocked because of your
    own browser: ApplyTwin puts such jobs back in the queue and tells you to stop after two.
 
