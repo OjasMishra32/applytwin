@@ -248,7 +248,7 @@ export default function Agents() {
               {!groups.length && <div className="px-4 py-4 text-[14px] text-muted">Nothing right now.</div>}
             </Group>
 
-            <Group title="Or use it from your terminal" footer="It never types passwords, solves CAPTCHAs, creates accounts or invents a fact.">
+            <Group title="Or use it from your terminal" footer="It never solves CAPTCHAs, invents a fact, or sees your password.">
               {[['Check your setup', 'applytwin doctor'], [`Tell ${label} directly`, 'apply to my top 25 with applytwin'],
                 ['Start Autopilot from a terminal', `applytwin run --agent ${agent} --n ${n}`]].map(([l, t]) => <CopyRow key={t} label={l} text={t} />)}
             </Group>

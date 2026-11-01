@@ -5,6 +5,7 @@ import { ArrowLeft, Check, Copy, FileText, Loader2 } from 'lucide-react'
 import { AgentConnect } from '../components/AgentConnect'
 import { ImportWait } from '../components/ImportWait'
 import { api } from '../lib/api'
+import { Accounts } from '../components/Accounts'
 import { useApp } from '../App'
 import { Drop, Segmented, Switch } from '../components/ui'
 import { Logo } from '../components/Shell'
@@ -205,7 +206,7 @@ export default function Welcome() {
     </Center>,
     apply: <Center wide>
       <H>How your twin applies</H>
-      <Sub>It follows these on every run. It never types passwords, solves CAPTCHAs or creates accounts. Those come to you.</Sub>
+      <Sub>It follows these on every run. It never solves CAPTCHAs or accepts legal agreements, and it signs in for you only if you turn that on below.</Sub>
       <div className="card mx-auto mt-8 max-w-[600px] divide-y divide-white/[.06] overflow-hidden text-left">
         <Toggle l="Submit applications on its own" d="Off: it fills every form and stops so you press Submit." v={!!p.apply.auto_submit} f={v => sa('auto_submit', v)} />
         <Toggle l="Read verification codes from my email" d="Off: it notifies you to type the code." v={p.apply.email_codes === 'agent'} f={v => sa('email_codes', v ? 'agent' : 'notify')} />
@@ -214,6 +215,7 @@ export default function Welcome() {
         <Pick l="Applications per day, at most" v={p.apply.daily_limit} opts={[10, 20, 40, 60, 100, 150]} f={v => sa('daily_limit', v)} />
         <Pick l="Per company, at most" v={p.apply.per_company_cap} opts={[1, 2, 3, 5, 10]} f={v => sa('per_company_cap', v)} />
       </div>
+      <div className="card mx-auto mt-3 max-w-[600px] overflow-hidden text-left"><Accounts defaultEmail={vault?.basics?.email || ''} /></div>
     </Center>,
     agent: <Center wide>
       <H>Which agent should apply?</H>

@@ -1020,7 +1020,81 @@ def playbook(ats_name):
     if not os.path.exists(f):
         f, name = os.path.join(APP, 'playbooks', 'general.md'), 'general'
     text = open(f, encoding='utf-8').read()
-    return text if name == 'general' else text.rstrip() + '\n' + ALWAYS
+    return (text if name == 'general' else text.rstrip() + '\n' + ALWAYS) + account_rules()
+
+
+# ------------------------------------------------------------------ accounts: the twin signs in, never seeing the password
+
+def _secrets():
+    return store.load('secrets.json', {}) or {}
+
+
+def accounts_status():
+    a = store.profile()['apply'].get('accounts') or {}
+    return {"enabled": bool(a.get('enabled')), "email": a.get('email') or '', "password_set": bool(_secrets().get('account_password'))}
+
+
+def set_accounts(enabled=None, email=None, password=None):
+    """Turn on signing in / creating accounts for you. The password stays in secrets.json on this computer (never synced,
+    never shown to the AI): ApplyTwin types it into the page itself when the agent asks."""
+    if password is not None:
+        if password and len(password) < 8:
+            raise RuntimeError('Use at least 8 characters (most job sites ask for 8 or more, with a number and a symbol).')
+        sec = _secrets()
+        sec['account_password'] = password
+        store.save('secrets.json', sec)
+        try:
+            os.chmod(store.path('secrets.json'), 0o600)
+        except OSError:
+            pass
+    p = store.profile()
+    a = dict(p['apply'].get('accounts') or {})
+    if enabled is not None:
+        a['enabled'] = bool(enabled)
+    if email is not None:
+        a['email'] = email.strip()
+    if a.get('enabled') and not _secrets().get('account_password'):
+        raise RuntimeError('Set the password your twin should use first.')
+    p['apply']['accounts'] = a
+    store.save('profile.json', p)
+    return accounts_status()
+
+
+def fill_password(url):
+    """The agent is on a sign-in or create-account page: type the saved password into its password boxes. The agent gets
+    a count back, never the password."""
+    from . import twin
+    st = accounts_status()
+    if not st['enabled'] or not st['password_set']:
+        return {"filled": 0, "note": "Signing in for the user is turned off. Leave the tab on this page, applytwin_notify, and "
+                                     "log Needs User 'sign-in required at <url>'."}
+    if not twin.alive():
+        return {"filled": 0, "note": "This only works in the twin's browser (the Playwright tools). Notify the user instead."}
+    n = twin.fill_password(url, _secrets()['account_password'])
+    return {"filled": n, "email": st['email'] or (store.resume().get('basics') or {}).get('email', ''),
+            "note": ("Filled the password box(es). Click the sign-in / create-account button and check the page for an error."
+                     if n else "No password box was found on that page. Open the sign-in or create-account form first, then call this again.")}
+
+
+def account_rules():
+    """What the agent may do about sign-ins, read into every playbook and run."""
+    st = accounts_status()
+    if not (st['enabled'] and st['password_set']):
+        return ''
+    email = st['email'] or (store.resume().get('basics') or {}).get('email', '')
+    return f"""
+## Signing in and creating accounts (the user turned this on)
+- On a sign-in or create-account page in the twin's browser, use the email {email}. Never type a password yourself: call
+  `applytwin_fill_password(url)` with the page's URL and ApplyTwin types the user's password into every password box
+  (including "confirm password"). Then click Sign in / Create account and read the page for errors.
+- Creating a candidate account is allowed, including ticking the site's account terms / privacy checkbox that creating it
+  requires. Never accept an arbitration or other legal agreement beyond that: notify the user.
+- "Already have an account" or "email in use" on create: switch to sign in. "Wrong password" or locked out: stop on that
+  site, applytwin_notify, log Needs User 'sign-in failed at <url>' (never guess another password).
+- A verification email: if email_codes is 'agent', open it in the user's email and click the link or type the code;
+  otherwise applytwin_notify and move on.
+- CAPTCHAs are still the user's: never solve one.
+"""
 
 
 def setup_status():
@@ -1107,7 +1181,9 @@ def run_prompt(n):
             "dream companies first. Use the Playwright browser tools (browser_navigate etc.): that is the twin's browser ApplyTwin set up, "
             "with my sign-ins saved. Don't use Claude in Chrome, computer use or a built-in Chrome/browser tool: they need approvals "
             "nobody is there to give. If any other browser tool fails, switch to the Playwright tools before giving up. "
-            "FIRST check your browser tool works (open about:blank in your own tab). If Playwright doesn't work either, call "
+            "FIRST check your browser tool works (open about:blank in your own tab); if it can't connect, call applytwin_open_browser "
+            "and try once more. The twin's window stays open between runs, so tabs from earlier runs may still be there: reuse a "
+            "job's tab if it's already open. If Playwright doesn't work either, call "
             "applytwin_notify once with the exact error and stop: never log jobs as blocked because your browser is down. "
             "For every job: claim it, get its tailored resume with applytwin_tailor_apply(job_id) and NO plan (a dedicated writer builds it while you open the application), "
             "open the application in the browser, follow applytwin_playbook for its ATS, answer from applytwin_answer_questions (pass job_id, and the "
@@ -1551,18 +1627,10 @@ def skip_job(job_id, why='Skipped by you'):
 
 def open_in_twin_browser(url):
     """Open a page in the twin's own browser profile, so a sign-in you do there is the one the twin uses."""
-    import subprocess
-    from . import install
     if not re.match(r'https?://[^\s]+$', url or '', re.I):   # a web page, never a Chrome command-line flag
         raise RuntimeError('That is not a web link.')
-    # mid-run this is fine too: Chrome passes the page to the twin's open window as a new tab in the same profile
-    os.makedirs(install.BROWSER_PROFILE, exist_ok=True)
-    # same keychain flags Playwright uses for this profile: with the real keychain Chrome can't read the logins the twin
-    # saved (and macOS asks for keychain access)
-    subprocess.Popen([render.chrome(), f'--user-data-dir={install.BROWSER_PROFILE}', '--no-first-run', '--no-default-browser-check',
-                      '--use-mock-keychain', '--password-store=basic', url],
-                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    return {"opened": True}
+    from . import twin
+    return twin.open_tab(url)   # a tab in the twin's own window (mid-run too): the sign-in you do there is the one it uses
 
 
 _RUN_LOCK = threading.Lock()
@@ -1582,26 +1650,6 @@ def start_run(agent='claude', n=25, model=None, prompt=None, restarts=0):
         raise ValueError('unknown agent')
     with _RUN_LOCK:   # two clicks at once must never start two agents on one browser
         return _start_run(agent, n, model, prompt, restarts)
-
-
-def _close_twin_windows():
-    """A twin's-browser window you left open (from 'Open in twin's browser') holds its profile, and the agent's browser
-    then can't start. Close it; your sign-ins are already saved in the profile."""
-    import subprocess
-    from . import install
-    prof = install.BROWSER_PROFILE
-    try:
-        if os.name == 'nt':
-            # the folder goes in as data: a quote in it (C:\Users\O'Brien) would break the command, and [ ] are -like wildcards
-            ps = ("Get-CimInstance Win32_Process -Filter \"Name='chrome.exe' or Name='msedge.exe'\" | "
-                  "Where-Object { $_.CommandLine -and $_.CommandLine.Contains($env:APPLYTWIN_PROF) } | "
-                  "ForEach-Object { Stop-Process -Id $_.ProcessId -Force }")
-            subprocess.run(['powershell', '-NoProfile', '-Command', ps], capture_output=True, timeout=20,
-                           env={**os.environ, 'APPLYTWIN_PROF': prof}, **store.NOWIN)
-        else:
-            subprocess.run(['pkill', '-f', '--', f'--user-data-dir={prof}( |$)'], capture_output=True, timeout=10)
-    except Exception:
-        pass
 
 
 def _start_run(agent, n, model, prompt, restarts):
@@ -1626,6 +1674,10 @@ def _start_run(agent, n, model, prompt, restarts):
     if not (cloud.status()['signed_in'] or os.environ.get('APPLYTWIN_SKIP_SIGNIN') or os.environ.get('CI')):
         raise RuntimeError('Sign in first: open ApplyTwin (type applytwin in a terminal) and continue with Google.')
     prompt = prompt or run_prompt(n)
+    if account_rules() and 'applytwin_fill_password' not in prompt:
+        prompt += ("\n\nThe user turned on signing in for them: on a sign-in or create-account page, follow the 'Signing in and "
+                   "creating accounts' rules in the playbook (applytwin_fill_password types the password; you never do). That "
+                   "overrides 'never type a password or create an account' above, for candidate accounts only.")
     if agent == 'codex':
         # in `codex exec` any message that isn't a tool call ends the whole run: an "update every 5 jobs" stopped it after 5
         prompt = prompt.replace(' Give a 1-line update every 5 jobs.', '') + (
@@ -1649,7 +1701,10 @@ def _start_run(agent, n, model, prompt, restarts):
     f = open(logf, 'a' if keep else 'w', encoding='utf-8')
     f.write(f"$ {' '.join(os.path.basename(c) if i == 0 else c for i, c in enumerate(cmd))} … apply to {n} jobs\n")
     f.flush()
-    _close_twin_windows()
+    from . import twin
+    if not twin.ensure():   # the twin's own window, kept open between runs so half-filled forms are still there
+        f.close()
+        raise RuntimeError("Couldn't open your twin's browser. ApplyTwin needs Google Chrome (or Chromium/Edge) installed.")
     # run from the data folder, not the repo, so the agent loads the installed plugin rather than the repo's dev .mcp.json
     # the instructions go in on stdin: on Windows, claude/codex are .cmd wrappers and cmd.exe would mangle quotes in a long argument
     run_id = f'run-{int(time.time() * 1000)}'
@@ -1867,7 +1922,7 @@ def browser_fix(err=''):
     if not shutil.which('npx'):
         return "It needs Node.js. Install it from nodejs.org, then press Start again."
     if re.search(r'already in use|profile', err, re.I):
-        return "A twin's browser window was still open. Close it and press Start again."
+        return "Another Chrome was using your twin's profile. Restart ApplyTwin and press Start again; your sign-ins are kept."
     if not any(install.has_browser(a) for a in agents.NAMES):
         return "It wasn't set up yet. Restart ApplyTwin (it sets it up on start), then press Start again."
     return "Press Start again. If it happens again, restart ApplyTwin; your jobs stay in the queue."

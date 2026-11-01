@@ -46,13 +46,16 @@ From then on ApplyTwin runs like a normal app. It starts by itself when you log 
 
 ## What it will never do
 
-- Type your passwords or verification codes
+- Show your password to the AI
 - Solve a CAPTCHA
-- Create an account in your name
 - Accept a legal agreement
 - Change a number, title, employer, degree or award on your resume
 
 When it hits one of these, it stops and sends you a notification.
+
+Signing in and creating job site accounts (Workday and the like) is off unless you turn it on in Settings, with an email
+and a password just for job sites. ApplyTwin then types that password into the page itself, so the AI filling the form
+never sees it, and it stays on your computer. Verification codes are read from your email only if you turn that on too.
 
 ## FAQ
 

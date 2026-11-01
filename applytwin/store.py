@@ -57,6 +57,7 @@ DEFAULT_PROFILE = {   # nothing about the person is assumed: unanswered fields s
         "stop_on": ["password", "captcha", "arbitration", "essay>150 words", "assessment"],
         "email_codes": "notify",                    # notify = ping you; agent = your agent reads the code from your email
         "notify_desktop": True,
+        "accounts": {"enabled": False, "email": ""},  # let the twin sign in / create accounts; the password is in secrets.json
     },
 }
 

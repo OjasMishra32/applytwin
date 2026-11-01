@@ -60,6 +60,7 @@ GET = {
     r'/api/agents': lambda m, qs, b: api.agent_status(),
     r'/api/auth': lambda m, qs, b: cloud.status(),
     r'/api/inbox': lambda m, qs, b: api.inbox_poll(),
+    r'/api/accounts': lambda m, qs, b: api.accounts_status(),
     r'/api/needs-you': lambda m, qs, b: api.needs_you(),
     r'/api/jobs/([\w-]+)/thread': lambda m, qs, b: {"thread": api.thread(m.group(1))},
     r'/api/auth/login': lambda m, qs, b: {"url": cloud.login_url(_login_redirect(_q(qs, 'redirect', 'http://localhost:4747/')))},
@@ -101,6 +102,7 @@ POST = {
     r'/api/auth/logout': lambda m, qs, b: cloud.logout(),
     r'/api/sync': lambda m, qs, b: cloud.push(),
     r'/api/inbox/(\d+)/resolve': lambda m, qs, b: api.resolve(m.group(1)),
+    r'/api/accounts': lambda m, qs, b: api.set_accounts(b.get('enabled'), b.get('email'), b.get('password')),
 }
 
 

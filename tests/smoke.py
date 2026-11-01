@@ -1,6 +1,7 @@
 """End-to-end smoke test on a throwaway APPLYTWIN_HOME: vault -> render every template -> tailor + fact guard -> answers -> MCP."""
 import json
 import time, os, subprocess, sys, tempfile, time
+os.environ.setdefault('APPLYTWIN_NO_TWIN', '1')   # never open or reach the real twin browser
 os.environ["APPLYTWIN_NO_TELEMETRY"] = "1"   # tests never count as installs
 os.environ["APPLYTWIN_SKIP_SIGNIN"] = "1"   # no Google account in tests
 for _s in (sys.stdout, sys.stderr):   # Windows consoles default to cp1252, which can't print emoji
@@ -807,7 +808,8 @@ try:
     _wpath2 = os.environ['PATH']
     _wb = render._win_browsers()
     subprocess.run = lambda *a, **k: _calls.append((a, k))
-    api._close_twin_windows()
+    from applytwin import twin as _tw
+    _tw._close_other_windows()
 finally:
     os.name = _saved[0]
     subprocess.run = _real_run
@@ -1221,6 +1223,25 @@ res.append(ok(_sites.get('title', '').startswith('Sign in to') and {s['site'] fo
               f"Needs you groups into a few rows ({[(g['title'], g['count']) for g in _td]})"))
 for _jid in ('td1', 'td2', 'td3', 'td4'):
     api.skip_job(_jid)
+# signing in for the user: off by default, the password lives only in secrets.json (never the synced profile, never a
+# tool result), and the playbook tells the agent to call applytwin_fill_password instead of typing it
+_ac0 = api.accounts_status()
+_off = api.fill_password('https://x.wd1.myworkdayjobs.com/login')
+try:
+    api.set_accounts(enabled=True)
+    _noset = False
+except RuntimeError:
+    _noset = True
+_ac = api.set_accounts(enabled=True, email='me@school.edu', password='Job$ites-2027')
+_prof = json.dumps(store.profile())
+_fp = api.fill_password('https://x.wd1.myworkdayjobs.com/login')
+_pb = api.playbook('workday')
+res.append(ok(not _ac0['enabled'] and _off['filled'] == 0 and 'turned off' in _off['note'] and _noset and _ac['enabled'] and _ac['password_set']
+              and 'Job$ites-2027' not in _prof and 'Job$ites-2027' not in json.dumps(_fp) and 'Job$ites-2027' not in _pb
+              and 'applytwin_fill_password' in _pb and 'me@school.edu' in _pb and store.load('secrets.json', {}).get('account_password') == 'Job$ites-2027',
+              f'sign-in for you: opt-in, password kept out of the profile, tools and playbook ({_fp})'))
+api.set_accounts(enabled=False)
+res.append(ok('applytwin_fill_password' not in api.playbook('workday'), 'turned off, the playbook says nothing about signing in'))
 # Greenhouse jobs are spaced apart in a batch (rapid Greenhouse submits trigger emailed security codes)
 _pc = [j['ats'] for j in api.pace([{'ats': 'greenhouse'}, {'ats': 'greenhouse'}, {'ats': 'lever'}, {'ats': 'greenhouse'}, {'ats': 'ashby'}])]
 res.append(ok(_pc == ['greenhouse', 'lever', 'greenhouse', 'ashby', 'greenhouse'], f'Greenhouse jobs never back to back when there is other work {_pc}'))

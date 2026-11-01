@@ -8,6 +8,7 @@ get answered.
 """
 import json
 import os
+os.environ.setdefault('APPLYTWIN_NO_TWIN', '1')   # never open or reach the real twin browser
 os.environ["APPLYTWIN_NO_TELEMETRY"] = "1"   # tests never count as installs
 os.environ["APPLYTWIN_SKIP_SIGNIN"] = "1"   # no Google account in tests
 import shutil

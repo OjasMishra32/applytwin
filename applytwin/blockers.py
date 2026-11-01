@@ -53,7 +53,7 @@ LABELS = {'ready': 'Ready for your Submit click', 'duplicate': 'Already applied'
 
 # what the user does, once, for a whole group
 ACTIONS = {'signin': 'Sign in once at {host} in the twin\'s browser; then press Finish and all {n} continue where they stopped.',
-           'account': 'Create your account at {host} once (ApplyTwin never creates accounts); then press Finish and all {n} continue.',
+           'account': 'Create your account at {host} once, then press Finish and all {n} continue. Or turn on "Sign in and create accounts for me" in Settings.',
            'email_code': 'Type the emailed code in each open tab ({n}), or set email_codes to "agent" so your twin reads them.',
            'captcha': 'Solve the CAPTCHA and click Submit in each open tab ({n}).',
            'question': 'Answer these once on the Answers page; your twin reuses them everywhere ({n}).',

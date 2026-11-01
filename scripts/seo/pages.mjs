@@ -15,7 +15,7 @@ export const PAGES = [
       ['Finds the internships worth applying to', 'It scans company career boards and the big internship lists every day, then ranks each posting against your resume, graduation date, work authorization and location. Roles you can\'t get, like PhD-only programs or postings that need sponsorship you don\'t have, are skipped before you ever see them.'],
       ['Writes a resume for each posting', 'Every application gets its own one-page resume, rewritten from your real experience to match that posting\'s words. Numbers, titles, employers and dates never change. It only reorders and rewords what is already true.'],
       ['Fills out the application', 'Your twin opens the application in its own Chrome window and fills every field: contact details, work history, school, links, and screening questions from answers you gave once. It knows the quirks of Greenhouse, Lever, Ashby, Workday, iCIMS, SmartRecruiters and Oracle.'],
-      ['You stay in control', 'By default it stops on the review screen so you press Submit. It never types your passwords, solves CAPTCHAs, creates accounts or accepts legal agreements. Those come to you in one list, grouped so one sign-in unblocks every job on that site.'],
+      ['You stay in control', 'By default it stops on the review screen so you press Submit. It never solves CAPTCHAs or accepts legal agreements; those come to you in one short list. It signs in and creates job site accounts only if you turn that on, and the AI never sees your password: ApplyTwin types it into the page itself.'],
     ],
     faq: [0, 2, 3, 10],
   },

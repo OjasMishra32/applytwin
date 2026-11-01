@@ -59,8 +59,17 @@ BROWSER_PROFILE = os.path.join(store.HOME, 'browser')
 # --sandbox: Playwright turns Chrome's sandbox off by default, which makes Chrome show an "unsupported command-line flag:
 # --no-sandbox" warning on every launch and leaves sites less isolated. Linux keeps the default: many distros block the
 # sandbox for apps like this, and Chrome would not start.
-PLAYWRIGHT = [shutil.which('npx') or 'npx' if platform.system() == 'Windows' else 'npx', '-y', '@playwright/mcp@latest', '--user-data-dir', BROWSER_PROFILE] \
-    + ([] if platform.system() == 'Linux' else ['--sandbox'])
+# the agent's browser tool connects to the twin's own window (ApplyTwin keeps it open between runs, see twin.py) instead of
+# launching a Chrome that closes when the run ends and takes every half-filled application with it
+from . import twin as _twin
+PLAYWRIGHT = [shutil.which('npx') or 'npx' if platform.system() == 'Windows' else 'npx', '-y', '@playwright/mcp@latest',
+              '--cdp-endpoint', _twin.ENDPOINT]
+
+
+def _ours(args):
+    """A browser entry ApplyTwin registered (any version): on the twin's profile, or connected to its window."""
+    a = list(args or [])
+    return BROWSER_PROFILE in a or _twin.ENDPOINT in a
 
 
 def _pw_claude():
@@ -216,7 +225,7 @@ def refresh_browser():
         cur = (json.load(open(cj, encoding='utf-8')).get('mcpServers') or {}).get('playwright') if os.path.exists(cj) else None
         claude = shutil.which('claude')
         want = _pw_claude()
-        if claude and cur and BROWSER_PROFILE in (cur.get('args') or []) and [cur.get('command')] + list(cur.get('args') or []) != want \
+        if claude and cur and _ours(cur.get('args')) and [cur.get('command')] + list(cur.get('args') or []) != want \
                 and not (os.path.basename(cur.get('command') or '') == want[0] and cur.get('args') == want[1:]):
             _add_playwright(claude, previous=cur)
     except Exception:
@@ -227,7 +236,7 @@ def refresh_browser():
             txt = open(cfg, encoding='utf-8').read()
             m = re.search(r'(\[mcp_servers\.playwright\]\n(?:(?!\n\[).)*?\nargs = )\[[^\n]*\]', txt, re.S)
             want = '[' + ', '.join(json.dumps(x) for x in PLAYWRIGHT[1:]) + ']'
-            if m and json.dumps(BROWSER_PROFILE) in m.group(0) and not m.group(0).endswith(want):
+            if m and (json.dumps(BROWSER_PROFILE) in m.group(0) or json.dumps(_twin.ENDPOINT) in m.group(0)) and not m.group(0).endswith(want):
                 open(cfg, 'w', encoding='utf-8').write(txt[:m.start()] + m.group(1) + want + txt[m.end():])
     except Exception:
         pass

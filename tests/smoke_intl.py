@@ -2,6 +2,7 @@
 python3 tests/smoke_intl.py"""
 import json as _json
 import os as _os
+os.environ.setdefault('APPLYTWIN_NO_TWIN', '1')   # never open or reach the real twin browser
 import re as _re
 import sys as _sys
 import tempfile as _tf

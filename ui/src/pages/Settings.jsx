@@ -6,6 +6,7 @@ import { useApp, Page } from '../App'
 import { Button, Segmented, Slider, Switch, Title } from '../components/ui'
 import { ProfileQuestions, missing, useQuestions } from '../components/ProfileQuestions'
 import { WhereAbroad, AbroadAnswers } from '../components/Regions'
+import { Accounts } from '../components/Accounts'
 
 export function Chips({ value = [], onChange, placeholder, suggestions = [], large }) {
   const [t, setT] = useState('')
@@ -78,6 +79,7 @@ export default function Settings() {
         <Group title="Your twin's permissions">
           <Row label="Submit applications on its own" hint="Off: it fills everything and stops so you can press Submit."><div className="flex justify-end"><Switch checked={a.auto_submit} onChange={v => sa('auto_submit', v)} /></div></Row>
           <Row label="Read verification codes from my email" hint="When a site emails you a code, your agent finds it in your inbox and types it. Off: you get a notification instead."><div className="flex justify-end"><Switch checked={a.email_codes === 'agent'} onChange={v => sa('email_codes', v ? 'agent' : 'notify')} /></div></Row>
+          <div className="-mx-1"><Accounts defaultEmail={p.email || ''} /></div>
           <Row label="Desktop notifications" hint="Ping my Mac when my twin needs me."><div className="flex justify-end"><Switch checked={a.notify_desktop !== false} onChange={v => sa('notify_desktop', v)} /></div></Row>
           <Row label="Applies with" hint="The agent Autopilot uses."><div className="flex justify-end"><Segmented id="agentset" value={a.agent || 'claude'} onChange={v => sa('agent', v)} options={[['claude', 'Claude Code'], ['codex', 'Codex']]} /></div></Row>
           <Row label="Tailor a resume for every job" hint="A new one-page resume, rewritten for each posting."><div className="flex justify-end"><Switch checked={a.tailor_every_resume} onChange={v => sa('tailor_every_resume', v)} /></div></Row>
