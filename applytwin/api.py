@@ -979,7 +979,9 @@ def built_resume(job_id, since=0):
             return None
     except OSError:
         return None
-    return {"pdf": r['pdf'], "score": r.get('score'), "pages": r.get('pages'), "rewrites": len(r.get('rewrites') or []),
+    rv = store.load(_review_file(job_id), None) or {}
+    return {"pdf": r['pdf'], "score": r.get('score'), "pages": r.get('pages'), "rewrites": r['rewrites'] if isinstance(r.get('rewrites'), int) else len(r.get('rewrites') or []),
+            "review_left": max(0.0, (rv.get('until') or 0) - time.time()) if rv else 0, "rebuilding": bool(rv.get('rebuilding')),
             "positioning": (r.get('positioning') or '')[:160] if isinstance(r.get('positioning'), str) else ''}
 
 
@@ -1022,6 +1024,56 @@ def tailor_apply(job_id, plan=None, template=None, mode='auto', fresh=False, req
         except (OSError, ValueError):
             pass
     return tailor.tailor(get_vault(), j, j.get('description', ''), mode=mode, plan=plan, style=template)
+
+
+REVIEW_SECS = 10
+
+
+def _review_file(job_id):
+    return store.path('review', re.sub(r'[^\w-]', '_', job_id) + '.json')
+
+
+def review_window(job_id, res, template=None):
+    """Autopilot just got this job's resume. If you're watching (the app is open), it waits a few seconds so you can type
+    a change ("lead with my robotics project"); with no answer it carries on. A change rebuilds the resume with it."""
+    secs = store.profile()['apply'].get('review_seconds', REVIEW_SECS)
+    if not secs or not isinstance(res, dict) or res.get('error') or not res.get('pdf'):
+        return res
+    if time.time() - ((store.load('app_seen.json', {}) or {}).get('at') or 0) > 20:
+        return res   # nobody is looking: never hold up a run
+    f = _review_file(job_id)
+    os.makedirs(os.path.dirname(f), exist_ok=True)
+    store.save(f, {"job_id": job_id, "until": time.time() + float(secs), "pdf": res.get('pdf')})
+    try:
+        while True:
+            r = store.load(f, {}) or {}
+            if r.get('request'):
+                store.save(f, {**r, "rebuilding": True, "until": 0})
+                return tailor_apply(job_id, template=template, request=r['request'])
+            if r.get('go') or time.time() >= (r.get('until') or 0):
+                return res
+            time.sleep(0.4)
+    finally:
+        try:
+            os.remove(f)
+        except OSError:
+            pass
+
+
+def review(job_id, request=None, go=False, hold=False):
+    """The Autopilot preview's answer: a change to make, "looks good, send it", or hold (you started typing: wait a minute)."""
+    f = _review_file(job_id)
+    r = store.load(f, None)
+    if not r:
+        return {"ok": False, "note": "That resume has already gone out."}
+    if request and request.strip():
+        r['request'] = request.strip()[:600]
+    elif go:
+        r['go'] = True
+    elif hold:
+        r['until'] = max(r.get('until') or 0, time.time() + 60)
+    store.save(f, r)
+    return {"ok": True}
 
 
 def remember(note=None, pin=None, avoid=None, field=None, template=None):
@@ -1962,7 +2014,7 @@ def run_status():
     a = store.load('activity.json', {}) or {}
     if p and p.poll() is None and a.get('at', 0) >= _run.get('started', 0):
         j = (store.rows('select company, title, apply_url, url from jobs where id=?', (a.get('job_id') or '',)) or [{}])[0]
-        now = {"step": a.get('step'), "company": j.get('company', ''), "title": j.get('title', ''), "url": j.get('apply_url') or j.get('url') or '', "at": a['at'],
+        now = {"step": a.get('step'), "job_id": a.get('job_id') or '', "company": j.get('company', ''), "title": j.get('title', ''), "url": j.get('apply_url') or j.get('url') or '', "at": a['at'],
                "resume": _safe(lambda: tailor.progress(a.get('job_id') or '')),   # this job's resume being written, if it is
                "built": _safe(lambda: built_resume(a.get('job_id') or '', _run.get('started', 0)))}   # and once it's done, the page itself
     return {"running": bool(p and p.poll() is None), "agent": _run['agent'], "log": log, "now": now,
@@ -1971,7 +2023,7 @@ def run_status():
 
 # ------------------------------------------------------------------ inbox: things only the user can do
 
-_app_seen = [0.0]   # last time the app (open in a browser tab) checked its inbox
+_app_seen = [0.0, 0.0]   # last time the app (open in a browser tab) checked its inbox; last time that was saved for the agent
 
 
 def notify(title, message='', url='', job_id='', kind='needs_you'):
@@ -2029,6 +2081,12 @@ _todo_cache = {"at": 0.0, "v": None}
 def inbox_poll():
     """What the bell and Needs you show, polled every few seconds by every open window: the grouped list plus just enough
     of each new message for a desktop notification (it used to resend every message and every waiting job, 90 KB a poll)."""
+    if time.time() - _app_seen[1] > 4:   # the agent (its own process) checks this before pausing for your review
+        try:
+            store.save('app_seen.json', {"at": time.time()})
+            _app_seen[1] = time.time()
+        except OSError:
+            pass
     _app_seen[0] = time.time()
     if time.time() - _todo_cache['at'] > 3 or _todo_cache['v'] is None:   # two windows polling at once share one build
         _todo_cache.update(at=time.time(), v=todo())

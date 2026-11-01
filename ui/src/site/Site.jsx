@@ -63,7 +63,7 @@ export default function Site() {
           </div>
           <Voices />
         </div>
-        <div className="mx-auto mt-14 max-w-[1120px] min-[1800px]:max-w-[1360px] sm:mt-20"><Lid><AppWindow /></Lid></div>
+        <div className="mx-auto mt-10 max-w-[1120px] min-[1800px]:max-w-[1360px] sm:mt-12"><Lid><AppWindow /></Lid></div>
         <p className="mx-auto mt-5 max-w-[1120px] min-[1800px]:max-w-[1360px] text-center text-[13px] faint">Autopilot, mid-run. Twenty-five applications queued, three already in.</p>
       </section>
 
@@ -563,30 +563,33 @@ function GitHubMark({ size = 16 }) {
 function Voices() {
   const row = (items, reverse, cls = '') => (
     <div className={'voices-row group relative overflow-hidden ' + cls}>
-      <div className={'voices-track flex w-max gap-4 group-hover:[animation-play-state:paused] ' + (reverse ? 'voices-rev' : '')}>
+      <div className={'voices-track flex w-max items-start gap-3 group-hover:[animation-play-state:paused] ' + (reverse ? 'voices-rev' : '')}>
         {[...items, ...items, ...items, ...items].map((t, k) => <Voice key={k} t={t} hidden={k >= items.length} />)}   {/* four copies: no gap even on very wide screens */}
       </div>
     </div>)
   const half = Math.ceil(TESTIMONIALS.length / 2)
   return (
-    <section aria-label="What students say" style={{ animationDelay: '0.5s' }} className="rise relative mt-16 w-screen max-w-none text-left [margin-left:calc(50%-50vw)]">
+    <section aria-label="What students say" style={{ animationDelay: '0.5s' }} className="rise relative mt-12 w-screen max-w-none text-left [margin-left:calc(50%-50vw)]">
       {row(TESTIMONIALS, false)}
-      {TESTIMONIALS.length > 4 && row([...TESTIMONIALS.slice(half), ...TESTIMONIALS.slice(0, half)], true, 'mt-4 hidden lg:block')}
+      {TESTIMONIALS.length > 4 && row([...TESTIMONIALS.slice(half), ...TESTIMONIALS.slice(0, half)], true, 'mt-3 hidden lg:block')}
     </section>
   )
 }
 
 function Voice({ t, hidden }) {
   return (
-    <figure aria-hidden={hidden || undefined} className="flex w-[300px] shrink-0 flex-col justify-between rounded-[22px] bg-[var(--bg-2)] p-5 ring-1 ring-[var(--line)] transition-transform duration-300 hover:-translate-y-1 sm:w-[340px]">
-      <blockquote className="text-[15.5px] leading-[1.45] [text-wrap:pretty]">“{t.quote}”</blockquote>
-      <figcaption className="mt-5 flex items-center gap-3">
-        <img src={t.photo} alt="" width="44" height="44" loading="lazy" className="size-11 shrink-0 rounded-full object-cover ring-2 ring-[var(--bg)]" />
-        <span className="min-w-0">
-          <a href={t.url} target="_blank" rel="noreferrer" tabIndex={hidden ? -1 : undefined} className="block truncate text-[14.5px] font-semibold hover:underline">{t.name}</a>
-          <span className="block truncate text-[13px] muted">{t.school}</span>
+    <figure aria-hidden={hidden || undefined} className="w-fit min-w-[250px] max-w-[360px] shrink-0 self-start rounded-2xl bg-[var(--bg-2)] px-4 py-3.5 ring-1 ring-[var(--line)]">
+      <figcaption className="flex items-center gap-2.5">
+        <img src={t.photo} alt="" width="36" height="36" loading="lazy" className="size-9 shrink-0 rounded-full object-cover" />
+        <span className="min-w-0 leading-tight">
+          <a href={t.url} target="_blank" rel="noreferrer" tabIndex={hidden ? -1 : undefined} className="block truncate text-[14px] font-semibold hover:underline">{t.name}</a>
+          <span className="mt-0.5 flex items-center gap-1.5 text-[12.5px] muted">
+            {t.logo && <img src={t.logo} alt="" width="14" height="14" loading="lazy" className="size-3.5 shrink-0 rounded-[3px] object-contain" />}
+            <span className="whitespace-nowrap">{t.school}</span>
+          </span>
         </span>
       </figcaption>
+      <blockquote className="mt-2.5 text-[14.5px] leading-[1.42] [text-wrap:pretty]">{t.quote}</blockquote>
     </figure>)
 }
 

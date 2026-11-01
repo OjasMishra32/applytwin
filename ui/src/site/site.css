@@ -102,7 +102,7 @@ html[data-site-theme="light"]:has(.site), html[data-site-theme="light"]:has(.sit
 .voices-row { -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); }
 .voices-track { animation: voices 45s linear infinite; }
 .voices-rev { animation-direction: reverse; animation-duration: 55s; }
-@keyframes voices { from { transform: translateX(0); } to { transform: translateX(calc(-50% - 8px)); } }
+@keyframes voices { from { transform: translateX(0); } to { transform: translateX(calc(-50% - 6px)); } }
 @media (prefers-reduced-motion: reduce) {
   .voices-track { animation: none; }
   .voices-row { overflow-x: auto; }

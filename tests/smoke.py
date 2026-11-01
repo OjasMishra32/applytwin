@@ -1364,5 +1364,27 @@ finally:
             os.environ[_k] = _v
 res.append(ok(bool(_found) and os.path.dirname(_found) == os.path.dirname(_fa), f'agents found in ~/.local/bin with a short PATH ({_found})'))
 
+# Autopilot's review window: nobody watching = no wait; watching = waits, "send it" goes at once, a change rebuilds
+import threading as _thr
+_orig_ta, _calls = api.tailor_apply, []
+api.tailor_apply = lambda job_id, template=None, request=None, **k: (_calls.append(request), {"pdf": "/x2.pdf"})[1]
+try:
+    store.save('app_seen.json', {"at": 0})
+    _t0 = time.time(); _r0 = api.review_window('rvjob', {"pdf": "/x.pdf"})
+    _idle = _r0['pdf'] == '/x.pdf' and time.time() - _t0 < 0.5
+    store.save('app_seen.json', {"at": time.time()})
+    _thr.Timer(0.6, lambda: api.review('rvjob', go=True)).start()
+    _t0 = time.time(); _r1 = api.review_window('rvjob', {"pdf": "/x.pdf"})
+    _go = _r1['pdf'] == '/x.pdf' and 0.5 < time.time() - _t0 < 3
+    _thr.Timer(0.6, lambda: api.review('rvjob', request='lead with robotics')).start()
+    _r2 = api.review_window('rvjob', {"pdf": "/x.pdf"})
+    _late = api.review('rvjob', go=True)
+finally:
+    api.tailor_apply = _orig_ta
+api._app_seen[:] = [time.time(), 0.0]; store.save('app_seen.json', {"at": 0}); api.inbox_poll()
+res.append(ok(time.time() - store.load('app_seen.json', {})['at'] < 5, 'an app polling every second still marks itself as watching'))
+res.append(ok(_idle and _go and _r2['pdf'] == '/x2.pdf' and _calls == ['lead with robotics'] and not _late['ok']
+              and not os.path.exists(api._review_file('rvjob')), 'review window: skips when unwatched, send-it and change both work'))
+
 print(f'\n{sum(res)}/{len(res)} passed')
 sys.exit(0 if all(res) else 1)

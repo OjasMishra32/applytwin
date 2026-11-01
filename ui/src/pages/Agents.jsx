@@ -51,7 +51,45 @@ function WritingPage({ p, W, S }) {
     </div>)
 }
 
-function ResumePreview({ r, p, company, title }) {
+// The few seconds after a resume is written: type a change and it's rebuilt, or do nothing and your twin sends it.
+function ReviewBox({ jobId, left, rebuilding }) {
+  const end = useRef(Date.now() + left * 1000), total = useRef(Math.max(1, left)), held = useRef(false)
+  const [now, setNow] = useState(Date.now())
+  const [ask, setAsk] = useState('')
+  const [sent, setSent] = useState(null)
+  const typing = ask.trim().length > 0
+  useEffect(() => { const i = setInterval(() => setNow(Date.now()), 200); return () => clearInterval(i) }, [])
+  const secs = held.current ? 1 : Math.max(0, Math.ceil((end.current - now) / 1000))
+  const send = async body => {
+    setSent(body.request ? 'change' : 'go')
+    const r = await api(`/api/jobs/${encodeURIComponent(jobId)}/review`, body).catch(() => null)
+    if (r && !r.ok) { toast(r.note || 'That resume already went out.'); setSent('late') }
+  }
+  if (rebuilding || sent === 'change') return <p className="mt-3 text-[13px] text-white/80">Rebuilding with your change. Your twin sends the new one when it's ready.</p>
+  if (sent === 'go' || sent === 'late' || secs === 0) return null
+  return (
+    <form onSubmit={e => { e.preventDefault(); typing ? send({ request: ask }) : send({ go: true }) }} className="mt-3 max-w-md">
+      <div className="flex items-baseline justify-between text-[13px]">
+        <span className="font-medium text-white">Want something changed?</span>
+        <span className="tabular-nums text-faint">{typing ? 'Waiting for you' : `Sending in ${secs}s`}</span>
+      </div>
+      <div className="mt-2 flex gap-2">
+        <input value={ask} onChange={e => {
+          setAsk(e.target.value)
+          if (!held.current) { held.current = true; api(`/api/jobs/${encodeURIComponent(jobId)}/review`, { hold: true }).catch(() => {}) }
+        }}
+          placeholder="e.g. lead with my robotics project" maxLength={600}
+          className="min-w-0 flex-1 rounded-lg bg-white/[.06] px-3 py-2 text-[13px] text-white placeholder:text-faint outline-none ring-1 ring-white/10 focus:ring-white/25" />
+        <button className="shrink-0 rounded-lg px-3 py-2 text-[13px] font-medium text-white" style={{ background: BLUE }}>
+          {typing ? 'Rebuild' : 'Send it'}</button>
+      </div>
+      {!typing && <div className="mt-2 h-[2px] overflow-hidden rounded bg-white/[.06]">
+        <div className="h-full transition-[width] duration-200 ease-linear" style={{ width: `${Math.min(100, (secs / total.current) * 100)}%`, background: BLUE }} />
+      </div>}
+    </form>)
+}
+
+function ResumePreview({ r, p, company, title, jobId }) {
   const src = r ? `/file?path=${encodeURIComponent(r.pdf)}` : null
   const W = 612, H = 792, S = 0.3
   const step = (p?.steps || []).find(x => x.state === 'now')?.label || 'Writing your resume'
@@ -82,6 +120,7 @@ function ResumePreview({ r, p, company, title }) {
           </div>
           {r.positioning && <p className="mt-2 line-clamp-2 max-w-md text-[13px] leading-snug text-faint">{r.positioning}</p>}
           <a href={src} target="_blank" rel="noreferrer" className="mt-3 inline-block text-[13px] font-medium" style={{ color: BLUE }}>Open full size</a>
+          {jobId && (r.review_left > 0 || r.rebuilding) && <ReviewBox jobId={jobId} left={r.review_left} rebuilding={r.rebuilding} />}
         </> : <p className="mt-3 max-w-md text-[13px] leading-snug text-faint">Picking your strongest experience for this posting and rewriting it in its words. The page shows up here when it's done.</p>}
       </div>
     </motion.section>)
@@ -225,7 +264,7 @@ export default function Agents() {
 
         <AnimatePresence mode="wait">
           {running && now?.company && (now.built || now.resume) &&
-            <ResumePreview key={`${now.company}|${now.title}`} r={now.built} p={now.resume} company={now.company || ''} title={now.title || ''} />}
+            <ResumePreview key={`${now.company}|${now.title}`} r={now.built} p={now.resume} company={now.company || ''} title={now.title || ''} jobId={now.job_id} />}
         </AnimatePresence>
 
         <div className="mt-10 grid gap-10 lg:grid-cols-[1.2fr_1fr]">

@@ -106,6 +106,7 @@ POST = {
     r'/api/inbox/(\d+)/resolve': lambda m, qs, b: api.resolve(m.group(1)),
     r'/api/accounts': lambda m, qs, b: api.set_accounts(b.get('enabled'), b.get('email'), b.get('password'), b.get('google')),
     r'/api/accounts/google': lambda m, qs, b: api.sign_in_google(),
+    r'/api/jobs/([\w-]+)/review': lambda m, qs, b: api.review(m.group(1), b.get('request'), bool(b.get('go')), bool(b.get('hold'))),
 }
 
 
