@@ -159,7 +159,10 @@ export default function Welcome() {
       <H>Which terms?</H>
       <Sub>Pick every term you'd take. Roles for other terms stay out of your queue.</Sub>
       <Tiles items={terms.map(t => ({ v: t, l: t }))} value={picked} multi
-        onPick={v => ss('season', (picked.includes(v) ? picked.filter(x => x !== v) : [...picked, v]).join(', '))} />
+        onPick={v => setP(x => {   // latest state, so quick taps on several terms all stick
+          const cur = (x.search?.season || '').split(',').map(t => t.trim()).filter(Boolean)
+          return { ...x, search: { ...x.search, season: (cur.includes(v) ? cur.filter(t => t !== v) : [...cur, v]).join(', ') } }
+        })} />
     </Center> : <Center>
       <H>When can you start?</H>
       <Sub>A month and year is enough.</Sub>
@@ -175,7 +178,10 @@ export default function Welcome() {
       <H>Where you'd work</H>
       <Sub>Pick how, then add places.</Sub>
       <Tiles items={ARRANGE.map(([v, l]) => ({ v, l }))} value={s.arrangement || []} multi small
-        onPick={v => { const a = s.arrangement || []; const n = a.includes(v) ? a.filter(x => x !== v) : [...a, v]; ss('arrangement', n); setP(x => ({ ...x, search: { ...x.search, arrangement: n }, onsite_ok: n.some(y => y !== 'remote') || x.onsite_ok })) }} />
+        onPick={v => setP(x => {   // from the latest state: quick taps read a stale list and each one undid the last
+          const a = x.search?.arrangement || [], n = a.includes(v) ? a.filter(y => y !== v) : [...a, v]
+          return { ...x, search: { ...x.search, arrangement: n }, onsite_ok: n.some(y => y !== 'remote') || x.onsite_ok }
+        })} />
       <div className="mx-auto mt-6 max-w-[600px] text-left"><Chips large value={s.locations || []} onChange={v => ss('locations', v)} placeholder="United States, a city, Remote…"
         suggestions={['United States', 'Remote', 'New York', 'San Francisco', 'Seattle', 'Boston', 'Chicago', 'Austin', 'Los Angeles', 'Washington, DC']} /></div>
       <div className="mx-auto mt-8 max-w-[600px] text-left"><div className="mb-3 text-[15px] font-medium text-white">Outside the US? <span className="font-normal text-muted">Optional: Europe, India and more.</span></div>

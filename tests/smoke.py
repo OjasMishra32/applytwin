@@ -2,6 +2,7 @@
 import json
 import time, os, subprocess, sys, tempfile, time
 os.environ.setdefault('APPLYTWIN_NO_TWIN', '1')   # never open or reach the real twin browser
+os.environ.setdefault('APPLYTWIN_SCAN_INLINE', '1')   # scans stay in-process so tests can stand in for them
 os.environ["APPLYTWIN_NO_TELEMETRY"] = "1"   # tests never count as installs
 os.environ["APPLYTWIN_SKIP_SIGNIN"] = "1"   # no Google account in tests
 for _s in (sys.stdout, sys.stderr):   # Windows consoles default to cp1252, which can't print emoji
@@ -256,6 +257,16 @@ __import__('time').sleep(1.0)
 _after = api.scan_status()
 _srcs.scan = _orig_scan
 res.append(ok(_first['running'] and not _after['running'] and _after['stats'].get('new') == 3, 'a scan reads as running from the moment it starts'))
+# the app's background scan runs as its own process (so pages stay fast during it) and its results come back
+os.environ.pop('APPLYTWIN_SCAN_INLINE', None)
+api.scan(['none'], background=True)
+for _ in range(100):
+    if not api.scan_status()['running']:
+        break
+    __import__('time').sleep(0.1)
+os.environ['APPLYTWIN_SCAN_INLINE'] = '1'
+res.append(ok(not api.scan_status()['running'] and api.scan_status()['stats'].get('sources') == 0 and bool(store.load('last_scan.json', {}).get('at')),
+              f"a background scan runs in its own process and reports back ({api.scan_status().get('stats')})"))
 # a job page's styles and scripts never become its description
 from applytwin.sources import strip_html as _sh
 _t = _sh('<html><head><style>@font-face{font-family:Meta}</style></head><body><script>var x=1</script><h1>Robotics Intern</h1><p>Build robots in C++.</p><svg><text>icon</text></svg></body></html>')

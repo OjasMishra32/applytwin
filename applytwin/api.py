@@ -165,7 +165,7 @@ def profile_questions():
 
 def scan(sources_list=None, background=False):
     if _scan['running']:
-        return {"running": True, "stats": _scan['stats']}
+        return {"running": True, "stats": scan_status().get('stats')}
 
     # marked running BEFORE the thread starts: the page asks "still running?" right after pressing Scan, and used to hear
     # "no" (the thread hadn't begun) and report "0 new jobs" for every scan while the real one ran on unseen
@@ -182,6 +182,32 @@ def scan(sources_list=None, background=False):
                 rescore(force=True)
         finally:
             _scan.update(running=False, finished=time.time())
+    if background and not os.environ.get('APPLYTWIN_SCAN_INLINE'):
+        # its own process: 30 download threads and 100,000+ postings scored inside the app's process made every page take
+        # 2-6 seconds to answer for the whole scan (one Python interpreter, one lock). Now the app only reads its progress.
+        import subprocess
+        import sys
+        try:
+            os.remove(store.path('scan_progress.json'))
+        except OSError:
+            pass
+        cmd = [sys.executable, os.path.join(APP, 'bin', 'applytwin'), 'scan-worker'] + ([json.dumps(sources_list)] if sources_list else [])
+        try:
+            proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL, cwd=store.HOME,
+                                    env={**os.environ, 'APPLYTWIN_HOME': store.HOME}, **store.NOWIN)
+        except OSError:
+            threading.Thread(target=run, daemon=True).start()   # couldn't start a process: scan here as before
+            return {"running": True}
+        _scan['proc'] = proc
+
+        def watch():
+            try:
+                proc.wait()
+                _scan['stats'] = (store.load('last_scan.json', {}) or {}).get('stats') or _scan['stats']
+            finally:
+                _scan.update(running=False, finished=time.time(), proc=None)
+        threading.Thread(target=watch, daemon=True).start()
+        return {"running": True}
     if background:
         threading.Thread(target=run, daemon=True).start()
         return {"running": True}
@@ -189,8 +215,32 @@ def scan(sources_list=None, background=False):
     return _scan['stats']
 
 
+def scan_worker(sources_list=None):
+    """The scan, run as its own process by scan(background=True). Progress goes to scan_progress.json for the app to read."""
+    started = time.time()
+    last = [0.0]
+
+    def progress(st):
+        if time.time() - last[0] > 0.5:
+            last[0] = time.time()
+            try:
+                store.save('scan_progress.json', st)
+            except OSError:
+                pass
+    st = sources.scan(sources_list, on_progress=progress)
+    store.save('scan_progress.json', st)
+    store.save('last_scan.json', {"at": time.time(), "stats": st})
+    pf = store.path('profile.json')
+    if os.path.exists(pf) and os.path.getmtime(pf) >= started:   # setup or Settings changed mid-scan: score again with it
+        rescore(force=True)
+    return st
+
+
 def scan_status():
-    return {**_scan, "last": store.load('last_scan.json', {}).get('at')}
+    out = {k: v for k, v in _scan.items() if k != 'proc'}
+    if _scan.get('proc') is not None and _scan['running']:
+        out['stats'] = store.load('scan_progress.json', None) or _scan['stats'] or {}
+    return {**out, "last": store.load('last_scan.json', {}).get('at')}
 
 
 def scan_if_stale(hours=12):

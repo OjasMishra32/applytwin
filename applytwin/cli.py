@@ -75,6 +75,9 @@ def main():
         m()
     elif cmd == 'scan':
         _p(api.scan())
+    elif cmd == 'scan-worker':   # the app's background scan, in its own process (not for typing by hand)
+        import json as _json
+        api.scan_worker(_json.loads(sys.argv[2]) if len(sys.argv) > 2 else None)
     elif cmd == 'jobs':
         q = sys.argv[2] if len(sys.argv) > 2 and not sys.argv[2].startswith('-') else ''
         for j in api.list_jobs(q, limit=int(_arg('--limit', 40))):
