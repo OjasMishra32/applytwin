@@ -18,8 +18,10 @@ import hashlib
 import os
 import html
 import json
+import random
 import re
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
@@ -54,15 +56,35 @@ def _lists():
     return js, md
 
 
+# Workday hosts every company's board on shared servers that answer "429 Too Many Requests" when a scan's 32 threads all
+# reach them at once: 43 boards (CVS Health, RSM...) came back empty on every scan. A few at a time, and a polite retry.
+_HOST_SLOTS = {'myworkdayjobs.com': threading.BoundedSemaphore(10)}
+
+
 def get(url, data=None, timeout=20):
     headers = {'User-Agent': UA, 'Accept': 'application/json'}
     body = None
     if data is not None:
         body = json.dumps(data).encode()
         headers['Content-Type'] = 'application/json'
-    req = urllib.request.Request(url, data=body, headers=headers)
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        return json.loads(r.read().decode('utf-8', 'replace'))
+    host = urllib.parse.urlparse(url).hostname or ''
+    slot = next((v for k, v in _HOST_SLOTS.items() if host.endswith(k)), None)
+    for attempt in range(4):
+        req = urllib.request.Request(url, data=body, headers=headers)
+        try:
+            if slot:
+                slot.acquire()
+            try:
+                with urllib.request.urlopen(req, timeout=timeout) as r:
+                    return json.loads(r.read().decode('utf-8', 'replace'))
+            finally:
+                if slot:
+                    slot.release()
+        except urllib.error.HTTPError as e:
+            if e.code not in (429, 503) or attempt == 3:
+                raise
+            wait = e.headers.get('Retry-After') if e.headers else None
+            time.sleep(min(20.0, float(wait)) if wait and wait.isdigit() else 2.0 * (attempt + 1) + random.random())
 
 
 def strip_html(s):
