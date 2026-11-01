@@ -155,7 +155,7 @@ export default function Agents() {
   const now = run?.now
   // idle, it says what Start will do (the queue); the last run is a footnote, not the headline
   const headline = running ? now?.step || live.step || 'Getting ready'
-    : q ? `${q.total.toLocaleString()} role${q.total === 1 ? '' : 's'} ready` : ''
+    : !run ? '' : q ? `${q.total.toLocaleString()} role${q.total === 1 ? '' : 's'} ready` : ''
   const subline = running ? (now?.company ? `${now.company.replace(/^\W+/, '')} · ${now.title} · ` : '') + `${session.length} of ${total} done`
     : !q ? '' : [q.dream ? `${q.dream} at your dream companies.` : 'Every open role that fits you.',
       session.length ? `Last run: ${session.length} handled, ${session.filter(a => a.status === 'Needs User').length} waiting on you.` : ''].filter(Boolean).join(' ')
@@ -169,7 +169,7 @@ export default function Agents() {
         <section className="card mt-8 p-6 sm:p-7">
           <div className="flex flex-wrap items-start justify-between gap-8">
             <div className="min-w-0 flex-1">
-              <div className="text-[13px] font-medium text-muted">{running ? `${label} is applying` : 'Ready'}</div>
+              <div className="text-[13px] font-medium text-muted">{running ? `${label} is applying` : run ? 'Ready' : 'Checking on your twin…'}</div>
               <div className="relative mt-1.5 h-[38px] overflow-hidden">
                 {headline ? <AnimatePresence mode="popLayout" initial={false}>
                   <motion.div key={headline} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}

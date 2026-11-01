@@ -1772,6 +1772,17 @@ def stop_run():
     return run_status()
 
 
+def _safe(f):
+    """The extras on the status (resume progress, the preview) must never break it: a crash there made the page think
+    no run was going while the twin was mid-application, and it showed "Ready" with nothing to explain why."""
+    try:
+        return f()
+    except Exception:
+        import traceback
+        traceback.print_exc()
+        return None
+
+
 def run_status():
     p = _run['proc']
     log = ''
@@ -1782,8 +1793,8 @@ def run_status():
     if p and p.poll() is None and a.get('at', 0) >= _run.get('started', 0):
         j = (store.rows('select company, title, apply_url, url from jobs where id=?', (a.get('job_id') or '',)) or [{}])[0]
         now = {"step": a.get('step'), "company": j.get('company', ''), "title": j.get('title', ''), "url": j.get('apply_url') or j.get('url') or '', "at": a['at'],
-               "resume": tailor.progress(a.get('job_id') or ''),   # this job's resume being written, if it is
-               "built": built_resume(a.get('job_id') or '', _run.get('started', 0))}   # and once it's done, the page itself
+               "resume": _safe(lambda: tailor.progress(a.get('job_id') or '')),   # this job's resume being written, if it is
+               "built": _safe(lambda: built_resume(a.get('job_id') or '', _run.get('started', 0)))}   # and once it's done, the page itself
     return {"running": bool(p and p.poll() is None), "agent": _run['agent'], "log": log, "now": now,
             "exit": None if not p or p.poll() is None else p.returncode}
 
