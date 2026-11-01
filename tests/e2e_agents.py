@@ -109,6 +109,9 @@ def main():
             time.sleep(0.2)
         got = open(os.path.join(os.environ['APPLYTWIN_HOME'], f'{agent}_stdin.txt'), encoding='utf-8').read()
         want = api.run_prompt(3)
+        if agent == 'codex':   # Codex gets no progress-update request (a message ends a codex exec run) and an unattended note
+            want = want.replace(' Give a 1-line update every 5 jobs.', '')
+            got = got.split('\n\nYou are running unattended')[0] if 'keep calling tools' in got else '(no unattended note)'
         log = api.run_status()['log']
         check(f'{agent}: Autopilot instructions delivered intact', got == want and ('"' in want or "'" in want), f'{len(got)} chars')
         check(f'{agent}: run output logged', f'{agent} received' in log)

@@ -1624,6 +1624,11 @@ def _start_run(agent, n, model, prompt, restarts):
     if not (cloud.status()['signed_in'] or os.environ.get('APPLYTWIN_SKIP_SIGNIN') or os.environ.get('CI')):
         raise RuntimeError('Sign in first: open ApplyTwin (type applytwin in a terminal) and continue with Google.')
     prompt = prompt or run_prompt(n)
+    if agent == 'codex':
+        # in `codex exec` any message that isn't a tool call ends the whole run: an "update every 5 jobs" stopped it after 5
+        prompt = prompt.replace(' Give a 1-line update every 5 jobs.', '') + (
+            "\n\nYou are running unattended: nobody reads messages until the end. Don't stop to report progress or ask "
+            "anything; keep calling tools until every job is handled or a tool result says stop. Your one final message ends the run.")
     store.save('run_health.json', {})   # a new run gets a fresh chance at its browser
     from . import install
     install.ensure_browser(agent)
@@ -1753,6 +1758,19 @@ def _watch_run_body(proc, agent, logf, n, model, prompt=None, restarts=0, run_id
         fb = (agents.codex_model_args() or [None, None])[1]
         if fb:
             return start_run(agent, n, model=fb, prompt=prompt, restarts=restarts + 1)
+    if (proc.returncode == 0 and prompt is None and not _run.get('stopped') and restarts < 5 and not browser_down()
+            and not any(e in tail for e in AUTH_ERRORS)):
+        # the agent wrapped up before doing them all (Codex ends a run on its first progress message): carry on with the rest,
+        # as long as this leg got something done and there is work and room left today
+        done = len(store.rows('select 1 from applications where at >= ?', (started,)))
+        left = n - done
+        room = store.profile()['apply'].get('daily_limit', 40) - store.applied_count_today()
+        if done and left > 0 and room > 0 and next_jobs(1).get('jobs'):
+            release_claims(since=started, who=run_id)
+            try:
+                return start_run(agent, left, model=model, restarts=restarts + 1)
+            except Exception:
+                pass
     if any(e in tail for e in AUTH_ERRORS):
         fix = 'press Sign in on the Autopilot page'
         notify(f'Sign in to {name}', f'Your {name} login expired: {fix}, then press Launch again.', kind='signin')
