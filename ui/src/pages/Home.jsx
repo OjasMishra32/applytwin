@@ -10,7 +10,9 @@ export default function Home() {
   const { profile, stats, go, startScan, scan, jobs } = useApp()
   const [next, setNext] = useState(null)
   const [setup, setSetup] = useState([])
-  useEffect(() => { api('/api/next?n=7').then(setNext).catch(() => {}); api('/api/setup').then(setSetup).catch(() => {}) }, [stats])
+  const [ready, setReady] = useState(null)
+  useEffect(() => { api('/api/next?n=7').then(setNext).catch(() => {}); api('/api/setup').then(setSetup).catch(() => {})
+    api('/api/queue?n=0').then(q => setReady(q.total)).catch(() => {}) }, [stats])   // the same "ready" number Autopilot shows
   const first = (profile.name || '').split(' ')[0]
   const h = new Date().getHours()
   const greet = h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'
@@ -36,10 +38,10 @@ export default function Home() {
 
         {/* one summary panel with hairline dividers, not a row of separate tiles */}
         <div className="card mt-8 grid grid-cols-2 md:grid-cols-4">
-          {[['Fit you now', stats.matched ?? 0], ['Applied today', stats.applied_today ?? 0], ['This week', stats.applied_7d ?? 0], ['Left today', next ? (next.remaining_today ?? 0) : null]].map(([l, v], i) => (
+          {[['Ready to apply', ready], ['Applied today', stats.applied_day ?? 0], ['This week', stats.applied_7d ?? 0], ['Left today', next ? (next.remaining_today ?? 0) : null]].map(([l, v], i) => (
             <div key={l} className={'px-5 py-4 ' + (i % 2 ? 'border-l border-line ' : '') + (i > 1 ? 'border-t border-line md:border-t-0 ' : '') + (i === 2 ? 'md:border-l' : '')}>
               <div className="text-[13px] text-muted">{l}</div>
-              <div className="mt-1 text-[22px] font-semibold leading-tight tracking-[-0.02em] text-white tabular-nums">{v == null ? <span className="text-faint">0</span> : Number(v).toLocaleString()}</div></div>))}
+              <div className="mt-1 text-[22px] font-semibold leading-tight tracking-[-0.02em] text-white tabular-nums">{v == null ? <span className="text-faint">—</span> : Number(v).toLocaleString()}</div></div>))}
         </div>
 
         {todo.length > 0 && (

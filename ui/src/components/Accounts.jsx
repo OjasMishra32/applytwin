@@ -20,6 +20,12 @@ export function Accounts({ defaultEmail = '', className = '' }) {
     catch (e) { toast.error(e.message) }
     finally { setBusy(false) }
   }
+  // every hook runs before the early return below (one after it blanked the whole Settings page)
+  useEffect(() => {   // after you sign in to Google in the twin's window, the check mark appears on its own
+    if (!st?.enabled || !st.google || st.google_signed_in) return
+    const t = setInterval(() => api('/api/accounts').then(r => setSt(x => ({ ...x, google_signed_in: r.google_signed_in }))).catch(() => {}), 5000)
+    return () => clearInterval(t)
+  }, [st?.enabled, st?.google, st?.google_signed_in])
   if (!st) return null
   const on = st.enabled
   const turn = v => {
@@ -30,11 +36,6 @@ export function Accounts({ defaultEmail = '', className = '' }) {
     try { await api('/api/accounts/google', {}); toast("Google opened in your twin's browser", { description: 'Sign in there once. Your twin then uses Continue with Google without a password.' }) }
     catch (e) { toast.error(e.message) }
   }
-  useEffect(() => {   // after you sign in to Google in the twin's window, the check mark appears on its own
-    if (!st?.enabled || !st.google || st.google_signed_in) return
-    const t = setInterval(() => api('/api/accounts').then(r => setSt(x => ({ ...x, google_signed_in: r.google_signed_in }))).catch(() => {}), 5000)
-    return () => clearInterval(t)
-  }, [st?.enabled, st?.google, st?.google_signed_in])
   const open = on || st.draft
   return (
     <div className={className}>

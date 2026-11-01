@@ -95,7 +95,7 @@ const safeGet = k => { try { return localStorage.getItem(k) } catch { return nul
 const safeSet = (k, v) => { try { localStorage.setItem(k, v) } catch {} }
 
 export default function Agents() {
-  const { app_dir, profile, go } = useApp()
+  const { app_dir, profile, go, stats } = useApp()
   const [q, setQ] = useState(null)
   const [run, setRun] = useState(null)
   const [agents, setAgents] = useState(null)
@@ -161,7 +161,7 @@ export default function Agents() {
       session.length ? `Last run: ${session.length} handled, ${session.filter(a => a.status === 'Needs User').length} waiting on you.` : ''].filter(Boolean).join(' ')
 
   const dayStart = new Date().setHours(0, 0, 0, 0) / 1000
-  const appliedToday = apps.filter(a => a.status === 'Applied' && a.at >= dayStart).length
+  const appliedToday = Math.max(stats?.applied_day ?? 0, apps.filter(a => a.status === 'Applied' && a.at >= dayStart).length)
   const pct = Math.max(3, (session.length / Math.max(1, total)) * 100)
 
   return (

@@ -16,8 +16,10 @@ export default function Jobs({ arg }) {
   const [list, setList] = useState(null)
   const [add, setAdd] = useState(false)
   const t = useRef()
-  const load = () => api(`/api/jobs?q=${encodeURIComponent(q)}&status=${status}&order=${order}&limit=200${status === 'new' ? '' : '&min=0'}`).then(setList)
-  useEffect(() => { clearTimeout(t.current); t.current = setTimeout(load, 180) }, [q, status, order, scan?.running])
+  const [lim, setLim] = useState(200)
+  const load = () => api(`/api/jobs?q=${encodeURIComponent(q)}&status=${status}&order=${order}&limit=${lim}${status === 'new' ? '' : '&min=0'}`).then(setList)
+  useEffect(() => { setLim(200) }, [q, status, order])   // a new search starts at the top
+  useEffect(() => { clearTimeout(t.current); t.current = setTimeout(load, 180) }, [q, status, order, lim, scan?.running])
 
   return (
     <div className="relative">
@@ -56,6 +58,9 @@ export default function Jobs({ arg }) {
                   : status === 'new' && <Button size="sm" className="mt-4" onClick={startScan} loading={scan?.running}>{scan?.running ? 'Scanning' : 'Scan now'}</Button>}
               </div>}
         </div>
+        {list?.length >= lim && <div className="mt-4 flex items-center justify-center gap-3 text-[13px] text-muted">
+          Showing {list.length.toLocaleString()}
+          <Button variant="white" size="sm" onClick={() => setLim(l => l + 200)}>Show 200 more</Button></div>}
       </Page>
       <JobSheet id={arg} onClose={() => go('jobs')} onChange={load} />
       <AddJob open={add} setOpen={setAdd} />

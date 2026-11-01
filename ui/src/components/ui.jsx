@@ -179,14 +179,18 @@ export function Reveal({ children, className, delay = 0 }) {
 
 /* A list whose hover highlight glides from row to row. rows: [{key, onClick, content}] */
 export function GlideList({ rows, className }) {
+  // only the rows you see first fade in: a 200-row list used to cascade for 3.6 seconds and animate every row it rendered.
+  // The rest are plain rows the browser skips drawing until they scroll into view.
+  const cls = 'group relative flex w-full items-center gap-4 px-5 py-3 text-left transition-colors hover:bg-white/[.035]'
   return (
     <div className={cn('relative', className)}>
-      {rows.map((r, i) => (
-        <motion.button key={r.key} onClick={r.onClick} variants={item}
-          className="group relative flex w-full items-center gap-4 px-5 py-3 text-left transition-colors hover:bg-white/[.035]">
-          {i > 0 && <span className="absolute inset-x-5 top-0 h-px bg-white/[.06]" />}
-          <span className="relative flex w-full items-center gap-4">{r.content}</span>
-        </motion.button>))}
+      {rows.map((r, i) => {
+        const inner = <>{i > 0 && <span className="absolute inset-x-5 top-0 h-px bg-white/[.06]" />}
+          <span className="relative flex w-full items-center gap-4">{r.content}</span></>
+        return i < 14
+          ? <motion.button key={r.key} onClick={r.onClick} variants={item} className={cls}>{inner}</motion.button>
+          : <button key={r.key} onClick={r.onClick} className={cls + ' [contain-intrinsic-size:auto_62px] [content-visibility:auto]'}>{inner}</button>
+      })}
     </div>
   )
 }

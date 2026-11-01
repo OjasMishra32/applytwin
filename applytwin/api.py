@@ -843,6 +843,10 @@ def stats():
     week = store.rows("select count(*) n from applications where status='Applied' and at>?", (time.time() - 7 * 86400,))[0]['n']
     return {"jobs": {x['status']: x['n'] for x in r}, "applications": {x['status']: x['n'] for x in a},
             "applied_7d": week, "applied_today": store.applied_count_today(),
+            # what pages show as "Applied today": since midnight here, submitted only (the daily limit above is the last 24
+            # hours and counts ones waiting at review; showing that as "today" said 2 on one page and 0 on another)
+            "applied_day": store.rows("select count(distinct job_id) n from applications where status='Applied' and at>=?",
+                                      (time.mktime(time.localtime()[:3] + (0, 0, 0, 0, 0, -1)),))[0]['n'],
             "matched": store.rows("select count(*) n from jobs where status='new' and fit>=?",
                                   (store.profile()['search'].get('min_fit', 65),))[0]['n']}
 
