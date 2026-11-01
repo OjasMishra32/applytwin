@@ -69,7 +69,7 @@ const STATIC = `<main style="max-width:760px;margin:0 auto;padding:64px 20px;fon
   <p>ApplyTwin runs on your own Claude Code or Codex subscription. It is free and open source: <a href="${REPO}">${REPO.replace('https://', '')}</a>.</p>
   <h2>Questions.</h2>
   ${FAQ.map(([q, a]) => `<h3>${esc(q)}</h3><p>${esc(a)}</p>`).join('\n  ')}
-  <nav><a href="/auto-apply-internships">Auto apply to internships</a> · <a href="/tailor-resume-to-job-description">Tailor your resume to a job description</a> · <a href="/open-source-job-application-bot">Open-source job application bot</a></nav>
+  <nav><a href="/demo">Try the demo</a> · <a href="/auto-apply-internships">Auto apply to internships</a> · <a href="/tailor-resume-to-job-description">Tailor your resume to a job description</a> · <a href="/open-source-job-application-bot">Open-source job application bot</a></nav>
 </main>`
 
 let html = readFileSync(join(OUT, 'index.html'), 'utf8')
@@ -79,6 +79,11 @@ html = html.replace(/<title>[\s\S]*?<link rel="icon"[^>]*>/, head({ title: TITLE
   .replace('<div id="root"></div>', `<div id="root">${STATIC}</div>`)
 if (!html.includes('rel="canonical"')) throw new Error('index.html head did not match; SEO tags not added')
 writeFileSync(join(OUT, 'index.html'), html)
+
+// the demo: real head tags so a shared link shows a proper card
+const demo = join(OUT, 'demo.html')
+writeFileSync(demo, readFileSync(demo, 'utf8').replace(/<title>[\s\S]*?<link rel="icon"[^>]*>/, head({ title: 'ApplyTwin Demo: Watch It Tailor a Resume and Apply, No Install',
+  description: 'Try ApplyTwin in your browser, on any phone: pick a posting and see a real resume rewritten for it, scored, and applied with. No install, no account.', path: '/demo' })))
 
 // the local app's page must never be indexed
 const app = join(OUT, 'app.html')
@@ -137,7 +142,7 @@ for (const p of PAGES) {
 writeFileSync(join(OUT, 'robots.txt'), `User-agent: *\nAllow: /\nDisallow: /app\n\nSitemap: ${SITE}/sitemap.xml\n`)
 writeFileSync(join(OUT, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${['/', ...PAGES.map(p => p.path)].map(u => `  <url><loc>${SITE}${u}</loc><lastmod>${TODAY}</lastmod><priority>${u === '/' ? '1.0' : '0.8'}</priority></url>`).join('\n')}
+${['/', '/demo', ...PAGES.map(p => p.path)].map(u => `  <url><loc>${SITE}${u}</loc><lastmod>${TODAY}</lastmod><priority>${u === '/' ? '1.0' : '0.8'}</priority></url>`).join('\n')}
 </urlset>
 `)
 writeFileSync(join(OUT, 'llms.txt'), `# ApplyTwin

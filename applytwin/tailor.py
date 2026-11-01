@@ -122,6 +122,12 @@ def check_rewrite(orig, new, vault_txt, jd, entry_txt=None):
     tools = _hw_tools(n) - _hw_tools(scope)
     if tools:
         return 'adds a tool this entry does not list: ' + ', '.join(sorted(tools))
+    # a rewrite for this posting must not lose a term the posting asks for that the original had ("convolutional neural
+    # network" shortened to "CNN" cost a Deep Learning match, and the tailored page scored below the untailored one)
+    if jd:
+        lost = [t for t, _, _ in ats.keywords(jd) if ats.PATTERNS[t].search(o) and not ats.PATTERNS[t].search(n)]
+        if lost:
+            return "drops the posting's keyword: " + ', '.join(lost)
     # tools and methods may be framed toward the posting (the user's call); numbers, scale and links may not. Outcomes
     # (shipped, adopted, cut costs) must already be in the vault: the audit checks that, since it needs to read meaning.
     # Titles, employers, awards and team leadership are checked by the honesty read (audit), which understands context.

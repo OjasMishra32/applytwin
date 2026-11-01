@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, MotionConfig, motion, useInView, useMotionValueEvent, useScroll, useTransform, useReducedMotion } from 'motion/react'
-import { ArrowDown, Check, Copy, Moon, Star, Sun } from 'lucide-react'
+import { Check, Copy, Moon, Star, Sun } from 'lucide-react'
 import { Avatar } from '../components/ui'
 import { REPO_URL, useStars } from '../lib/star'
 import { HowItWorks, Logo } from './Steps'
@@ -58,7 +58,7 @@ export default function Site() {
           </p>
           <div style={{ animationDelay: '0.42s' }} className="rise mt-7 flex flex-wrap items-center justify-center gap-x-6 gap-y-3">
             <StarButton n={stars} />
-            <a href="#start" className="link inline-flex items-center gap-1.5 text-[17px]">What happens after you paste it<ArrowDown className="size-4" /></a>
+            <a href="/demo" className="link inline-flex items-center gap-1.5 text-[17px]">Try the demo, no install</a>
           </div>
         </div>
         <div className="mx-auto mt-14 max-w-[1120px] min-[1800px]:max-w-[1360px] sm:mt-20"><Lid><AppWindow /></Lid></div>
@@ -180,7 +180,7 @@ const AFTER = [
 ]
 
 /* Dark by default. Light is one click away in the footer and is remembered on this device. */
-function useTheme() {
+export function useTheme() {
   const [theme, setTheme] = useState(() => { try { return localStorage.getItem('at:theme') === 'light' ? 'light' : 'dark' } catch { return 'dark' } })
   useEffect(() => {
     document.documentElement.dataset.siteTheme = theme
@@ -204,6 +204,7 @@ function Nav({ stars }) {
       <div className="mx-auto flex h-12 max-w-[1120px] min-[1800px]:max-w-[1360px] items-center justify-between px-4">
         <a href="#" className="flex items-center gap-2 text-[15px] font-semibold"><Logo size={18} />ApplyTwin</a>
         <nav className="flex items-center gap-5 text-[13px]">
+          <a href="/demo" className="opacity-80 hover:opacity-100">Demo</a>
           <a href="#how" className="hidden opacity-80 hover:opacity-100 sm:block">How it works</a>
           <a href="#faq" className="hidden opacity-80 hover:opacity-100 sm:block">Questions</a>
           <a href="/app" className="hidden opacity-80 hover:opacity-100 sm:block">Account</a>
@@ -509,7 +510,7 @@ function AppWindow() {
   )
 }
 
-function InstallBox({ win, setWin, hero }) {
+export function InstallBox({ win, setWin, hero }) {
   const [ok, setOk] = useState(false)
   const cmd = win ? INSTALL_WIN : INSTALL
   const copy = () => { navigator.clipboard?.writeText(cmd).catch(() => {}); setOk(true); setTimeout(() => setOk(false), 1600) }

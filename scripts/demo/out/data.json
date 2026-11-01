@@ -1,0 +1,122 @@
+{
+ "student": {
+  "name": "Maya Chen",
+  "school": "State University",
+  "degree": "B.S. Computer Science",
+  "year": "Sophomore"
+ },
+ "jobs": [
+  {
+   "id": "demo_swe",
+   "company": "Northwind Robotics",
+   "title": "Software Engineering Intern, Summer 2027",
+   "location": "Austin, TX",
+   "ats": "greenhouse",
+   "description": "Northwind Robotics builds software for warehouse robots. As a Software Engineering Intern you will build\nfeatures in our web dashboard (React, TypeScript) and backend services (Node.js, REST APIs, PostgreSQL) that operators use to\nmonitor fleets. You will write tests, review code, and ship to production with your team.\nRequirements: pursuing a BS in Computer Science or related; experience with JavaScript/React and Node.js; REST API design;\nSQL databases; Git. Nice to have: Docker, authentication (JWT/OAuth), building tools that real users rely on.",
+   "page": "demo_swe.png",
+   "score_before": 86,
+   "score_after": 88,
+   "rewrites": [
+    {
+     "from": "Moved the lab's spreadsheets into a PostgreSQL database and wrote the queries the team uses every week",
+     "to": "Migrated lab's spreadsheets into a PostgreSQL database, writing the SQL queries the team runs every week"
+    },
+    {
+     "from": "Wrote Python scripts to clean survey data from 2,400 participants for a study on study habits",
+     "to": "Wrote Python ETL scripts to clean survey data from 2,400 participants for an ongoing research study"
+    },
+    {
+     "from": "Built a dashboard in Streamlit so the lab could look at survey results without asking me to run queries",
+     "to": "Shipped a Streamlit dashboard so non-technical lab members could self-serve survey results without SQL"
+    },
+    {
+     "from": "Trained a logistic regression model that predicted course dropout with 81% accuracy on held-out students",
+     "to": "Trained a logistic regression model predicting course dropout at 81% accuracy on held-out students"
+    },
+    {
+     "from": "Built a React and Node.js app where students log expenses and see monthly spending by category",
+     "to": "Built BudgetBuddy, a full-stack React and Node.js app for tracking expenses by category"
+    }
+   ],
+   "positioning": "a CS student who has already built and shipped a full React + Node.js + REST + SQL app that real users relied on, and who writes production SQL for a live team today",
+   "missing": [
+    "TypeScript",
+    "Robotics"
+   ]
+  },
+  {
+   "id": "demo_data",
+   "company": "Lumen Bank",
+   "title": "Data Science Intern",
+   "location": "Dallas, TX",
+   "ats": "workday",
+   "description": "Lumen Bank's analytics team is hiring a Data Science Intern to help predict customer churn and\nbuild dashboards for business partners. You will clean large datasets with Python (pandas), build classification models with\nscikit-learn, write SQL against our data warehouse, and present findings to non-technical stakeholders.\nRequirements: coursework in statistics and machine learning; Python, pandas, scikit-learn; SQL; data visualization\n(Tableau, Streamlit or similar); clear communication. Nice to have: experience with survey or behavioral data, PostgreSQL.",
+   "page": "demo_data.png",
+   "score_before": 86,
+   "score_after": 89,
+   "rewrites": [
+    {
+     "from": "Trained a logistic regression model that predicted course dropout with 81% accuracy on held-out students",
+     "to": "Trained a logistic regression classification model in scikit-learn predicting course dropout with 81% accuracy on held-out students"
+    },
+    {
+     "from": "Wrote Python scripts to clean survey data from 2,400 participants for a study on study habits",
+     "to": "Cleaned survey data from 2,400 participants in Python (pandas) for a behavioral study on study habits"
+    },
+    {
+     "from": "Moved the lab's spreadsheets into a PostgreSQL database and wrote the queries the team uses every week",
+     "to": "Migrated lab spreadsheets into a PostgreSQL database and wrote the SQL queries the team runs weekly"
+    },
+    {
+     "from": "Built a dashboard in Streamlit so the lab could look at survey results without asking me to run queries",
+     "to": "Shipped a Streamlit dashboard so non-technical lab members could explore survey results without writing queries"
+    },
+    {
+     "from": "Trained a convolutional neural network in PyTorch to spot 5 leaf diseases from photos, 92% test accuracy",
+     "to": "Trained a PyTorch classification model to detect 5 leaf diseases from photos at 92% test accuracy"
+    }
+   ],
+   "positioning": "A data science researcher who cleans real-world behavioral data, builds classification models, and ships SQL-backed dashboards non-technical stakeholders actually use",
+   "missing": [
+    "Tableau"
+   ]
+  },
+  {
+   "id": "demo_ml",
+   "company": "Atlas Health",
+   "title": "Machine Learning Intern, Medical Imaging",
+   "location": "Remote (US)",
+   "ats": "lever",
+   "description": "Atlas Health uses computer vision to help clinicians read medical images faster. Our ML interns train\nand evaluate deep learning models (PyTorch, CNNs) on imaging datasets, work on data augmentation for small labeled datasets,\nand measure model accuracy carefully. Requirements: Python, PyTorch, convolutional neural networks, machine learning\nfundamentals, experience training and evaluating models. Nice to have: image classification projects, Linux, Docker.",
+   "page": "demo_ml.png",
+   "score_before": 86,
+   "score_after": 88,
+   "rewrites": [
+    {
+     "from": "Trained a logistic regression model that predicted course dropout with 81% accuracy on held-out students",
+     "to": "Trained and evaluated a logistic regression model on held-out students, reaching 81% accuracy predicting course dropout"
+    },
+    {
+     "from": "Wrote Python scripts to clean survey data from 2,400 participants for a study on study habits",
+     "to": "Cleaned and preprocessed survey data from 2,400 participants in Python/pandas for model-ready analysis"
+    },
+    {
+     "from": "Built a dashboard in Streamlit so the lab could look at survey results without asking me to run queries",
+     "to": "Built a Streamlit dashboard so the lab could evaluate survey results without re-running queries"
+    },
+    {
+     "from": "Trained a convolutional neural network in PyTorch to spot 5 leaf diseases from photos, 92% test accuracy",
+     "to": "Trained a CNN in PyTorch to classify 5 leaf diseases from images, reaching 92% test accuracy"
+    },
+    {
+     "from": "Made a Flask app that shows live campus bus locations on a map from the city's open data feed",
+     "to": "Built a Flask app rendering live campus bus locations on a map from the city's open data feed"
+    }
+   ],
+   "positioning": "A CS undergrad who has already trained and evaluated a CNN in PyTorch end to end, including augmenting a small image dataset, and pairs that with real research experience measuring model accuracy on real data.",
+   "missing": [
+    "Computer Vision"
+   ]
+  }
+ ]
+}

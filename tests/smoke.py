@@ -1253,6 +1253,13 @@ except RuntimeError:
 api.set_accounts(enabled=False, google=True)
 res.append(ok('Continue with Google' not in _pbg and _need and 'applytwin_fill_password' not in api.playbook('workday'),
               'Google off: email only; no password and no Google: refused; turned off: nothing about signing in'))
+# a rewrite for a posting never loses one of its keywords that the original had ("convolutional neural network" -> "model"
+# cost a Deep Learning match and the tailored page scored below the untailored one); CNN counts as deep learning
+_jdml = 'Requirements: Python, PyTorch, convolutional neural networks, deep learning.'
+_orig = 'Trained a convolutional neural network in PyTorch to spot 5 leaf diseases from photos, 92% test accuracy'
+res.append(ok('Deep Learning' in (_tl.check_rewrite(_orig, 'Trained a PyTorch model to classify 5 leaf diseases from photos, reaching 92% test accuracy', '', _jdml) or '')
+              and _tl.check_rewrite(_orig, 'Trained a PyTorch CNN to classify 5 leaf diseases from photos, reaching 92% test accuracy', '', _jdml) is None,
+              'rewrites keep the posting keywords the original had'))
 # Greenhouse jobs are spaced apart in a batch (rapid Greenhouse submits trigger emailed security codes)
 _pc = [j['ats'] for j in api.pace([{'ats': 'greenhouse'}, {'ats': 'greenhouse'}, {'ats': 'lever'}, {'ats': 'greenhouse'}, {'ats': 'ashby'}])]
 res.append(ok(_pc == ['greenhouse', 'lever', 'greenhouse', 'ashby', 'greenhouse'], f'Greenhouse jobs never back to back when there is other work {_pc}'))

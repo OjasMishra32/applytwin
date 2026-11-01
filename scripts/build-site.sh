@@ -6,10 +6,11 @@ keep="$(mktemp -d)"; [ -d site/.vercel ] && cp -R site/.vercel "$keep/"   # the 
 (cd ui && npm run build >/dev/null && npx vite build -c vite.site.config.js >/dev/null)
 [ -d "$keep/.vercel" ] && cp -R "$keep/.vercel" site/; rm -rf "$keep"
 mv site/site.html site/index.html
+mkdir -p site/demo-assets && cp scripts/demo/out/* site/demo-assets/   # the demo page's real tailor output (scripts/demo/make_demo.py)
 node scripts/seo/build.mjs   # icons, titles, structured data, landing pages, sitemap
 cp scripts/install-remote.sh site/install.sh
 cp scripts/install-remote.ps1 site/install.ps1
-tar -czf site/applytwin.tar.gz -s ',^\.,applytwin,' --exclude './ui/node_modules' --exclude './site' --exclude '*/__pycache__' \
+tar -czf site/applytwin.tar.gz -s ',^\.,applytwin,' --exclude './ui/node_modules' --exclude './site' --exclude './scripts/demo/out' --exclude '*/__pycache__' \
   --exclude '*.pyc' --exclude '.DS_Store' --exclude './.vercel' --exclude './.claude' --exclude './.git' .
 cat > site/vercel.json <<'JSON'
 {
