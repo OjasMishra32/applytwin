@@ -1765,6 +1765,17 @@ def _tailor(v, job, jd, mode, plan, style, out_dir, track):
             if k2:
                 render.fits(res, style, k2, pdf)
                 r['scale'] = k2
+        if r['pages'] == 1:
+            # whatever room is left goes into the gaps between sections and entries, so the page ends flush at the
+            # bottom margin instead of an inch short (the most spacing that still fits; a full page stays as it is)
+            sp = None
+            for x in (1.1, 1.2, 1.3, 1.4, 1.5):   # smallest first: a full page costs one check, not five
+                if not render.fits(res, style, r['scale'], pdf + '.probe.pdf', s=x):
+                    break
+                sp = x
+            if sp:
+                render.fits(res, style, r['scale'], pdf, s=sp)
+                r['spacing'] = sp
         for f in (pdf + '.probe.pdf',):
             if os.path.exists(f):
                 os.remove(f)

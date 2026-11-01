@@ -179,9 +179,9 @@ def _heading(title, style):
     return f'<h2>{html.escape(title)}</h2>'
 
 
-def build_html(r, style='classic', k=1.0, titles=None):
+def build_html(r, style='classic', k=1.0, titles=None, s=1.0):
     style = style if style in STYLE_CSS else 'classic'  # 'latex' previews with the closest HTML look
-    return _doc(_css(style, r), _page(r, style, titles), k, title=(r.get('basics') or {}).get('name') or 'Resume')
+    return _doc(_css(style, r), _page(r, style, titles), k, s, title=(r.get('basics') or {}).get('name') or 'Resume')
 
 
 def _doc(css, pages, k=1.0, s=1.0, title='Resume', extra=''):
@@ -531,9 +531,9 @@ def render(r, style, out_pdf, one_page=True, worth=None):
     return {"pdf": out_pdf, "pages": page_count(out_pdf), "scale": .9, "dropped": dropped, "resume": r}
 
 
-def fits(r, style, k, out_pdf):
-    """Would this resume fit on one page at type scale k? (k above 1 asks whether there's room to spare.)"""
-    html_to_pdf(build_html(r, style, k), out_pdf)
+def fits(r, style, k, out_pdf, s=1.0):
+    """Would this resume fit on one page at type scale k and spacing s? (above 1 asks whether there's room to spare.)"""
+    html_to_pdf(build_html(r, style, k, s=s), out_pdf)
     return page_count(out_pdf) == 1
 
 
