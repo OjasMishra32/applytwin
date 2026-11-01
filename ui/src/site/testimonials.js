@@ -13,16 +13,16 @@ import stanford from './schools/stanford.edu.png'
 import uf from './schools/ufl.edu.png'
 
 export const TESTIMONIALS = [
-  { name: 'Hudson Shields', school: 'University of Florida', logo: uf, photo: hudson, url: 'https://www.linkedin.com/in/hudson-shields-1590a5333/',
+  { name: 'Hudson Shields', school: 'University of Florida', short: 'UF', logo: uf, photo: hudson, url: 'https://www.linkedin.com/in/hudson-shields-1590a5333/',
     quote: 'ApplyTwin is actually so tuff. Way better than anything out there. Already did 300 internships.' },
-  { name: 'Nicolas Rebolloso', school: 'University of Florida', logo: uf, photo: nicolas, url: 'https://www.linkedin.com/in/nicolas-rebolloso/',
+  { name: 'Nicolas Rebolloso', school: 'University of Florida', short: 'UF', logo: uf, photo: nicolas, url: 'https://www.linkedin.com/in/nicolas-rebolloso/',
     quote: 'ApplyTwin is really a lifesaver. Something like this for free is genuinely baffling. The results speak for themselves!' },
-  { name: 'Anthony Du', school: 'Stanford University', logo: stanford, photo: anthony, url: 'https://www.linkedin.com/in/anthonypdu/',
+  { name: 'Anthony Du', school: 'Stanford University', short: 'Stanford', logo: stanford, photo: anthony, url: 'https://www.linkedin.com/in/anthonypdu/',
     quote: "It's tuff. Lowkey was using Claude agents to automate my applications, but yours does it way better." },
-  { name: 'Shreyas Suman', school: 'Santa Clara University', logo: scu, photo: shreyas, url: 'https://www.linkedin.com/in/shreyas-suman-ba9691355/',
+  { name: 'Shreyas Suman', school: 'Santa Clara University', short: 'Santa Clara', logo: scu, photo: shreyas, url: 'https://www.linkedin.com/in/shreyas-suman-ba9691355/',
     quote: "I applied to 25 places. I like it a lot. Like deadass, I'd pay for this." },
-  { name: 'Raunak Mondal', school: 'Carnegie Mellon University', logo: cmu, photo: raunak, url: 'https://www.linkedin.com/in/raunakmondal1/',
+  { name: 'Raunak Mondal', school: 'Carnegie Mellon University', short: 'Carnegie Mellon', logo: cmu, photo: raunak, url: 'https://www.linkedin.com/in/raunakmondal1/',
     quote: 'Lol ts is genuinely insane. Where was this when I needed it earlier?' },
-  { name: 'Siya Rozani', school: 'SP Jain Institute of Management & Research', logo: spjimr, photo: siya, url: 'https://www.linkedin.com/in/siya-rozani-9889592a1/',
+  { name: 'Siya Rozani', school: 'SP Jain Institute of Management & Research', short: 'SP Jain', logo: spjimr, photo: siya, url: 'https://www.linkedin.com/in/siya-rozani-9889592a1/',
     quote: 'The platform is super helpful!' },
 ]

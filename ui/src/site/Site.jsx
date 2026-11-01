@@ -560,36 +560,33 @@ function GitHubMark({ size = 16 }) {
 
 /* Students, in their own words, right under the install box: an endless, slow-moving strip of cards (two rows going
    opposite ways on wide screens) that pauses under your cursor. With reduced motion it is a plain scrollable row. */
+// What students texted us, shown the way it arrived: as messages, drifting past.
 function Voices() {
-  const row = (items, reverse, cls = '') => (
-    <div className={'voices-row group relative overflow-hidden ' + cls}>
-      <div className={'voices-track flex w-max items-start gap-3 group-hover:[animation-play-state:paused] ' + (reverse ? 'voices-rev' : '')}>
-        {[...items, ...items, ...items, ...items].map((t, k) => <Voice key={k} t={t} hidden={k >= items.length} />)}   {/* four copies: no gap even on very wide screens */}
+  const row = items => (
+    <div className="voices-row group/voices relative overflow-hidden py-2">
+      <div className="voices-track flex w-max items-start gap-8 group-hover/voices:[animation-play-state:paused]">
+        {[...items, ...items, ...items, ...items].map((t, k) => <Voice key={k} t={t} low={k % 2 === 1} hidden={k >= items.length} />)}   {/* four copies: no gap even on very wide screens */}
       </div>
     </div>)
-  const half = Math.ceil(TESTIMONIALS.length / 2)
   return (
     <section aria-label="What students say" style={{ animationDelay: '0.5s' }} className="rise relative mt-12 w-screen max-w-none text-left [margin-left:calc(50%-50vw)]">
-      {row(TESTIMONIALS, false)}
-      {TESTIMONIALS.length > 4 && row([...TESTIMONIALS.slice(half), ...TESTIMONIALS.slice(0, half)], true, 'mt-3 hidden lg:block')}
+      {row(TESTIMONIALS)}
     </section>
   )
 }
 
-function Voice({ t, hidden }) {
+function Voice({ t, low, hidden }) {
   return (
-    <figure aria-hidden={hidden || undefined} className="w-fit min-w-[250px] max-w-[360px] shrink-0 self-start rounded-2xl bg-[var(--bg-2)] px-4 py-3.5 ring-1 ring-[var(--line)]">
-      <figcaption className="flex items-center gap-2.5">
-        <img src={t.photo} alt="" width="36" height="36" loading="lazy" className="size-9 shrink-0 rounded-full object-cover" />
-        <span className="min-w-0 leading-tight">
-          <a href={t.url} target="_blank" rel="noreferrer" tabIndex={hidden ? -1 : undefined} className="block truncate text-[14px] font-semibold hover:underline">{t.name}</a>
-          <span className="mt-0.5 flex items-center gap-1.5 text-[12.5px] muted">
-            {t.logo && <img src={t.logo} alt="" width="14" height="14" loading="lazy" className="size-3.5 shrink-0 rounded-[3px] object-contain" />}
-            <span className="whitespace-nowrap">{t.school}</span>
-          </span>
-        </span>
-      </figcaption>
-      <blockquote className="mt-2.5 text-[14.5px] leading-[1.42] [text-wrap:pretty]">{t.quote}</blockquote>
+    <figure aria-hidden={hidden || undefined} className={'flex max-w-[300px] shrink-0 items-end gap-2.5 ' + (low ? 'mt-10' : '')}>
+      <img src={t.photo} alt="" width="32" height="32" loading="lazy" className="mb-[30px] size-8 shrink-0 rounded-full object-cover" />
+      <div className="min-w-0">
+        <blockquote className="w-fit rounded-[20px] rounded-bl-[6px] bg-[var(--bubble)] px-4 py-2.5 text-[15px] leading-[1.38] [text-wrap:pretty]">{t.quote}</blockquote>
+        <figcaption className="mt-2 flex items-center gap-1.5 pl-1 text-[12.5px] muted">
+          <a href={t.url} target="_blank" rel="noreferrer" tabIndex={hidden ? -1 : undefined} className="whitespace-nowrap font-medium text-[var(--fg)] hover:underline">{t.name}</a>
+          {t.logo && <img src={t.logo} alt="" width="13" height="13" loading="lazy" className="ml-1 size-[13px] shrink-0 rounded-[3px] object-contain" />}
+          <span className="truncate">{t.short || t.school}</span>
+        </figcaption>
+      </div>
     </figure>)
 }
 
