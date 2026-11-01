@@ -1,5 +1,5 @@
 """ApplyTwin: find internships and jobs, tailor a top-tier resume for each one, and let your own Claude Code or Codex apply."""
-__version__ = '1.3.21'
+__version__ = '1.3.22'
 
 import os as _os
 import ssl as _ssl

@@ -230,6 +230,22 @@ def fill_password(url, password):
         ws.close()
 
 
+def google_signed_in():
+    """Whether the twin's browser is signed in to a Google account (so "Continue with Google" on a job site needs no
+    password): Google's session cookie is in the profile. Reads cookie names only."""
+    if not alive():
+        return False
+    try:
+        ws = _WS(_get('/json/version')['webSocketDebuggerUrl'])
+        try:
+            cookies = ws.call('Storage.getCookies').get('cookies') or []
+        finally:
+            ws.close()
+        return any(c.get('name') in ('SID', '__Secure-1PSID') and (c.get('domain') or '').endswith('google.com') for c in cookies)
+    except Exception:
+        return False
+
+
 def site_of(url):
     h = (urllib.parse.urlparse(url or '').hostname or '').lower()
     return re.sub(r'^www\.', '', h)

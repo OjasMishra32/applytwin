@@ -1236,12 +1236,23 @@ _ac = api.set_accounts(enabled=True, email='me@school.edu', password='Job$ites-2
 _prof = json.dumps(store.profile())
 _fp = api.fill_password('https://x.wd1.myworkdayjobs.com/login')
 _pb = api.playbook('workday')
-res.append(ok(not _ac0['enabled'] and _off['filled'] == 0 and 'turned off' in _off['note'] and _noset and _ac['enabled'] and _ac['password_set']
+_sso = api.fill_password('https://accounts.google.com/v3/signin/identifier')
+res.append(ok(not _ac0['enabled'] and _off['filled'] == 0 and 'No job-site password' in _off['note'] and not _noset and _ac['enabled'] and _ac['password_set']
+              and _sso['filled'] == 0 and 'never typed there' in _sso['note'] and 'Continue with Google' in _pb
               and 'Job$ites-2027' not in _prof and 'Job$ites-2027' not in json.dumps(_fp) and 'Job$ites-2027' not in _pb
               and 'applytwin_fill_password' in _pb and 'me@school.edu' in _pb and store.load('secrets.json', {}).get('account_password') == 'Job$ites-2027',
               f'sign-in for you: opt-in, password kept out of the profile, tools and playbook ({_fp})'))
-api.set_accounts(enabled=False)
-res.append(ok('applytwin_fill_password' not in api.playbook('workday'), 'turned off, the playbook says nothing about signing in'))
+api.set_accounts(enabled=True, google=False)
+_pbg = api.playbook('workday')
+try:
+    store.save('secrets.json', {})
+    api.set_accounts(enabled=True, google=False)
+    _need = False
+except RuntimeError:
+    _need = True
+api.set_accounts(enabled=False, google=True)
+res.append(ok('Continue with Google' not in _pbg and _need and 'applytwin_fill_password' not in api.playbook('workday'),
+              'Google off: email only; no password and no Google: refused; turned off: nothing about signing in'))
 # Greenhouse jobs are spaced apart in a batch (rapid Greenhouse submits trigger emailed security codes)
 _pc = [j['ats'] for j in api.pace([{'ats': 'greenhouse'}, {'ats': 'greenhouse'}, {'ats': 'lever'}, {'ats': 'greenhouse'}, {'ats': 'ashby'}])]
 res.append(ok(_pc == ['greenhouse', 'lever', 'greenhouse', 'ashby', 'greenhouse'], f'Greenhouse jobs never back to back when there is other work {_pc}'))

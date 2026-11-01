@@ -102,7 +102,8 @@ POST = {
     r'/api/auth/logout': lambda m, qs, b: cloud.logout(),
     r'/api/sync': lambda m, qs, b: cloud.push(),
     r'/api/inbox/(\d+)/resolve': lambda m, qs, b: api.resolve(m.group(1)),
-    r'/api/accounts': lambda m, qs, b: api.set_accounts(b.get('enabled'), b.get('email'), b.get('password')),
+    r'/api/accounts': lambda m, qs, b: api.set_accounts(b.get('enabled'), b.get('email'), b.get('password'), b.get('google')),
+    r'/api/accounts/google': lambda m, qs, b: api.sign_in_google(),
 }
 
 

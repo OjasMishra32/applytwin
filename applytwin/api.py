@@ -1030,11 +1030,13 @@ def _secrets():
 
 
 def accounts_status():
+    from . import twin
     a = store.profile()['apply'].get('accounts') or {}
-    return {"enabled": bool(a.get('enabled')), "email": a.get('email') or '', "password_set": bool(_secrets().get('account_password'))}
+    return {"enabled": bool(a.get('enabled')), "email": a.get('email') or '', "password_set": bool(_secrets().get('account_password')),
+            "google": a.get('google', True) is not False, "google_signed_in": twin.google_signed_in()}
 
 
-def set_accounts(enabled=None, email=None, password=None):
+def set_accounts(enabled=None, email=None, password=None, google=None):
     """Turn on signing in / creating accounts for you. The password stays in secrets.json on this computer (never synced,
     never shown to the AI): ApplyTwin types it into the page itself when the agent asks."""
     if password is not None:
@@ -1053,11 +1055,24 @@ def set_accounts(enabled=None, email=None, password=None):
         a['enabled'] = bool(enabled)
     if email is not None:
         a['email'] = email.strip()
-    if a.get('enabled') and not _secrets().get('account_password'):
-        raise RuntimeError('Set the password your twin should use first.')
+    if google is not None:
+        a['google'] = bool(google)
+    if a.get('enabled') and not _secrets().get('account_password') and a.get('google', True) is False:
+        raise RuntimeError('Set the password your twin should use, or let it use Sign in with Google.')
     p['apply']['accounts'] = a
     store.save('profile.json', p)
     return accounts_status()
+
+
+def sign_in_google():
+    """Open Google's sign-in in the twin's browser, so "Continue with Google" on job sites needs no password later."""
+    from . import twin
+    return twin.open_tab('https://accounts.google.com/ServiceLogin?continue=https%3A%2F%2Fmyaccount.google.com%2F')
+
+
+# the job-site password is never typed into an identity provider's own page (that would be a different account's password)
+SSO_HOSTS = re.compile(r'(^|\.)(google\.com|googleusercontent\.com|microsoftonline\.com|live\.com|microsoft\.com|apple\.com|'
+                       r'linkedin\.com|facebook\.com|okta\.com|auth0\.com)$', re.I)
 
 
 def fill_password(url):
@@ -1066,8 +1081,13 @@ def fill_password(url):
     from . import twin
     st = accounts_status()
     if not st['enabled'] or not st['password_set']:
-        return {"filled": 0, "note": "Signing in for the user is turned off. Leave the tab on this page, applytwin_notify, and "
-                                     "log Needs User 'sign-in required at <url>'."}
+        return {"filled": 0, "note": "No job-site password is saved (signing in by email is off). Use Continue with Google if the "
+                                     "page offers it and the rules allow it; otherwise leave the tab on this page, applytwin_notify, "
+                                     "and log Needs User 'sign-in required at <url>'."}
+    if SSO_HOSTS.search(twin.site_of(url)):
+        return {"filled": 0, "note": "That is a Google / Microsoft / Apple / LinkedIn sign-in page. The saved password is only for job "
+                                     "sites and is never typed there. If it asks for a password, the user must sign in to that "
+                                     "account once in the twin's browser: applytwin_notify them and move on."}
     if not twin.alive():
         return {"filled": 0, "note": "This only works in the twin's browser (the Playwright tools). Notify the user instead."}
     n = twin.fill_password(url, _secrets()['account_password'])
@@ -1079,22 +1099,34 @@ def fill_password(url):
 def account_rules():
     """What the agent may do about sign-ins, read into every playbook and run."""
     st = accounts_status()
-    if not (st['enabled'] and st['password_set']):
+    google, pw = st['enabled'] and st['google'], st['enabled'] and st['password_set']
+    if not (google or pw):
         return ''
     email = st['email'] or (store.resume().get('basics') or {}).get('email', '')
-    return f"""
-## Signing in and creating accounts (the user turned this on)
-- On a sign-in or create-account page in the twin's browser, use the email {email}. Never type a password yourself: call
-  `applytwin_fill_password(url)` with the page's URL and ApplyTwin types the user's password into every password box
-  (including "confirm password"). Then click Sign in / Create account and read the page for errors.
-- Creating a candidate account is allowed, including ticking the site's account terms / privacy checkbox that creating it
-  requires. Never accept an arbitration or other legal agreement beyond that: notify the user.
-- "Already have an account" or "email in use" on create: switch to sign in. "Wrong password" or locked out: stop on that
-  site, applytwin_notify, log Needs User 'sign-in failed at <url>' (never guess another password).
-- A verification email: if email_codes is 'agent', open it in the user's email and click the link or type the code;
-  otherwise applytwin_notify and move on.
-- CAPTCHAs are still the user's: never solve one.
-"""
+    out = "\n## Signing in and creating accounts (the user turned this on)\n"
+    out += ("- A site that needs an account: sign in, or CREATE the account if there isn't one yet. Don't stop and notify for an "
+            "account wall you can handle with the steps below.\n")
+    if google:
+        out += (f"- If the page offers \"Sign in with Google\" / \"Continue with Google\", use it first. In Google's window pick the account "
+                f"{email or 'the user uses'} (or the only one listed). If Google asks to share name, email address and profile picture "
+                "with the site, press Continue / Allow. If it asks for anything more (Gmail, Drive, contacts, calendar), press Cancel "
+                "and use email sign-in instead. " + ("The twin's browser is signed in to Google. " if st['google_signed_in'] else
+                "The twin's browser may not be signed in to Google yet. ") +
+                "If Google asks for a password, a code or 2-step verification, never type anything: go back and use email sign-in"
+                + (", or " if pw else "; if that isn't possible, ") + "applytwin_notify 'Sign in to Google once in your twin's browser "
+                "(Settings, Sign in to Google)' and log Needs User.\n")
+    if pw:
+        out += (f"- Email sign-in / create account: use the email {email}. Never type a password yourself: call "
+                "`applytwin_fill_password(url)` with the page's URL and ApplyTwin types the user's job-site password into every "
+                "password box (including \"confirm password\"). Then click Sign in / Create account and read the page for errors.\n"
+                "- \"Already have an account\" or \"email in use\" on create: switch to sign in. \"Wrong password\" or locked out: stop on "
+                "that site, applytwin_notify, log Needs User 'sign-in failed at <url>' (never guess another password, never use "
+                "\"forgot password\").\n")
+    out += ("- Creating a candidate account may need ticking the site's account terms / privacy checkbox: allowed. Never accept an "
+            "arbitration or other legal agreement beyond that: notify the user.\n"
+            "- A verification email: if email_codes is 'agent', open it in the user's email and click the link or type the code; "
+            "otherwise applytwin_notify and move on.\n- CAPTCHAs are still the user's: never solve one.\n")
+    return out
 
 
 def setup_status():
@@ -1675,9 +1707,7 @@ def _start_run(agent, n, model, prompt, restarts):
         raise RuntimeError('Sign in first: open ApplyTwin (type applytwin in a terminal) and continue with Google.')
     prompt = prompt or run_prompt(n)
     if account_rules() and 'applytwin_fill_password' not in prompt:
-        prompt += ("\n\nThe user turned on signing in for them: on a sign-in or create-account page, follow the 'Signing in and "
-                   "creating accounts' rules in the playbook (applytwin_fill_password types the password; you never do). That "
-                   "overrides 'never type a password or create an account' above, for candidate accounts only.")
+        prompt += "\n\nThe user turned on signing in for them. This overrides 'never type a password or create an account' above, for candidate accounts only:" + account_rules()
     if agent == 'codex':
         # in `codex exec` any message that isn't a tool call ends the whole run: an "update every 5 jobs" stopped it after 5
         prompt = prompt.replace(' Give a 1-line update every 5 jobs.', '') + (
@@ -2019,8 +2049,11 @@ def todo():
         jobs_n = sum(g['count'] for g in rows)
         sec = {"key": 'sites', "kind": 'sites', "site": '', "count": jobs_n, "sites": rows, "entries": [],
                "title": f"Sign in to {len(rows)} site{'s' if len(rows) > 1 else ''}" if len(rows) > 1 else rows[0]['title'],
-               "detail": f"{jobs_n} application{'s' if jobs_n > 1 else ''} are filled up to a sign-in. Sign in once per site in your "
-                         "twin's browser and it finishes every job there. ApplyTwin never types passwords or creates accounts."}
+               "detail": (f"{jobs_n} application{'s' if jobs_n > 1 else ''} stopped at a sign-in. Signing in for you is on now: press "
+                          "Finish on a site and your twin signs in (or makes the account) and finishes every job there."
+                          if account_rules() else
+                          f"{jobs_n} application{'s' if jobs_n > 1 else ''} are filled up to a sign-in. Sign in once per site in your "
+                          "twin's browser and it finishes every job there, or turn on Sign in and create accounts for me in Settings.")}
         rest.insert(next((i for i, g in enumerate(rest) if g['kind'] not in ('question', 'ready')), len(rest)), sec)
     return rest
 
