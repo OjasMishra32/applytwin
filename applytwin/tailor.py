@@ -543,6 +543,9 @@ def prompt(v, job, jd, ctx=None):
         you += 'ALWAYS INCLUDE these entries/bullets: ' + ', '.join(ctx['pins']) + '\n'
     if ctx.get('avoid'):
         you += 'NEVER INCLUDE: ' + ', '.join(ctx['avoid']) + '\n'
+    if ctx.get('request'):   # typed for this one job in the app ("lead with the robotics project", "drop the retail job")
+        you += ('FOR THIS JOB THE CANDIDATE ASKS (do it; it overrides the ordering and selection rules above, but never the '
+                'truth rules: no new facts, numbers, titles or tools):\n' + ctx['request'].strip()[:600] + '\n')
     if ctx.get('winning_bullets'):
         you += 'BULLETS THAT GOT THIS CANDIDATE INTERVIEWS BEFORE (prefer them when relevant):\n' + '\n'.join('- ' + b for b in ctx['winning_bullets'][:8]) + '\n'
     return f"""You are an elite recruiter and resume writer for the {ctx.get('field', 'general')} field. Make this candidate read as the obvious
@@ -1677,14 +1680,14 @@ def progress(key):
     return None
 
 
-def tailor(v, job, jd, mode='auto', plan=None, style=None, out_dir=None):
-    """Full pipeline -> {pdf, pages, ats before/after, rewrites}."""
+def tailor(v, job, jd, mode='auto', plan=None, style=None, out_dir=None, request=None):
+    """Full pipeline -> {pdf, pages, ats before/after, rewrites}. request: what the user asked for on this job's resume."""
     track = _Track(job.get('id', 'general'), ai=plan is None and mode in ('auto', 'api'))
     track.src = {f"{e['id']}.{i}": b for sec in ENTRY_SECS for e in ensure_ids(copy.deepcopy(v)).get(sec, [])
                  for i, b in enumerate(e.get('bullets', []))}
     _SINK.fn = track.written   # this thread's model calls report the reply as it's written
     try:
-        r = _tailor(v, job, jd, mode, plan, style, out_dir, track)
+        r = _tailor(v, job, jd, mode, plan, style, out_dir, track, request)
         track.done()
         return r
     except Exception:
@@ -1694,11 +1697,13 @@ def tailor(v, job, jd, mode='auto', plan=None, style=None, out_dir=None):
         _SINK.fn = None
 
 
-def _tailor(v, job, jd, mode, plan, style, out_dir, track):
+def _tailor(v, job, jd, mode, plan, style, out_dir, track, request=None):
     from . import learn, render, store
     ctx = learn.context_for(job)
     ctx['pattern_id'], ctx['pattern'] = pattern_profile(job, jd, ctx.get('field'))
     ctx['region'] = region_overlay(job)
+    if request:
+        ctx['request'] = request
     style = style or ctx['template']
     if plan is None:
         if mode in ('auto', 'api'):
@@ -1810,7 +1815,7 @@ def _tailor(v, job, jd, mode, plan, style, out_dir, track):
            "missing": [m['term'] for m in after.get('missing', []) if m['hard']][:12],
            "rewrites": len(rep["rewrites"]), "rejected": rep["rejected"], "notes": rep["notes"], "field": ctx["field"], "added": rep.get("added", []),
            "positioning": rep.get("positioning", ''), "requirements": rep.get("requirements", []),
-           "profile": ctx.get('pattern_id'), "quality": rep.get('quality', [])}
+           "profile": ctx.get('pattern_id'), "quality": rep.get('quality', []), "request": request or ''}
     with open(os.path.join(out_dir, 'tailor.json'), 'w', encoding='utf-8') as f:
         json.dump({"plan": plan, "resume": res, "report": rep, "render": r, "mode": mode, "style": style, "field": ctx['field'],
                    "pipeline": PIPELINE, "result": out}, f, indent=1, ensure_ascii=False)

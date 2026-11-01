@@ -158,10 +158,11 @@ function JobSheet({ id, onClose, onChange }) {
     api('/api/jobs/' + id).then(setJob); api(`/api/jobs/${id}/ats`).then(setRep)
     api(`/api/jobs/${id}/resume`).then(r => r.result && setRes(prev => prev || r.result)).catch(() => {})   // the resume built last time
   }, [id])
-  const tailor = async () => {
+  const [ask, setAsk] = useState('')   // "lead with my robotics project": a change to this job's resume, in plain words
+  const tailor = async (request) => {
     const fresh = !!res
     setRes(null); setBuilding(true)
-    const go = () => api(`/api/jobs/${id}/tailor`, { template: tpl || undefined, mode: 'auto', fresh })
+    const go = () => api(`/api/jobs/${id}/tailor`, { template: tpl || undefined, mode: 'auto', fresh, ...(request ? { request } : {}) })
     try {
       setRes(await go())
     } catch (e) {
@@ -225,7 +226,7 @@ function JobSheet({ id, onClose, onChange }) {
                     <div className="flex flex-wrap items-center gap-2">
                       <select value={tpl} onChange={e => setTpl(e.target.value)} disabled={building} className="h-10 max-w-full rounded-[10px] bg-white/[.06] px-3 text-[13.5px] text-ink outline-none focus:ring-2 focus:ring-signal disabled:opacity-50">
                         <option value="">Best template for this field</option>{templates.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}</select>
-                      <Button variant={res ? 'white' : 'ink'} onClick={tailor} loading={building}>{building ? 'Building…' : res ? 'Rebuild' : 'Build it'}</Button>
+                      <Button variant={res ? 'white' : 'ink'} onClick={() => tailor()} loading={building}>{building ? 'Building…' : res ? 'Rebuild' : 'Build it'}</Button>
                     </div>
                   </div>
                   <AnimatePresence>{(building || prog) && !res && (
@@ -247,6 +248,16 @@ function JobSheet({ id, onClose, onChange }) {
                         <div className="mt-1 text-[14.5px] leading-snug text-white">{res.positioning}</div>
                         {res.requirements?.length > 0 && <div className="mt-2 flex flex-wrap gap-1.5">{res.requirements.map(r => <Badge key={r}>{r}</Badge>)}</div>}
                       </div>}
+                      <form onSubmit={e => { e.preventDefault(); if (ask.trim()) tailor(ask.trim()) }} className="mt-4">
+                        <div className="text-[12.5px] font-medium text-muted">Want something changed?</div>
+                        <div className="mt-1.5 flex gap-2">
+                          <input value={ask} onChange={e => setAsk(e.target.value)} maxLength={600} disabled={building}
+                            placeholder="e.g. Lead with my robotics project and drop the retail job"
+                            className="h-10 min-w-0 flex-1 rounded-[10px] bg-white/[.06] px-3.5 text-[14px] text-white outline-none placeholder:text-faint focus:ring-2 focus:ring-signal" />
+                          <Button type="submit" variant="white" disabled={building || !ask.trim()}>Rebuild with this</Button>
+                        </div>
+                        <div className="mt-1.5 text-[12px] text-faint">{res.request ? `Last change: "${res.request}". ` : ''}It can reorder, cut and reword. It never adds facts, numbers or titles you didn't give it.</div>
+                      </form>
                       <Paper src={`/preview?job=${id}&template=${res.style}&t=${Date.now()}`} className="mt-4" />
                       {res.dropped?.length > 0 && <div className="mt-3 text-[12.5px] text-faint">Left out to fit one page: {res.dropped.slice(0, 6).join(' · ')}{res.dropped.length > 6 ? '…' : ''}</div>}
                     </motion.div>)}

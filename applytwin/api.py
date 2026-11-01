@@ -988,7 +988,7 @@ def tailor_progress(job_id):
     return {"progress": tailor.progress(job_id)}
 
 
-def tailor_apply(job_id, plan=None, template=None, mode='auto', fresh=False):
+def tailor_apply(job_id, plan=None, template=None, mode='auto', fresh=False, request=None):
     """The tailored resume for a job. Without a plan: the dedicated writer's build (started at claim; waited for if still
     running), which is the best quality. With a plan: built from that plan."""
     j = get_job(job_id)
@@ -996,12 +996,15 @@ def tailor_apply(job_id, plan=None, template=None, mode='auto', fresh=False):
         return {"error": "unknown job"}
     if isinstance(plan, str):
         plan = json.loads(plan)
+    request = (request or '').strip()[:600] or None
+    if request and plan is None and mode in ('auto', 'api'):   # "change this" on one job's resume: a new plan that follows it
+        fresh = True
     if fresh and plan is None and mode in ('auto', 'api'):   # Rebuild: a new plan, not the saved one
         slot = _tailoring.get(job_id)
         if slot and slot['thread'].is_alive():
             slot['thread'].join(timeout=420)
         _tailoring.pop(job_id, None)
-        return tailor.tailor(get_vault(), j, j.get('description', ''), mode=mode, style=template)
+        return tailor.tailor(get_vault(), j, j.get('description', ''), mode=mode, style=template, request=request)
     if plan is None and mode in ('auto', 'api'):
         pretailor(job_id)
         slot = _tailoring.get(job_id)

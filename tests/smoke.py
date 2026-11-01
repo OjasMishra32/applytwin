@@ -1292,6 +1292,11 @@ finally:
 res.append(ok(_runs and 'applytwin-history' in (_runs[0] or '') and _fs.get('running') and not _fs.get('done')
               and not [r for r in api.inbox() if 'mail.google.com' in (r['url'] or '')] and _fs2.get('done'),
               f'Finish on the email sign-in restarts the email search ({_fs}, {_fs2})'))
+# "change this" on one job's resume: the request reaches the writer, ranked above ordering rules but never the truth rules
+_pq = _tl.prompt(store.resume(), {'id': 'rq1', 'title': 'Software Engineer Intern', 'company': 'Acme'}, 'Python, React',
+                 {'request': 'Lead with my robotics project and drop the retail job'})
+res.append(ok('Lead with my robotics project' in _pq and 'never the truth rules' in _pq,
+              'a per-job resume request goes into the writer with the truth rules intact'))
 # Greenhouse jobs are spaced apart in a batch (rapid Greenhouse submits trigger emailed security codes)
 _pc = [j['ats'] for j in api.pace([{'ats': 'greenhouse'}, {'ats': 'greenhouse'}, {'ats': 'lever'}, {'ats': 'greenhouse'}, {'ats': 'ashby'}])]
 res.append(ok(_pc == ['greenhouse', 'lever', 'greenhouse', 'ashby', 'greenhouse'], f'Greenhouse jobs never back to back when there is other work {_pc}'))

@@ -97,3 +97,13 @@ html[data-site-theme="light"]:has(.site), html[data-site-theme="light"]:has(.sit
   .site .after-step:not(:last-child)::before { left: 46px; right: -20px; top: 18px; bottom: auto; width: auto; height: 1px; }
 }
 .site :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; border-radius: 6px; }
+
+/* testimonial carousel: an endless strip (the list twice, moved by exactly one copy), edges fading into the page */
+.voices-row { -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); }
+.voices-track { animation: voices 45s linear infinite; }
+.voices-rev { animation-direction: reverse; animation-duration: 55s; }
+@keyframes voices { from { transform: translateX(0); } to { transform: translateX(calc(-50% - 8px)); } }
+@media (prefers-reduced-motion: reduce) {
+  .voices-track { animation: none; }
+  .voices-row { overflow-x: auto; }
+}

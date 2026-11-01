@@ -558,23 +558,36 @@ function GitHubMark({ size = 16 }) {
   )
 }
 
-/* Students, in their own words, right under the install box: the first proof people see. */
+/* Students, in their own words, right under the install box: an endless, slow-moving strip of cards (two rows going
+   opposite ways on wide screens) that pauses under your cursor. With reduced motion it is a plain scrollable row. */
 function Voices() {
+  const row = (items, reverse, cls = '') => (
+    <div className={'voices-row group relative overflow-hidden ' + cls}>
+      <div className={'voices-track flex w-max gap-4 group-hover:[animation-play-state:paused] ' + (reverse ? 'voices-rev' : '')}>
+        {[...items, ...items, ...items, ...items].map((t, k) => <Voice key={k} t={t} hidden={k >= items.length} />)}   {/* four copies: no gap even on very wide screens */}
+      </div>
+    </div>)
+  const half = Math.ceil(TESTIMONIALS.length / 2)
   return (
-    <div style={{ animationDelay: '0.5s' }} className="rise mx-auto mt-14 grid max-w-[1120px] gap-3 text-left sm:grid-cols-2 lg:grid-cols-4">
-      {TESTIMONIALS.map(t => (
-        <figure key={t.name} className="flex flex-col justify-between rounded-[20px] bg-[var(--bg-2)] p-5 ring-1 ring-[var(--line)]">
-          <blockquote className="text-[15px] leading-[1.45] [text-wrap:pretty]">“{t.quote}”</blockquote>
-          <figcaption className="mt-4 flex items-center gap-3">
-            <img src={t.photo} alt="" width="40" height="40" loading="lazy" className="size-10 shrink-0 rounded-full object-cover" />
-            <span className="min-w-0">
-              <a href={t.url} target="_blank" rel="noreferrer" className="block truncate text-[14px] font-semibold hover:underline">{t.name}</a>
-              <span className="block truncate text-[13px] muted">{t.school}</span>
-            </span>
-          </figcaption>
-        </figure>))}
-    </div>
+    <section aria-label="What students say" style={{ animationDelay: '0.5s' }} className="rise relative mt-16 w-screen max-w-none text-left [margin-left:calc(50%-50vw)]">
+      {row(TESTIMONIALS, false)}
+      {TESTIMONIALS.length > 4 && row([...TESTIMONIALS.slice(half), ...TESTIMONIALS.slice(0, half)], true, 'mt-4 hidden lg:block')}
+    </section>
   )
+}
+
+function Voice({ t, hidden }) {
+  return (
+    <figure aria-hidden={hidden || undefined} className="flex w-[300px] shrink-0 flex-col justify-between rounded-[22px] bg-[var(--bg-2)] p-5 ring-1 ring-[var(--line)] transition-transform duration-300 hover:-translate-y-1 sm:w-[340px]">
+      <blockquote className="text-[15.5px] leading-[1.45] [text-wrap:pretty]">“{t.quote}”</blockquote>
+      <figcaption className="mt-5 flex items-center gap-3">
+        <img src={t.photo} alt="" width="44" height="44" loading="lazy" className="size-11 shrink-0 rounded-full object-cover ring-2 ring-[var(--bg)]" />
+        <span className="min-w-0">
+          <a href={t.url} target="_blank" rel="noreferrer" tabIndex={hidden ? -1 : undefined} className="block truncate text-[14.5px] font-semibold hover:underline">{t.name}</a>
+          <span className="block truncate text-[13px] muted">{t.school}</span>
+        </span>
+      </figcaption>
+    </figure>)
 }
 
 function Faq({ q, a }) {
