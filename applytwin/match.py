@@ -3,6 +3,7 @@
 Fast and explainable on purpose (it runs on tens of thousands of postings per scan). The resume-vs-JD
 keyword match lives in ats.py and runs only on jobs you actually look at.
 """
+import functools
 import re
 import time
 
@@ -39,6 +40,7 @@ FOREIGN = re.compile(r'\b(india|bengaluru|bangalore|hyderabad|pune|mumbai|delhi|
                      r'vietnam|indonesia|jakarta|uae|dubai|emea|apac|latam)\b', re.I)
 
 
+@functools.lru_cache(maxsize=65536)
 def place(loc):
     """'us', 'foreign' or 'unknown' for a location string. Every option counts: 'New York, NY or Toronto, ON' is US."""
     if not loc or re.fullmatch(r'\s*\d+\s+locations?\s*', loc, re.I):
@@ -164,6 +166,7 @@ def application_limit(company, description=''):
     return lim
 
 
+@functools.lru_cache(maxsize=65536)
 def company_key(name):
     collapsed = ''.join(company_words(name))
     return ALIASES.get(collapsed, collapsed)

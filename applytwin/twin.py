@@ -230,9 +230,19 @@ def fill_password(url, password):
         ws.close()
 
 
+_google = {"at": 0.0, "v": False}
+
+
 def google_signed_in():
     """Whether the twin's browser is signed in to a Google account (so "Continue with Google" on a job site needs no
-    password): Google's session cookie is in the profile. Reads cookie names only."""
+    password): Google's session cookie is in the profile. Reads cookie names only; remembered for 20 seconds."""
+    if time.time() - _google['at'] < 20:
+        return _google['v']
+    _google.update(at=time.time(), v=_google_now())
+    return _google['v']
+
+
+def _google_now():
     if not alive():
         return False
     try:

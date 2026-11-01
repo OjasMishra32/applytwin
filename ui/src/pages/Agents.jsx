@@ -160,108 +160,116 @@ export default function Agents() {
     : !q ? '' : [q.dream ? `${q.dream} at your dream companies.` : 'Every open role that fits you.',
       session.length ? `Last run: ${session.length} handled, ${session.filter(a => a.status === 'Needs User').length} waiting on you.` : ''].filter(Boolean).join(' ')
 
+  const dayStart = new Date().setHours(0, 0, 0, 0) / 1000
+  const appliedToday = apps.filter(a => a.status === 'Applied' && a.at >= dayStart).length
+  const pct = Math.max(3, (session.length / Math.max(1, total)) * 100)
+
   return (
     <Page>
       <div>
-        <h1 className="text-[28px] font-bold leading-[1.15] tracking-[-0.02em] text-white">Autopilot</h1>
-        <p className="mt-1.5 max-w-xl text-[15px] leading-snug text-muted">Your twin applies to your queue in its own Chrome window, one job at a time, with a resume written for each.</p>
+        <h1 className="text-[34px] font-bold leading-[1.1] tracking-[-0.025em] text-white">Autopilot</h1>
 
-        <section className="card mt-8 p-6 sm:p-7">
-          <div className="flex flex-wrap items-start justify-between gap-8">
+        {/* the one thing that matters: what your twin is doing, and the button to start or stop it */}
+        <section className="card mt-6 overflow-hidden">
+          <div className="flex flex-col gap-8 p-7 sm:flex-row sm:items-center sm:justify-between sm:p-9">
             <div className="min-w-0 flex-1">
-              <div className="text-[13px] font-medium text-muted">{running ? `${label} is applying` : run ? 'Ready' : 'Checking on your twin…'}</div>
-              <div className="relative mt-1.5 h-[38px] overflow-hidden">
+              <div className="text-[13px] font-medium text-muted">{running ? `${label} is applying` : run ? 'Ready when you are' : 'Checking on your twin…'}</div>
+              <div className="relative mt-1 h-[44px] overflow-hidden">
                 {headline ? <AnimatePresence mode="popLayout" initial={false}>
-                  <motion.div key={headline} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}
-                    className="truncate text-[28px] font-semibold leading-[38px] tracking-[-0.02em] text-white">{headline}</motion.div>
-                </AnimatePresence> : <div className="skel mt-1.5 h-7 w-56" />}
+                  <motion.div key={headline} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.22 }}
+                    className="truncate text-[34px] font-semibold leading-[44px] tracking-[-0.025em] text-white">{headline}</motion.div>
+                </AnimatePresence> : <div className="skel mt-2 h-8 w-64" />}
               </div>
-              <div className="mt-1 min-h-[22px] text-[15px] text-muted">{subline}</div>
-              {running && now?.resume && <ResumeLine p={now.resume} />}
-              {running && <div className="mt-2 text-[13px] text-faint">Watch it live in the Chrome window your twin opened. Don't close that window; it's the twin's.</div>}
+              <div className="mt-1 min-h-[22px] line-clamp-2 text-[15px] text-muted">{subline}</div>
               {running && (
-                <div className="mt-6 h-1 max-w-[460px] overflow-hidden rounded-full bg-white/[.08]">
-                  <motion.div className="h-full rounded-full" style={{ background: BLUE }} initial={{ width: 0 }}
-                    animate={{ width: `${Math.max(3, (session.length / Math.max(1, total)) * 100)}%` }} transition={{ type: 'spring', stiffness: 120, damping: 24 }} />
+                <div className="mt-5 max-w-[480px]">
+                  <div className="h-[5px] overflow-hidden rounded-full bg-white/[.08]">
+                    <motion.div className="h-full rounded-full" style={{ background: BLUE }} initial={{ width: 0 }}
+                      animate={{ width: `${pct}%` }} transition={{ type: 'spring', stiffness: 120, damping: 24 }} />
+                  </div>
+                  {now?.resume && !now?.built && <ResumeLine p={now.resume} />}
                 </div>)}
             </div>
-
-            <div className="flex w-full flex-col gap-3 sm:w-auto sm:items-end">
-              <div className="flex flex-wrap items-center gap-3">
+            <div className="flex shrink-0 flex-col items-stretch gap-3 sm:w-[260px]">
+              <motion.button whileTap={{ scale: 0.97 }} transition={spring} onClick={running ? stop : start} disabled={!running && st && !st.signed_in}
+                className="h-12 rounded-full text-[16px] font-semibold text-white transition-colors disabled:cursor-default disabled:opacity-40"
+                style={{ background: running ? 'rgb(255 255 255 / .1)' : BLUE }}>
+                {running ? 'Stop' : `Apply to ${n}`}
+              </motion.button>
+              {!running && <div className="flex items-center gap-2">
                 <Segmented id="ag" value={agent} onChange={setAgent} options={[['claude', 'Claude Code'], ['codex', 'Codex']]} />
-                <div className="flex h-8 items-center rounded-[10px] bg-white/[.06]">
-                  <button onClick={() => step(-1)} disabled={running} className="grid h-8 w-8 place-items-center text-white/80 hover:text-white disabled:opacity-40" aria-label="Fewer jobs"><Minus className="size-3.5" /></button>
-                  <span className="w-[74px] text-center text-[13px] font-medium tabular-nums text-white" aria-live="polite">{n} jobs</span>
-                  <button onClick={() => step(1)} disabled={running} className="grid h-8 w-8 place-items-center text-white/80 hover:text-white disabled:opacity-40" aria-label="More jobs"><Plus className="size-3.5" /></button>
+                <div className="ml-auto flex h-8 items-center rounded-[10px] bg-white/[.06]">
+                  <button onClick={() => step(-1)} className="grid h-8 w-7 place-items-center text-white/70 hover:text-white" aria-label="Fewer jobs"><Minus className="size-3.5" /></button>
+                  <span className="w-8 text-center text-[13px] font-medium tabular-nums text-white" aria-live="polite">{n}</span>
+                  <button onClick={() => step(1)} className="grid h-8 w-7 place-items-center text-white/70 hover:text-white" aria-label="More jobs"><Plus className="size-3.5" /></button>
                 </div>
-              </div>
-              <div className="min-h-[18px] text-[12.5px]" style={{ color: !st || st.signed_in ? 'var(--color-muted)' : ORANGE }}>
-                {!st ? '' : st.signed_in ? `Signed in · runs on your ${label} plan, no API key` : !st.installed ? `${label} isn't installed yet` : `${label} is signed out`}
+              </div>}
+              <div className="text-center text-[12.5px] leading-snug" style={{ color: !st || st.signed_in ? 'var(--color-faint)' : ORANGE }}>
+                {!st ? '' : !st.signed_in ? (!st.installed ? `${label} isn't installed yet` : `${label} is signed out`)
+                  : running ? 'Watch it in the Chrome window it opened.' : profile.apply?.auto_submit ? 'Submits on its own.' : 'Stops at review so you press Submit.'}
               </div>
               <AgentConnect name={agent} st={st} compact onChange={() => api('/api/agents').then(setAgents).catch(() => {})} />
-              <motion.button whileTap={{ scale: 0.96 }} transition={spring} onClick={running ? stop : start} disabled={!running && st && !st.signed_in}
-                className="mt-1 h-10 w-full rounded-full px-10 text-[15px] font-semibold text-white transition-colors disabled:cursor-default disabled:opacity-40 sm:w-auto"
-                style={{ background: running ? 'rgb(255 255 255 / .1)' : BLUE }}>
-                {running ? 'Stop' : 'Start'}
-              </motion.button>
-              <div className="text-[12.5px] text-faint">{profile.apply?.auto_submit ? 'Submits on its own.' : 'Stops at the review screen so you press submit.'}</div>
-              {gaps.length > 0 && <button onClick={() => go('settings')} className="text-left text-[12.5px] text-signal-ink hover:underline sm:text-right">
-                Answer {gaps.length} more question{gaps.length === 1 ? '' : 's'} so it never stops to ask</button>}
             </div>
           </div>
+          {/* today at a glance */}
+          <div className="grid grid-cols-3 border-t border-white/[.06]">
+            {[[appliedToday, 'Applied today'], [groups.length, groups.length === 1 ? 'Thing needs you' : 'Things need you'], [q ? q.total : null, 'Roles in your queue']].map(([v, l], k) => (
+              <div key={l} className={'px-4 py-5 sm:px-7 ' + (k ? 'border-l border-white/[.06]' : '')}>
+                <div className="text-[22px] font-semibold tabular-nums tracking-[-0.02em] text-white sm:text-[26px]">{v == null ? '—' : v.toLocaleString()}</div>
+                <div className="mt-0.5 text-[12.5px] text-muted">{l}</div>
+              </div>))}
+          </div>
         </section>
+        {gaps.length > 0 && !running && <button onClick={() => go('settings')} className="mt-3 px-1 text-[13px] text-signal-ink hover:underline">
+          Answer {gaps.length} more question{gaps.length === 1 ? '' : 's'} so your twin never has to stop and ask</button>}
+
         <AnimatePresence mode="wait">
           {running && now?.company && (now.built || now.resume) &&
             <ResumePreview key={`${now.company}|${now.title}`} r={now.built} p={now.resume} company={now.company || ''} title={now.title || ''} />}
         </AnimatePresence>
 
-        <StarAsk count={apps.filter(a => a.status === 'Applied' || a.status === 'Needs User').length} />
-
-        <div className="mt-8 grid gap-8 lg:grid-cols-[1.25fr_1fr]">
-          <div className="min-w-0 space-y-8">
-            {session.length > 0 && (
-              <Group title={running ? 'This run' : 'Last run'}>
-                <AnimatePresence initial={false}>
-                  {session.slice(0, 12).map(a => <ResultRow key={a.id} a={a} onClick={() => go('jobs', a.job_id)} />)}
-                </AnimatePresence>
-              </Group>)}
-            <Group title="Up next" detail={q ? `${q.total.toLocaleString()} in queue` : ''}
-              action={<button onClick={() => go('settings')} className="text-[13px]" style={{ color: BLUE }}>Preferences</button>}>
-              <div className="max-h-[520px] overflow-y-auto [&>*+*]:border-t [&>*+*]:border-white/[.06]">
-                {(q?.jobs || []).slice(0, 40).map(j => (
-                  <Row key={j.id} onClick={() => go('jobs', j.id)} left={<Avatar name={j.company} size={32} />} title={j.title} sub={`${j.company} · ${atsName(j.ats)}`}
-                    right={<span className="flex items-center gap-2">{j.dream && <Star className="size-3.5 fill-current text-muted" aria-label="Dream company" />}
-                      <span className="w-9 text-right text-[13px] tabular-nums text-muted">{Math.round(j.fit)}%</span>
-                      <ChevronRight className="size-4 text-white/25" /></span>} />))}
-                {!q && <div className="space-y-px p-2">{[0, 1, 2, 3].map(i => <div key={i} className="skel h-[48px]" />)}</div>}
-                {q && !q.jobs?.length && <div className="px-4 py-8 text-center text-[13.5px] text-muted">Your queue is empty. Scan for jobs on the Jobs page, or widen your roles in Preferences.</div>}
-              </div>
-            </Group>
-          </div>
-
-          <div className="min-w-0 space-y-8">
+        <div className="mt-10 grid gap-10 lg:grid-cols-[1.2fr_1fr]">
+          <div className="min-w-0 space-y-10">
             <Group title="Needs you" detail={groups.length ? String(groups.length) : ''}
-              footer="Grouped so you do each thing once. Answers you give are saved, so your twin never asks twice.">
+              footer={groups.length ? 'Grouped so you do each thing once. Your answers are saved for every future application.' : ''}>
               <AnimatePresence initial={false}>
                 {groups.map(g => <TodoRow key={g.key} g={g} onDone={refresh} go={go} />)}
               </AnimatePresence>
-              {!groups.length && <div className="px-4 py-4 text-[14px] text-muted">Nothing right now.</div>}
+              {!groups.length && <div className="flex items-center gap-3 px-4 py-5 text-[14px] text-muted"><Check className="size-4 text-good" />Nothing needs you right now.</div>}
             </Group>
-
-            <Group title="Or use it from your terminal" footer="It never solves CAPTCHAs, invents a fact, or sees your password.">
-              {[['Check your setup', 'applytwin doctor'], [`Tell ${label} directly`, 'apply to my top 25 with applytwin'],
-                ['Start Autopilot from a terminal', `applytwin run --agent ${agent} --n ${n}`]].map(([l, t]) => <CopyRow key={t} label={l} text={t} />)}
-            </Group>
-
-            {run?.log && (
-              <div>
-                <button onClick={() => setRaw(!raw)} className="flex items-center gap-1 px-1 text-[13px] text-muted hover:text-white">
-                  <ChevronDown className={'size-3.5 transition-transform ' + (raw ? 'rotate-180' : '')} />Technical log</button>
-                <AnimatePresence initial={false}>{raw && (
-                  <motion.pre initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
-                    className="mt-2 max-h-[260px] overflow-auto whitespace-pre-wrap rounded-[12px] bg-black/40 p-4 font-mono text-[11px] leading-relaxed text-white/60">{live.clean}</motion.pre>)}
+            {session.length > 0 && (
+              <Group title={running ? 'This run' : 'Last run'} detail={`${session.filter(a => a.status === 'Applied').length} applied`}>
+                <AnimatePresence initial={false}>
+                  {session.slice(0, 10).map(a => <ResultRow key={a.id} a={a} onClick={() => go('jobs', a.job_id)} />)}
                 </AnimatePresence>
-              </div>)}
+              </Group>)}
+          </div>
+
+          <div className="min-w-0 space-y-10">
+            <Group title="Up next" detail={q ? `${q.total.toLocaleString()} in queue` : ''}
+              action={<button onClick={() => go('settings')} className="text-[13px]" style={{ color: BLUE }}>Preferences</button>}>
+              {(q?.jobs || []).slice(0, 8).map(j => (
+                <Row key={j.id} onClick={() => go('jobs', j.id)} left={<Avatar name={j.company} size={30} />} title={j.title} sub={`${j.company} · ${atsName(j.ats)}`}
+                  right={<span className="flex items-center gap-2">{j.dream && <Star className="size-3.5 fill-current text-muted" aria-label="Dream company" />}
+                    <span className="w-9 text-right text-[13px] tabular-nums text-muted">{Math.round(j.fit)}%</span></span>} />))}
+              {!q && <div className="space-y-px p-2">{[0, 1, 2, 3].map(i => <div key={i} className="skel h-[48px]" />)}</div>}
+              {q && !q.jobs?.length && <div className="px-4 py-8 text-center text-[13.5px] text-muted">Your queue is empty. Scan for jobs on the Jobs page, or widen your roles in Preferences.</div>}
+              {q?.total > 8 && <button onClick={() => go('jobs')} className="w-full px-4 py-3 text-left text-[13.5px] font-medium" style={{ color: BLUE }}>See all {q.total.toLocaleString()} in Jobs</button>}
+            </Group>
+
+            <div>
+              <button onClick={() => setRaw(!raw)} className="flex items-center gap-1 px-1 text-[13px] text-muted hover:text-white">
+                <ChevronDown className={'size-3.5 transition-transform ' + (raw ? 'rotate-180' : '')} />Terminal and technical log</button>
+              <AnimatePresence initial={false}>{raw && (
+                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                  <div className="card mt-2 overflow-hidden [&>*+*]:border-t [&>*+*]:border-white/[.06]">
+                    {[['Check your setup', 'applytwin doctor'], [`Tell ${label} directly`, 'apply to my top 25 with applytwin'],
+                      ['Start Autopilot from a terminal', `applytwin run --agent ${agent} --n ${n}`]].map(([l, t]) => <CopyRow key={t} label={l} text={t} />)}
+                  </div>
+                  {run?.log && <pre className="mt-2 max-h-[260px] overflow-auto whitespace-pre-wrap rounded-[12px] bg-black/40 p-4 font-mono text-[11px] leading-relaxed text-white/60">{live.clean}</pre>}
+                </motion.div>)}
+              </AnimatePresence>
+            </div>
           </div>
         </div>
       </div>
@@ -298,11 +306,25 @@ function Row({ left, title, sub, right, onClick, href }) {
 
 const STATUS = { Applied: ['var(--color-muted)', Check, 'Applied'], 'Needs User': [ORANGE, Hand, 'Needs you'], Skipped: ['var(--color-faint)', CircleSlash, 'Skipped'] }
 
+/* What happened, in a few plain words: agents write "sign-in required at https://ngc.wd1.myworkdayjobs.com/..." */
+function reason(a) {
+  const n = (a.notes || '').replace(/https?:\/\/\S+/g, '').replace(/\s+(at|on)\s*([.;,]|$)/gi, '$2').replace(/\s{2,}/g, ' ').trim()
+  const rules = [[/^sign[- ]?in (required|needed)/i, 'Waiting on your sign-in'], [/^account (required|needed)/i, 'Needs an account'],
+    [/captcha/i, 'A CAPTCHA to solve'], [/emailed code|verification code/i, 'Waiting on an emailed code'], [/^closed|no longer|does not exist/i, 'Posting closed'],
+    [/duplicate|already applied/i, 'Already applied'], [/^ready to submit/i, 'Ready for your Submit click'], [/stuck|no progress/i, 'Skipped after no progress']]
+  const hit = rules.find(([rx]) => rx.test(n))
+  const q = n.match(/^required question:\s*"?([^".;]{3,70})/i)
+  if (q) return `Asks: ${q[1]}`
+  if (hit) return hit[1]
+  const first = n.split(/(?<=[.;])\s/)[0].replace(/[.;]$/, '')
+  return first.length > 90 ? first.slice(0, 88) + '…' : first
+}
+
 function ResultRow({ a, onClick }) {
   const [color, Icon, text] = STATUS[a.status] || ['var(--color-muted)', Check, a.status]
   return (
     <motion.div layout initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} transition={{ type: 'spring', stiffness: 300, damping: 30 }}>
-      <Row onClick={onClick} left={<Avatar name={a.company} size={32} />} title={`${a.company}  ·  ${a.title}`} sub={a.notes}
+      <Row onClick={onClick} left={<Avatar name={a.company} size={30} />} title={`${(a.company || '').replace(/^\W+/, '')} · ${a.title}`} sub={reason(a)}
         right={<span className="flex shrink-0 items-center gap-1.5 text-[13px] font-medium" style={{ color }}><Icon className="size-3.5" />{text}</span>} />
     </motion.div>
   )

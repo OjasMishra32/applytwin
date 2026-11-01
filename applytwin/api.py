@@ -1,4 +1,5 @@
 """One API used by the web app, the MCP server (Claude Code / Codex) and the CLI."""
+import functools
 import json
 import os
 import re
@@ -471,6 +472,7 @@ def pace(jobs):
 STOP = {'the', 'a', 'an', 'and', 'of', 'for', 'to', 'in', 'at', 'hq', 'remote', 'hybrid', 'onsite', 'us', 'usa'}
 
 
+@functools.lru_cache(maxsize=65536)   # pure, and asked about the same few thousand roles on every queue read
 def role_key(company, title):
     """Same role at the same company, however a board spells it: 'Software Engineer Intern (First Play) - Summer 2027
     (Mountain View, CA)' and 'Software Engineer Intern, First Play' are one job."""
@@ -1029,11 +1031,12 @@ def _secrets():
     return store.load('secrets.json', {}) or {}
 
 
-def accounts_status():
+def accounts_status(check_google=True):
     from . import twin
     a = store.profile()['apply'].get('accounts') or {}
+    google = a.get('google', True) is not False
     return {"enabled": bool(a.get('enabled')), "email": a.get('email') or '', "password_set": bool(_secrets().get('account_password')),
-            "google": a.get('google', True) is not False, "google_signed_in": twin.google_signed_in()}
+            "google": google, "google_signed_in": bool(check_google and google and a.get('enabled') and twin.google_signed_in())}
 
 
 def set_accounts(enabled=None, email=None, password=None, google=None):
@@ -1079,7 +1082,7 @@ def fill_password(url):
     """The agent is on a sign-in or create-account page: type the saved password into its password boxes. The agent gets
     a count back, never the password."""
     from . import twin
-    st = accounts_status()
+    st = accounts_status(check_google=False)
     if not st['enabled'] or not st['password_set']:
         return {"filled": 0, "note": "No job-site password is saved (signing in by email is off). Use Continue with Google if the "
                                      "page offers it and the rules allow it; otherwise leave the tab on this page, applytwin_notify, "
@@ -1098,7 +1101,9 @@ def fill_password(url):
 
 def account_rules():
     """What the agent may do about sign-ins, read into every playbook and run."""
-    st = accounts_status()
+    st = accounts_status(check_google=False)
+    if st['enabled'] and st['google']:
+        st = accounts_status()   # only then is the browser asked whether it's signed in to Google
     google, pw = st['enabled'] and st['google'], st['enabled'] and st['password_set']
     if not (google or pw):
         return ''
@@ -1650,6 +1655,7 @@ def _run_or_queue(job_id, prompt):
 
 def skip_job(job_id, why='Skipped by you'):
     """Never apply to this one (the Skip button on anything that needs you)."""
+    _todo_cache['v'] = None
     store.execute("update jobs set status='skipped' where id=?", (job_id,))
     store.execute('update inbox set resolved=? where job_id=? and resolved is null', (time.time(), job_id))
     if any(r['job_id'] == job_id for r in pending_jobs()):   # it was waiting on you: close that out too
@@ -1958,10 +1964,18 @@ def browser_fix(err=''):
     return "Press Start again. If it happens again, restart ApplyTwin; your jobs stay in the queue."
 
 
+_todo_cache = {"at": 0.0, "v": None}
+
+
 def inbox_poll():
+    """What the bell and Needs you show, polled every few seconds by every open window: the grouped list plus just enough
+    of each new message for a desktop notification (it used to resend every message and every waiting job, 90 KB a poll)."""
     _app_seen[0] = time.time()
-    t = todo()
-    return {"items": inbox(), "pending": pending_jobs(), "groups": t, "count": len(t)}
+    if time.time() - _todo_cache['at'] > 3 or _todo_cache['v'] is None:   # two windows polling at once share one build
+        _todo_cache.update(at=time.time(), v=todo())
+    t = _todo_cache['v']
+    items = [{"id": i['id'], "title": i['title'], "message": (i.get('message') or '')[:200]} for i in inbox()[:50]]
+    return {"items": items, "groups": t, "count": len(t)}
 
 
 HIDE = {'closed', 'duplicate', 'broken_link', 'transient'}   # handled by ApplyTwin itself: never a thing for the user to do
@@ -1992,12 +2006,12 @@ def todo():
             continue
         entries.append({"item_id": i['id'], "job_id": i.get('job_id') or '', "company": j.get('company') or '', "title": j.get('title') or '',
                         "url": i.get('url') or j.get('apply_url') or j.get('url') or '', "text": i['title'],
-                        "note": i.get('message') or '', "cat": cat})
+                        "note": (i.get('message') or '')[:300], "cat": cat})
     covered = {e['job_id'] for e in entries if e['job_id']}
     for p in pending_jobs():
         if p['job_id'] not in covered:
             entries.append({"item_id": None, "job_id": p['job_id'], "company": p.get('company') or '', "title": p.get('title') or '',
-                            "url": p.get('url') or '', "text": '', "note": p.get('notes') or '', "cat": blockers.classify(p.get('notes'))})
+                            "url": p.get('url') or '', "text": '', "note": (p.get('notes') or '')[:300], "cat": blockers.classify(p.get('notes'))})
     groups = {}
     for e in entries:
         cat = 'ready' if e['cat'] == 'captcha' else e['cat']
@@ -2051,7 +2065,7 @@ def todo():
                "title": f"Sign in to {len(rows)} site{'s' if len(rows) > 1 else ''}" if len(rows) > 1 else rows[0]['title'],
                "detail": (f"{jobs_n} application{'s' if jobs_n > 1 else ''} stopped at a sign-in. Signing in for you is on now: press "
                           "Finish on a site and your twin signs in (or makes the account) and finishes every job there."
-                          if account_rules() else
+                          if accounts_status(check_google=False)['enabled'] else
                           f"{jobs_n} application{'s' if jobs_n > 1 else ''} are filled up to a sign-in. Sign in once per site in your "
                           "twin's browser and it finishes every job there, or turn on Sign in and create accounts for me in Settings.")}
         rest.insert(next((i for i, g in enumerate(rest) if g['kind'] not in ('question', 'ready')), len(rest)), sec)
@@ -2064,6 +2078,7 @@ def inbox(include_resolved=False):
 
 
 def resolve(item_id):
+    _todo_cache['v'] = None
     store.execute('update inbox set resolved=? where id=?', (time.time(), int(item_id)))
     return {"ok": True}
 
