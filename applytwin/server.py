@@ -121,6 +121,12 @@ def human_error(e):
         return "Couldn't reach the internet (or the site didn't answer in time). Check your connection and try again."
     if isinstance(e, ValueError) and msg.startswith(('invalid literal', 'could not convert')):
         return 'A number in that request is not valid. Fix it and try again.'
+    if isinstance(e, (TypeError, AttributeError, ImportError, NameError)):
+        try:
+            if _code_stamp() > _STARTED_CODE + 1:   # an update landed mid-run: old code in memory met new code on disk
+                return "ApplyTwin just updated. It switches over when your twin finishes its current run; reload the page then."
+        except OSError:
+            pass
     if not msg or isinstance(e, (TypeError, AttributeError, IndexError, NameError, UnboundLocalError, ZeroDivisionError)):
         return f"Something went wrong inside ApplyTwin ({type(e).__name__}). Reload the page and try again; the details are in the terminal running it."
     return msg
@@ -132,14 +138,14 @@ class H(BaseHTTPRequestHandler):
 
     def _send(self, code, body, ctype='application/json', filename=None):
         data = body if isinstance(body, bytes) else (json.dumps(body, default=str) if ctype == 'application/json' else body).encode()
-        self.send_response(code)
-        if filename:   # a download, not a page
-            self.send_header('Content-Disposition', f'attachment; filename="{filename}"')
-        self.send_header('Content-Type', ctype + ('; charset=utf-8' if ctype.startswith(('text', 'application/json')) else ''))
-        self.send_header('Content-Length', str(len(data)))
-        self.send_header('Cache-Control', 'no-store')
-        self.end_headers()
-        try:
+        try:   # headers flush on end_headers, so a page that went away fails there too, not only on the body
+            self.send_response(code)
+            if filename:   # a download, not a page
+                self.send_header('Content-Disposition', f'attachment; filename="{filename}"')
+            self.send_header('Content-Type', ctype + ('; charset=utf-8' if ctype.startswith(('text', 'application/json')) else ''))
+            self.send_header('Content-Length', str(len(data)))
+            self.send_header('Cache-Control', 'no-store')
+            self.end_headers()
             self.wfile.write(data)
         except (BrokenPipeError, ConnectionResetError):
             pass   # the page went away (reload, closed tab) before the answer arrived; nothing to do
@@ -306,6 +312,24 @@ def _code_stamp():
 
 
 _STARTED_CODE = _code_stamp()
+
+
+def _load_all():
+    """Import every module now. An update can land mid-run (the restart waits for the run to end), and a module first
+    imported after that would be the new version beside old ones already loaded: mismatched calls, TypeErrors."""
+    import importlib
+    import pkgutil
+    from . import __path__ as pkg
+    for m in pkgutil.iter_modules(pkg):
+        if m.name.startswith('_'):   # __main__ starts the app when imported
+            continue
+        try:
+            importlib.import_module(f'{__package__}.{m.name}')
+        except Exception:
+            pass
+
+
+_load_all()
 
 
 def _ui_build():

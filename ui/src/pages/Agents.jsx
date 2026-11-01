@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { toast } from 'sonner'
-import { Check, ChevronDown, ChevronRight, CircleSlash, Copy, Hand, Minus, Plus, Star } from 'lucide-react'
+import { Check, ChevronDown, ChevronRight, CircleSlash, Copy, Hand, KeyRound, MessageCircleQuestion, Minus, MonitorX, Plus, Send, Star, TriangleAlert } from 'lucide-react'
 import { api } from '../lib/api'
 import { parseRun } from '../lib/runlog'
 import { useApp, Page } from '../App'
@@ -34,32 +34,55 @@ function ResumeLine({ p }) {
     </div>)
 }
 
-/* The resume your twin just wrote for the job it's applying to: the real page, small, so you see what's being sent. */
-function ResumePreview({ r, company, title }) {
-  const src = `/file?path=${encodeURIComponent(r.pdf)}`
-  const W = 612, H = 792, S = 0.3
+/* The resume for the job your twin is on: while it's being written, a page that fills in line by line; once it's done,
+   the real page, small, so you see exactly what's being sent. */
+const SKEL = [[.42, 1], [.7, .5], [0], [.3, .9], [.95], [.9], [.6], [0], [.3, .9], [.92], [.85], [.95], [.5], [0], [.3, .9], [.9], [.8], [0], [.25, .9], [.9], [.7]]
+function WritingPage({ p, W, S }) {
+  const done = p ? Math.min(.97, p.elapsed / Math.max(1, p.elapsed + p.eta)) : .1
+  const shown = Math.max(2, Math.round(done * SKEL.length))
   return (
-    <motion.section key={r.pdf} layout initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
+    <div className="absolute inset-0 px-[14px] py-[16px]">
+      {SKEL.map((l, i) => l[0] === 0 ? <div key={i} className="h-[7px]" /> : (
+        <motion.div key={i} className={`mb-[4px] h-[4px] rounded-full ${l.length > 1 && i ? 'bg-black/55' : 'bg-black/25'}`}
+          style={{ width: `${(l[1] ?? l[0]) * 100}%`, marginLeft: i === 0 ? `${(1 - l[0]) * 50}%` : 0, ...(i === 0 ? { width: `${l[0] * 100}%`, height: 7 } : {}) }}
+          initial={false} animate={{ opacity: i < shown ? 1 : 0.12 }} transition={{ duration: 0.5 }} />))}
+      <motion.div className="absolute inset-x-0 h-10 bg-gradient-to-b from-transparent via-[#0a84ff]/15 to-transparent"
+        animate={{ top: ['-10%', '100%'] }} transition={{ duration: 2.2, repeat: Infinity, ease: 'linear' }} />
+    </div>)
+}
+
+function ResumePreview({ r, p, company, title }) {
+  const src = r ? `/file?path=${encodeURIComponent(r.pdf)}` : null
+  const W = 612, H = 792, S = 0.3
+  const step = (p?.steps || []).find(x => x.state === 'now')?.label || 'Writing your resume'
+  return (
+    <motion.section layout initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
       transition={{ type: 'spring', stiffness: 260, damping: 28 }} className="card mt-4 flex items-center gap-6 p-5 sm:p-6">
-      <a href={src} target="_blank" rel="noreferrer" aria-label="Open this resume full size"
-        className="group relative shrink-0 overflow-hidden rounded-[6px] bg-white shadow-[0_8px_30px_rgba(0,0,0,.45)] ring-1 ring-white/10 transition-transform hover:-translate-y-0.5"
+      <a href={src || undefined} target="_blank" rel="noreferrer" aria-label={src ? 'Open this resume full size' : 'Resume being written'}
+        className={`group relative shrink-0 overflow-hidden rounded-[6px] bg-white shadow-[0_8px_30px_rgba(0,0,0,.45)] ring-1 ring-white/10 transition-transform ${src ? 'hover:-translate-y-0.5' : 'pointer-events-none'}`}
         style={{ width: W * S, height: H * S }}>
-        <iframe title="Resume preview" src={`${src}#toolbar=0&navpanes=0&scrollbar=0&view=Fit`} tabIndex={-1}
-          className="pointer-events-none origin-top-left border-0" style={{ width: W, height: H, transform: `scale(${S})` }} />
-        <motion.div className="absolute inset-x-0 top-0 h-full bg-gradient-to-b from-transparent via-white/40 to-transparent"
-          initial={{ y: '-100%' }} animate={{ y: '100%' }} transition={{ duration: 1.1, ease: 'easeInOut' }} />
+        <AnimatePresence initial={false}>
+          {src ? <motion.div key="pdf" className="absolute inset-0" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.6 }}>
+            <iframe title="Resume preview" src={`${src}#toolbar=0&navpanes=0&scrollbar=0&view=Fit`} tabIndex={-1}
+              className="pointer-events-none origin-top-left border-0" style={{ width: W, height: H, transform: `scale(${S})` }} />
+            <motion.div className="absolute inset-x-0 top-0 h-full bg-gradient-to-b from-transparent via-white/40 to-transparent"
+              initial={{ y: '-100%' }} animate={{ y: '100%' }} transition={{ duration: 1.1, ease: 'easeInOut' }} />
+          </motion.div> : <motion.div key="skel" className="absolute inset-0" exit={{ opacity: 0 }}><WritingPage p={p} W={W} S={S} /></motion.div>}
+        </AnimatePresence>
       </a>
       <div className="min-w-0">
-        <div className="text-[13px] font-medium text-muted">Resume written for this job</div>
+        <div className="text-[13px] font-medium text-muted">{r ? 'Resume written for this job' : `Writing a resume for this job · ${step}`}</div>
         <div className="mt-1 truncate text-[19px] font-semibold tracking-[-0.01em] text-white">{company.replace(/^\W+/, '')}</div>
         <div className="truncate text-[14px] text-muted">{title}</div>
-        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-white/80">
-          {r.score != null && <span className="tabular-nums">{r.score}% keyword match</span>}
-          {r.rewrites > 0 && <span className="tabular-nums">{r.rewrites} bullet{r.rewrites === 1 ? '' : 's'} rewritten for this role</span>}
-          {r.pages === 1 && <span>One page</span>}
-        </div>
-        {r.positioning && <p className="mt-2 line-clamp-2 max-w-md text-[13px] leading-snug text-faint">{r.positioning}</p>}
-        <a href={src} target="_blank" rel="noreferrer" className="mt-3 inline-block text-[13px] font-medium" style={{ color: BLUE }}>Open full size</a>
+        {r ? <>
+          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-white/80">
+            {r.score != null && <span className="tabular-nums">{r.score}% keyword match</span>}
+            {r.rewrites > 0 && <span className="tabular-nums">{r.rewrites} bullet{r.rewrites === 1 ? '' : 's'} rewritten for this role</span>}
+            {r.pages === 1 && <span>One page</span>}
+          </div>
+          {r.positioning && <p className="mt-2 line-clamp-2 max-w-md text-[13px] leading-snug text-faint">{r.positioning}</p>}
+          <a href={src} target="_blank" rel="noreferrer" className="mt-3 inline-block text-[13px] font-medium" style={{ color: BLUE }}>Open full size</a>
+        </> : <p className="mt-3 max-w-md text-[13px] leading-snug text-faint">Picking your strongest experience for this posting and rewriting it in its words. The page shows up here when it's done.</p>}
       </div>
     </motion.section>)
 }
@@ -78,7 +101,7 @@ export default function Agents() {
   const [agents, setAgents] = useState(null)
   const [agent, setAgent] = useState(profile.apply?.agent || safeGet('at:agent') || 'claude')   // Settings' choice comes first
   const [n, setN] = useState(+(safeGet('at:n') || 25))
-  const [inbox, setInbox] = useState({ items: [], pending: [] })
+  const [inbox, setInbox] = useState({ items: [], pending: [], groups: [] })
   const [apps, setApps] = useState([])
   const [raw, setRaw] = useState(false)
   const [gaps, setGaps] = useState([])
@@ -114,8 +137,7 @@ export default function Agents() {
   const running = !!run?.running
   const st = agents?.[agent]
   const label = agent === 'claude' ? 'Claude Code' : 'Codex'
-  const pending = inbox.pending.filter(p => !inbox.items.some(i => i.job_id === p.job_id))
-  const needs = inbox.items.length + pending.length
+  const groups = inbox.groups || []
 
   const start = async () => {
     if (typeof Notification !== 'undefined' && Notification.permission === 'default') Notification.requestPermission()   // so it can tell you when it needs you
@@ -189,7 +211,8 @@ export default function Agents() {
           </div>
         </section>
         <AnimatePresence mode="wait">
-          {running && now?.built && <ResumePreview key={now.built.pdf} r={now.built} company={now.company || ''} title={now.title || ''} />}
+          {running && now?.company && (now.built || now.resume) &&
+            <ResumePreview key={`${now.company}|${now.title}`} r={now.built} p={now.resume} company={now.company || ''} title={now.title || ''} />}
         </AnimatePresence>
 
         <StarAsk count={apps.filter(a => a.status === 'Applied' || a.status === 'Needs User').length} />
@@ -217,19 +240,12 @@ export default function Agents() {
           </div>
 
           <div className="min-w-0 space-y-8">
-            <Group title="Needs you" detail={needs ? String(needs) : ''}
-              footer="Answers you give here are saved, so your twin never asks the same thing twice.">
+            <Group title="Needs you" detail={groups.length ? String(groups.length) : ''}
+              footer="Grouped so you do each thing once. Answers you give are saved, so your twin never asks twice.">
               <AnimatePresence initial={false}>
-                {inbox.items.map(i => <NeedsYou key={'i' + i.id} item={i} onDone={refresh} />)}
-                {pending.map(p => (
-                  <div key={'p' + p.job_id} className="px-4 py-3.5">
-                    <div className="flex items-center gap-3.5"><Avatar name={p.company} size={32} />
-                      <div className="min-w-0 flex-1"><div className="truncate text-[14.5px] text-white">{p.company} · {p.title}</div>
-                        <div className="line-clamp-2 text-[12.5px] text-muted">{p.notes}</div></div></div>
-                    <div className="mt-2 pl-[46px]"><ItemActions item={{ ...p, id: 'p' + p.job_id }} onDone={refresh} /></div>
-                  </div>))}
+                {groups.map(g => <TodoRow key={g.key} g={g} onDone={refresh} go={go} />)}
               </AnimatePresence>
-              {!needs && <div className="px-4 py-4 text-[14px] text-muted">Nothing right now.</div>}
+              {!groups.length && <div className="px-4 py-4 text-[14px] text-muted">Nothing right now.</div>}
             </Group>
 
             <Group title="Or use it from your terminal" footer="It never types passwords, solves CAPTCHAs, creates accounts or invents a fact.">
@@ -341,6 +357,90 @@ function NeedsYou({ item, onDone }) {
       </AnimatePresence>
     </motion.div>
   )
+}
+
+/* One row per thing to do. Closed, it's a sentence and a count; open, it shows exactly what to press. */
+const KIND_ICON = { question: MessageCircleQuestion, ready: Send, sites: KeyRound, browser: MonitorX }
+function TodoRow({ g, onDone, go }) {
+  const [open, setOpen] = useState(false)
+  const Icon = KIND_ICON[g.kind] || TriangleAlert
+  return (
+    <motion.div layout="position" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, height: 0 }}>
+      <button onClick={() => setOpen(!open)} className="flex w-full items-center gap-3.5 px-4 py-3.5 text-left transition-colors hover:bg-white/[.035]">
+        <span className="grid size-8 shrink-0 place-items-center rounded-full bg-white/[.07]"><Icon className="size-4 text-white/80" /></span>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[14.5px] font-medium text-white">{g.title}</div>
+          {!open && <div className="truncate text-[12.5px] text-muted">{g.detail}</div>}
+        </div>
+        {g.count > 1 && <span className="shrink-0 text-[13px] tabular-nums text-faint">{g.count}</span>}
+        <ChevronDown className={'size-4 shrink-0 text-white/30 transition-transform ' + (open ? 'rotate-180' : '')} />
+      </button>
+      <AnimatePresence initial={false}>{open && (
+        <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+          <div className="px-4 pb-4 pl-[62px]">
+            <p className="text-[13px] leading-relaxed text-muted">{g.detail}</p>
+            {g.kind === 'question' && <button onClick={() => go('answers')} className="mt-2 text-[13px] font-medium text-signal-ink hover:underline">Open the Answers page</button>}
+            <div className="mt-3 space-y-1">
+              {g.kind === 'sites' ? g.sites.map(st => <SiteRow key={st.key} st={st} onDone={onDone} />)
+                : g.entries.map(e => e.item_id && g.kind === 'question'
+                  ? <NeedsYou key={e.item_id} item={{ id: e.item_id, kind: 'question', title: e.text, message: e.note, job_id: e.job_id, url: e.url }} onDone={onDone} />
+                  : <EntryRow key={e.item_id || e.job_id} e={e} onDone={onDone} />)}
+            </div>
+          </div>
+        </motion.div>)}</AnimatePresence>
+    </motion.div>)
+}
+
+function EntryRow({ e, onDone }) {
+  const [open, setOpen] = useState(false)
+  const name = (e.company || '').replace(/^\W+/, '')
+  return (
+    <div className="rounded-[10px] bg-white/[.03]">
+      <button onClick={() => setOpen(!open)} className="flex w-full items-center gap-3 px-3 py-2.5 text-left">
+        <Avatar name={name || '?'} size={24} />
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[13.5px] text-white">{name ? `${name} · ${e.title}` : e.text}</div>
+          {!open && e.note && <div className="truncate text-[12px] text-faint">{e.note}</div>}
+        </div>
+        <ChevronRight className={'size-3.5 shrink-0 text-white/25 transition-transform ' + (open ? 'rotate-90' : '')} />
+      </button>
+      {open && <div className="px-3 pb-3">
+        {e.note && <p className="mb-2 text-[12.5px] leading-relaxed text-muted">{e.note}</p>}
+        <ItemActions item={{ id: e.item_id ?? 'p' + e.job_id, job_id: e.job_id, url: e.url, title: e.text, message: e.note, notes: e.note }} onDone={onDone} />
+      </div>}
+    </div>)
+}
+
+function SiteRow({ st, onDone }) {
+  const [busy, setBusy] = useState('')
+  const [open, setOpen] = useState(false)
+  const first = st.entries.find(e => e.url) || {}
+  const name = st.title.replace(/^(Sign in to|Create your|Type the emailed code for)\s+/, '').replace(/ account$/, '')
+  const act = async (label, fn, ok) => {
+    setBusy(label)
+    try { const r = await fn(); toast.success(r?.queued ? 'Queued' : ok.title, { description: r?.queued ? 'Your twin finishes these right after its current run.' : ok.body }); if (label === 'finish') onDone() }
+    catch (err) { toast.error(err.message) }
+    setBusy('')
+  }
+  return (
+    <div className="rounded-[10px] bg-white/[.03] px-3 py-2.5">
+      <div className="flex flex-wrap items-center gap-3">
+        <Avatar name={name} size={24} />
+        <button onClick={() => setOpen(!open)} className="min-w-0 flex-1 text-left">
+          <div className="truncate text-[13.5px] text-white">{name}</div>
+          <div className="truncate text-[12px] text-faint">{st.kind === 'account' ? 'Needs an account' : st.kind === 'email_code' ? 'Emailed code' : 'Sign-in'} · {st.count} job{st.count > 1 ? 's' : ''}</div>
+        </button>
+        <div className="flex items-center gap-1.5">
+          {first.url && <button disabled={!!busy} onClick={() => act('open', () => api('/api/open-twin', { url: first.url }),
+            { title: "Opened in your twin's browser", body: 'Sign in there (your login is saved for next time), then press Finish.' })}
+            className="h-7 rounded-full bg-white/[.08] px-3 text-[12px] font-semibold text-white hover:bg-white/[.13] disabled:opacity-50">{busy === 'open' ? 'Opening…' : 'Open'}</button>}
+          <button disabled={!!busy} onClick={() => act('finish', () => api('/api/finish/site', { site: st.site }),
+            { title: `Finishing ${name}`, body: `Your twin continues ${st.count > 1 ? `all ${st.count} jobs` : 'the job'} where it stopped.` })}
+            className="h-7 rounded-full bg-signal px-3 text-[12px] font-semibold text-white hover:bg-[#2b95ff] disabled:opacity-50">{busy === 'finish' ? 'Starting…' : 'Finish'}</button>
+        </div>
+      </div>
+      {open && <div className="mt-2 space-y-1">{st.entries.map(e => <EntryRow key={e.item_id || e.job_id} e={e} onDone={onDone} />)}</div>}
+    </div>)
 }
 
 function StarAsk({ count }) {

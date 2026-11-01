@@ -1406,6 +1406,19 @@ def message(job_id, text):
         _say(job_id, 'twin', "Skipped. I won't apply to this one.")
     else:
         submit = kind == 'submit'
+        busy = bool(_run['proc'] and _run['proc'].poll() is None)
+        if busy and not submit:
+            # mid-run, an answer can't wait for the run to end ("what resume did you use?" sat behind 25 applications):
+            # a side agent answers now from ApplyTwin's data; anything that needs the browser is queued for after the run
+            queued = not _question(text)
+            if queued:
+                _run_or_queue(job_id, message_prompt(job_id, text))
+            try:
+                start_help(job_id, queued=queued)
+                _say(job_id, 'twin', "Looking into it now.")
+            except Exception as e:
+                _say(job_id, 'twin', f"I can't answer right now: {e}")
+            return {"thread": thread(job_id)}
         r = finish_jobs([job_id], submit=True) if submit else _run_or_queue(job_id, message_prompt(job_id, text))
         _say(job_id, 'twin', ("Already submitted, nothing to do." if r.get('done') else
                               "Queued. I'm in the middle of a run and will do this right after, then reply here." if r.get('queued')
@@ -1413,11 +1426,32 @@ def message(job_id, text):
     return {"thread": thread(job_id)}
 
 
-_help = {"proc": None}
+def _question(text):
+    """A question to answer, not something to do in the browser."""
+    t = (text or '').strip().lower()
+    return t.endswith('?') or bool(re.match(r"(what|which|why|how|when|where|who|did|does|do|is|are|was|were|can|could|have|has|show|tell)\b", t))
+
+
+def job_answer_prompt(job_id, queued):
+    j = (store.rows('select id, company, title, apply_url, url from jobs where id=?', (job_id,)) or [{}])[0]
+    a = _latest(job_id) or {}
+    convo = '\n'.join(f"{'User' if r['role'] == 'you' else 'You'}: {r['text']}" for r in thread(job_id)[-8:])
+    return (f"The user is asking about ONE application: {j.get('company')} {j.get('title')} (job {job_id}). "
+            f"Its latest status: {a.get('status', 'not started')}: {a.get('notes') or ''}\n"
+            f"Conversation so far:\n{convo}\n\n"
+            "Answer their last message from ApplyTwin's tools (applytwin_get_job, applytwin_list_jobs, applytwin_get_vault, "
+            "applytwin_get_profile). An Autopilot run is using the browser right now: don't open a browser, don't claim, "
+            "apply or start a run. " + ("What they asked needs the browser, so it is queued and happens right after the current "
+            "run; tell them that. " if queued else "") +
+            "Reply with applytwin_reply(job_id, text): one to three plain sentences, no markdown, no em dashes, never a file "
+            "path (the resume opens from the link the app shows under your reply). Never invent facts.")
+
+
+_help = {}   # thread id -> the side agent answering it
 _HELP_LOCK = threading.Lock()
 
 
-def start_help():
+def start_help(tid=None, queued=False):
     """Answer the Help chat with a second, short agent session that runs beside any Autopilot run. It gets ApplyTwin's
     tools but no browser, so it never fights the run for the twin's browser. A newer message replaces one still being
     worked on: the new session sees the whole conversation, so nothing is lost."""
@@ -1429,8 +1463,9 @@ def start_help():
         raise RuntimeError('Claude Code or Codex needs to be installed first (Settings shows how).')
     if not agents.status(agent)['signed_in']:
         raise RuntimeError(f"{'Claude Code' if agent == 'claude' else 'Codex'} is signed out. Press Sign in on the Autopilot page.")
+    tid = tid or HELP
     busy = bool(_run['proc'] and _run['proc'].poll() is None)
-    prompt = help_prompt(_help_latest()) + (
+    prompt = job_answer_prompt(tid, queued) if tid != HELP else help_prompt(_help_latest()) + (
         "\n\nAn Autopilot run is going right now in the twin's browser: don't open a browser, don't start a run, and "
         "don't claim or apply to jobs. Answer from ApplyTwin's tools and data." if busy else
         "\n\nAnswer from ApplyTwin's tools and data; don't open a browser or start an Autopilot run.")
@@ -1439,14 +1474,14 @@ def start_help():
                '--output-format', 'text']
     else:
         cmd = [exe, 'exec', '--skip-git-repo-check', '-s', 'workspace-write', '-c', 'approval_policy=never', *agents.codex_model_args(),
-               '--output-last-message', store.path('help.last'), '-']   # its log is full of tool chatter; this is just the answer
+               '--output-last-message', store.path(f'help-{tid}.last'), '-']   # its log is full of tool chatter; this is just the answer
     with _HELP_LOCK:
-        old = _help['proc']
+        old = _help.get(tid)
         if old and old.poll() is None:
             _kill(old)
-        logf = store.path('help.log')
+        logf = store.path(f'help-{tid}.log')
         try:
-            os.remove(store.path('help.last'))
+            os.remove(store.path(f'help-{tid}.last'))
         except OSError:
             pass
         f = open(logf, 'w', encoding='utf-8')
@@ -1456,8 +1491,8 @@ def start_help():
         f.close()
         proc.stdin.write(prompt)
         proc.stdin.close()
-        _help['proc'] = proc
-    threading.Thread(target=_watch_help, args=(proc, logf, time.time()), daemon=True).start()
+        _help[tid] = proc
+    threading.Thread(target=_watch_help, args=(proc, logf, time.time(), tid), daemon=True).start()
     return {"started": True}
 
 
@@ -1466,21 +1501,21 @@ def _help_latest():
     return mine[-1] if mine else ''
 
 
-def _watch_help(proc, logf, started):
+def _watch_help(proc, logf, started, tid=HELP):
     """If the agent answered with applytwin_reply, that's in the chat already; otherwise post what it printed."""
     try:
         proc.wait(timeout=600)
     except Exception:
         _kill(proc)
-        if _help['proc'] is proc:
-            _say(HELP, 'twin', "That took too long, so I stopped. Try asking again, or in fewer words.")
+        if _help.get(tid) is proc:
+            _say(tid, 'twin', "That took too long, so I stopped. Try asking again, or in fewer words.")
         return
-    if _help['proc'] is not proc:   # replaced by a newer message
+    if _help.get(tid) is not proc:   # replaced by a newer message
         return
-    if store.rows("select 1 from thread where job_id=? and role='twin' and at>? and text not like 'Looking into it now%'", (HELP, started)):
+    if store.rows("select 1 from thread where job_id=? and role='twin' and at>? and text not like 'Looking into it now%'", (tid, started)):
         return
     out = ''
-    for f in (store.path('help.last'), logf):
+    for f in (store.path(f'help-{tid}.last'), logf):
         try:
             out = open(f, encoding='utf-8', errors='replace').read().strip()
         except OSError:
@@ -1489,9 +1524,9 @@ def _watch_help(proc, logf, started):
             break
     low = out.lower()
     if not out or proc.returncode and ('not logged in' in low or 'login' in low and 'please' in low):
-        _say(HELP, 'twin', "I couldn't get an answer from your agent. Check that it's signed in on the Autopilot page, then ask again.")
+        _say(tid, 'twin', "I couldn't get an answer from your agent. Check that it's signed in on the Autopilot page, then ask again.")
     else:
-        _say(HELP, 'twin', out[-1800:])
+        _say(tid, 'twin', out[-1800:])
 
 
 def _run_or_queue(job_id, prompt):
@@ -1809,7 +1844,99 @@ def browser_fix(err=''):
 
 def inbox_poll():
     _app_seen[0] = time.time()
-    return {"items": inbox(), "pending": pending_jobs()}
+    t = todo()
+    return {"items": inbox(), "pending": pending_jobs(), "groups": t, "count": len(t)}
+
+
+HIDE = {'closed', 'duplicate', 'broken_link', 'transient'}   # handled by ApplyTwin itself: never a thing for the user to do
+ORDER = ['question', 'ready', 'captcha', 'email_code', 'signin', 'account', 'agreement', 'assessment', 'upload', 'eligibility',
+         'dropdown', 'browser', 'other']
+
+
+def todo():
+    """Everything waiting on the user as a short list of things to do, not one card per message: five Workday jobs behind
+    one sign-in are one row, every unanswered question is one row, and what ApplyTwin handles itself (closed postings,
+    retries) never shows. 70 separate cards with five buttons each read like an alarm going off."""
+    if _run['proc'] and _run['proc'].poll() is None:   # a run is going, so its browser started: old browser errors are stale
+        for r in store.rows('select id, title, message from inbox where resolved is null'):
+            if r['title'] == "Your twin's browser didn't start" or blockers.classify(f"{r['title']}. {r['message']}") == 'browser':
+                store.execute('update inbox set resolved=? where id=?', (time.time(), r['id']))
+    jobs = {}
+    def job(jid):
+        if jid and jid not in jobs:
+            jobs[jid] = (store.rows('select company, title, apply_url, url from jobs where id=?', (jid,)) or [{}])[0]
+        return jobs.get(jid) or {}
+    entries = []
+    for i in inbox():
+        j = job(i.get('job_id'))
+        cat = 'question' if i.get('kind') == 'question' else 'browser' if i['title'] == "Your twin's browser didn't start" \
+            else blockers.classify(f"{i['title']}. {i.get('message') or ''}")
+        if cat == 'browser' and i['at'] < (_run.get('started') or 0):   # a run started since, so its browser worked
+            store.execute('update inbox set resolved=? where id=?', (time.time(), i['id']))
+            continue
+        entries.append({"item_id": i['id'], "job_id": i.get('job_id') or '', "company": j.get('company') or '', "title": j.get('title') or '',
+                        "url": i.get('url') or j.get('apply_url') or j.get('url') or '', "text": i['title'],
+                        "note": i.get('message') or '', "cat": cat})
+    covered = {e['job_id'] for e in entries if e['job_id']}
+    for p in pending_jobs():
+        if p['job_id'] not in covered:
+            entries.append({"item_id": None, "job_id": p['job_id'], "company": p.get('company') or '', "title": p.get('title') or '',
+                            "url": p.get('url') or '', "text": '', "note": p.get('notes') or '', "cat": blockers.classify(p.get('notes'))})
+    groups = {}
+    for e in entries:
+        cat = 'ready' if e['cat'] == 'captcha' else e['cat']
+        if cat in HIDE:
+            continue
+        h = blockers.host(e['url'])
+        key = f"{cat}|{h}" if cat in ('signin', 'account', 'email_code') else cat
+        g = groups.setdefault(key, {"key": key, "kind": cat, "site": h if cat in ('signin', 'account', 'email_code') else '', "entries": []})
+        if not any(x['job_id'] and x['job_id'] == e['job_id'] for x in g['entries']):   # one row per job, however many messages
+            g['entries'].append(e)
+    out = []
+    for g in groups.values():
+        n, names = len(g['entries']), []
+        for e in g['entries']:
+            c = re.sub(r'^\W+', '', e['company'] or '')
+            if c and c not in names:
+                names.append(c)
+        who = names[0] if len(names) == 1 else (', '.join(names[:2]) + (f' +{len(names) - 2}' if len(names) > 2 else '')) if names else g['site']
+        g['title'] = {
+            'question': f"Answer {n} question{'s' if n > 1 else ''} only you know",
+            'ready': f"Review and submit {n} application{'s' if n > 1 else ''}",
+            'email_code': f"Type the emailed code for {who}",
+            'signin': f"Sign in to {who}",
+            'account': f"Create your {who} account",
+            'agreement': f"Accept {who}'s agreement yourself",
+            'assessment': f"Take {who}'s assessment",
+            'upload': f"Add a file {who} asks for",
+            'eligibility': f"Check you qualify for {who}",
+            'dropdown': f"Pick an answer {who}'s form wouldn't take",
+            'browser': "Your twin's browser didn't start",
+        }.get(g['kind'], f"Finish {who}" if names else "Something needs a look")
+        g['detail'] = (blockers.ACTIONS.get(g['kind'], '').format(host=g['site'] or 'the site', n=n) if g['kind'] in blockers.ACTIONS
+                       else browser_fix() if g['kind'] == 'browser' else (g['entries'][0]['note'] or g['entries'][0]['text'])[:160])
+        g['count'] = n
+        out.append(g)
+    out.sort(key=lambda g: (ORDER.index(g['kind']) if g['kind'] in ORDER else len(ORDER), -g['count']))
+    # every site waiting on a sign-in, an account or an emailed code is one row with the sites inside it
+    sites = {}
+    for g in out:
+        if g['kind'] in ('signin', 'account', 'email_code'):
+            s2 = sites.setdefault(g['site'], {**g, "entries": []})
+            s2['entries'] += [e for e in g['entries'] if not any(x['job_id'] == e['job_id'] for x in s2['entries'])]
+            s2['count'] = len(s2['entries'])
+            if g['kind'] == 'account':
+                s2['kind'], s2['title'] = 'account', g['title']
+    rest = [g for g in out if g['kind'] not in ('signin', 'account', 'email_code')]
+    if sites:
+        rows = sorted(sites.values(), key=lambda g: -g['count'])
+        jobs_n = sum(g['count'] for g in rows)
+        sec = {"key": 'sites', "kind": 'sites', "site": '', "count": jobs_n, "sites": rows, "entries": [],
+               "title": f"Sign in to {len(rows)} site{'s' if len(rows) > 1 else ''}" if len(rows) > 1 else rows[0]['title'],
+               "detail": f"{jobs_n} application{'s' if jobs_n > 1 else ''} are filled up to a sign-in. Sign in once per site in your "
+                         "twin's browser and it finishes every job there. ApplyTwin never types passwords or creates accounts."}
+        rest.insert(next((i for i, g in enumerate(rest) if g['kind'] not in ('question', 'ready')), len(rest)), sec)
+    return rest
 
 
 def inbox(include_resolved=False):

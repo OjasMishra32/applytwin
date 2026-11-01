@@ -1045,18 +1045,30 @@ api._run['proc'] = _busy
 try:
     _fq = len(store.load('followups.json', []))
     _ht = api.message('help', 'is my setup ok?')['thread']
-    _hp = api._help['proc']
+    _hp = api._help['help']
     _hp.wait(timeout=30)
     for _ in range(40):
         if any('nothing is broken' in r['text'] for r in api.thread('help')):
             break
         time.sleep(0.25)
     _ans = [r['text'] for r in api.thread('help') if r['role'] == 'twin']
+    # a question about one application mid-run is answered now too, and nothing is queued for the browser
+    store.execute("insert or replace into jobs(id, company, title, location, url, status) values('jq1', 'Visa', 'Software Engineer Intern', 'Austin, TX', 'https://visa.wd5.myworkdayjobs.com/x/job/1', 'new')")
+    api.message('jq1', 'what resume did you use?')
+    api._help['jq1'].wait(timeout=30)
+    for _ in range(40):
+        if any('nothing is broken' in r['text'] for r in api.thread('jq1')):
+            break
+        time.sleep(0.25)
+    _jans = [r['text'] for r in api.thread('jq1') if r['role'] == 'twin']
+    _jq = len(store.load('followups.json', []))
 finally:
     api._agent, api.agents.status, _sh.which, api._run['proc'] = _saved
     _busy.kill()
 res.append(ok(len(store.load('followups.json', [])) == _fq and _ans[0].startswith('Looking into it now') and 'nothing is broken' in _ans[-1],
               f'Help answers during a run instead of queuing ({_ans})'))
+res.append(ok(_jq == _fq and _jans and not any(x.startswith('Queued') for x in _jans) and 'nothing is broken' in _jans[-1],
+              f'a question about one job is answered mid-run, not queued ({_jans})'))
 # export: one row per job at its latest status, as CSV a spreadsheet opens, with formula-looking cells defused
 store.execute("insert or replace into jobs(id, company, title, location, url, status) values('exp1', 'Acme', '=HYPERLINK(1)', 'Remote', 'https://acme.test/1', 'applied')")
 store.log_application('exp1', 'Needs User', 'sign in')
@@ -1182,6 +1194,33 @@ json.dump({"result": {"pdf": _pv, "score": 81, "pages": 1, "rewrites": [{}, {}]}
 _b = api.built_resume('pv1', 0)
 res.append(ok(_b and _b['pdf'] == _pv and _b['rewrites'] == 2 and api.built_resume('pv1', time.time() + 60) is None and api.built_resume('nope') is None,
               f'the live resume preview is this run\'s build ({_b})'))
+# trimming a skills line cuts the one the posting cares least about, not whichever came last
+from applytwin import render as _rd, tailor as _tl
+_sk = {'skills': [{'label': 'Hardware', 'items': ['Soldering', 'Oscilloscopes']}, {'label': 'AI and ML', 'items': ['PyTorch', 'pandas', 'scikit-learn']},
+                  {'label': 'Tools', 'items': ['Git']}, {'label': 'Languages', 'items': ['Python', 'SQL']}, {'label': 'Cloud', 'items': ['AWS']}]}
+_jd = 'Data science intern: Python, SQL, pandas, scikit-learn and PyTorch for machine learning models.'
+_cut = _rd._drop_one(_sk, _tl.trim_worth(_sk, _ats.keywords(_jd), _jd))
+res.append(ok(_cut and 'AI and ML' not in _cut and 'AI and ML' in [x['label'] for x in _sk['skills']],
+              f'a long page drops the least relevant skills line ({_cut})'))
+# a rewrite that keeps a project's name but drops its link gets the link back instead of being thrown out
+_kl = _tl._keep_links('Built [Deja View](https://devpost.com/x) in 36 hours', 'Shipped Deja View, a WebXR app, in 36 hours')
+res.append(ok(_kl == 'Shipped [Deja View](https://devpost.com/x), a WebXR app, in 36 hours'
+              and _tl.check_rewrite('Built [Deja View](https://devpost.com/x) in 36 hours', _kl, '', '') is None, f'dropped links are restored ({_kl})'))
+# Needs you is a short list of things to do: every site's sign-in in one row, questions in one row, closed postings hidden
+for _jid, _co, _u, _note in [('td1', 'Booz Allen', 'https://bah.wd1.myworkdayjobs.com/x/1', 'sign-in required at https://bah.wd1.myworkdayjobs.com/x/1'),
+                             ('td2', 'Booz Allen', 'https://bah.wd1.myworkdayjobs.com/x/2', 'account required at https://bah.wd1.myworkdayjobs.com/x/2'),
+                             ('td3', 'Visa', 'https://visa.wd5.myworkdayjobs.com/x/3', 'sign-in required at https://visa.wd5.myworkdayjobs.com/x/3'),
+                             ('td4', 'Gone Co', 'https://gone.test/4', 'closed: the page does not exist')]:
+    store.execute("insert or replace into jobs(id, company, title, location, url, status) values(?, ?, 'Intern', 'Remote', ?, 'new')", (_jid, _co, _u))
+    store.log_application(_jid, 'Needs User', _note)
+_td = api.todo()
+_sites = next((g for g in _td if g['kind'] == 'sites'), {})
+res.append(ok(_sites.get('title', '').startswith('Sign in to') and {s['site'] for s in _sites.get('sites', [])} >= {'bah.wd1.myworkdayjobs.com', 'visa.wd5.myworkdayjobs.com'}
+              and next(s for s in _sites['sites'] if s['site'] == 'bah.wd1.myworkdayjobs.com')['count'] == 2
+              and not any(e['job_id'] == 'td4' for g in _td for e in g['entries']) and api.inbox_poll()['count'] == len(_td),
+              f"Needs you groups into a few rows ({[(g['title'], g['count']) for g in _td]})"))
+for _jid in ('td1', 'td2', 'td3', 'td4'):
+    api.skip_job(_jid)
 # Greenhouse jobs are spaced apart in a batch (rapid Greenhouse submits trigger emailed security codes)
 _pc = [j['ats'] for j in api.pace([{'ats': 'greenhouse'}, {'ats': 'greenhouse'}, {'ats': 'lever'}, {'ats': 'greenhouse'}, {'ats': 'ashby'}])]
 res.append(ok(_pc == ['greenhouse', 'lever', 'greenhouse', 'ashby', 'greenhouse'], f'Greenhouse jobs never back to back when there is other work {_pc}'))

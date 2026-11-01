@@ -133,6 +133,18 @@ def check_rewrite(orig, new, vault_txt, jd, entry_txt=None):
     return None
 
 
+def _keep_links(orig, new):
+    """Put back a link the rewrite dropped when its words are still there ("[Deja View](url)" rewritten as plain "Deja
+    View"): otherwise the whole rewrite was thrown out over the markup and the page got the untailored line."""
+    for label, url in re.findall(r'\[([^\]]+)\]\(([^)]+)\)', orig or ''):
+        if f']({url})' in new:
+            continue
+        i = new.find(label)
+        if i >= 0 and not new[max(0, i - 1):i] == '[':
+            new = f'{new[:i]}[{label}]({url}){new[i + len(label):]}'
+    return new
+
+
 # ---------------------------------------------------------------- heuristic tailor (no AI)
 
 IMPACT = re.compile(r'\b(1st|2nd|3rd|first place|second place|winner|won|finalist|champion|gold|top \d+%?|1 of \d+|'
@@ -972,6 +984,7 @@ def apply(v, plan, jd=''):
                     src = owner
                     etxt = ' '.join([src.get('title', ''), src.get('org', ''), src.get('name', ''), src.get('tagline', ''),
                                      ' '.join(src.get('tech', []))] + src.get('bullets', []) + src.get('alts', []))
+                    text = _keep_links(orig, text)
                     why = check_rewrite(orig, text, vt, jd, etxt)
                     if why:
                         rep['rejected'].append({"bullet": src_id, "reason": why, "text": text})

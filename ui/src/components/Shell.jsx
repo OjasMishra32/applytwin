@@ -6,7 +6,6 @@ import { cn } from '../lib/utils'
 import { api } from '../lib/api'
 import { spring } from './ui'
 import { StarButton } from '../lib/star'
-import { ItemActions } from './ItemActions'
 
 export const NAV = [['home', 'Today'], ['jobs', 'Jobs'], ['studio', 'Resume'], ['answers', 'Answers'], ['board', 'Applications'], ['agents', 'Autopilot']]
 
@@ -85,8 +84,8 @@ function Inbox() {
     }
     f(); return () => clearTimeout(t)
   }, [])
-  const n = d.items.length
-  const done = async id => { await api(`/api/inbox/${id}/resolve`, {}); setD(x => ({ ...x, items: x.items.filter(i => i.id !== id) })) }
+  const groups = d.groups || []
+  const n = d.count ?? groups.length
   return (
     <div ref={ref} className="relative">
       <button onClick={() => setOpen(o => !o)} aria-label="Needs you" className="relative grid size-8 place-items-center rounded-[8px] text-muted transition-colors hover:bg-white/[.06] hover:text-ink">
@@ -100,13 +99,14 @@ function Inbox() {
           <div className="px-3 pb-2 pt-1.5 text-[14px] font-semibold text-white">Needs you</div>
           {n === 0 && <div className="px-3 pb-4 text-[13px] text-muted">Nothing right now. You'll get a notification if a site needs a code or a sign-in.</div>}
           <div className="max-h-[360px] overflow-y-auto">
-            {d.items.map(i => (
-              <div key={i.id} className="rounded-[12px] px-3 py-2.5 hover:bg-white/[.04]">
-                <div className="text-[13.5px] font-medium text-white">{i.title}</div>
-                {i.message && <div className="mt-0.5 text-[12.5px] text-muted">{i.message}</div>}
-                <ItemActions item={i} compact onDone={() => setD(x => ({ ...x, items: x.items.filter(y => y.id !== i.id) }))} />
-              </div>))}
+            {groups.map(g => (
+              <button key={g.key} onClick={() => { setOpen(false); location.hash = 'agents' }} className="block w-full rounded-[10px] px-3 py-2.5 text-left hover:bg-white/[.05]">
+                <div className="flex items-baseline justify-between gap-3"><span className="truncate text-[13.5px] font-medium text-white">{g.title}</span>
+                  {g.count > 1 && <span className="shrink-0 text-[12px] tabular-nums text-faint">{g.count}</span>}</div>
+                <div className="mt-0.5 line-clamp-2 text-[12.5px] text-muted">{g.detail}</div>
+              </button>))}
           </div>
+          {n > 0 && <button onClick={() => { setOpen(false); location.hash = 'agents' }} className="mt-1 w-full rounded-[10px] px-3 py-2 text-left text-[13px] font-medium text-signal-ink hover:bg-white/[.05]">Handle these on the Autopilot page</button>}
         </motion.div>)}</AnimatePresence>
     </div>
   )

@@ -115,7 +115,7 @@ function Talk({ job, onDone }) {
           {shown.map((m, i) => (
             <div key={i} className={'flex ' + (m.role === 'you' ? 'justify-end' : 'justify-start')}>
               <div className={'max-w-[85%] rounded-[14px] px-3 py-1.5 text-[13px] leading-snug ' +
-                (m.role === 'you' ? 'bg-signal text-white' : 'bg-white/[.08] text-white/90')}>{m.text}</div>
+                (m.role === 'you' ? 'bg-signal text-white' : 'bg-white/[.08] text-white/90')}><Linked text={m.text} /></div>
             </div>))}
         </div>)}
       <form onSubmit={send} className="flex items-center gap-2">
@@ -126,4 +126,12 @@ function Talk({ job, onDone }) {
       </form>
     </div>
   )
+}
+
+/* A reply that names a resume file shows a link to open it, never a raw path cut off at the edge of the bubble. */
+function Linked({ text }) {
+  const parts = (text || '').split(/(\S*\.applytwin[\\/]resumes[\\/]\S+?\.pdf)/)
+  return parts.map((p, i) => i % 2
+    ? <a key={i} href={`/file?path=${encodeURIComponent(p)}`} target="_blank" rel="noreferrer" className="font-medium underline">Open the resume</a>
+    : <span key={i}>{p}</span>)
 }

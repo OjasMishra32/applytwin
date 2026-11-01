@@ -574,7 +574,12 @@ def _drop_one(r, worth=None):
     def entry(sec, floor):
         items = r.get(sec) or []
         if len(items) > floor:
-            x = items.pop()
+            if sec == 'skills' and worth:   # skill lines aren't ordered by fit: cut the one this posting cares least about,
+                # not whichever came last ("AI and ML" was cut from a data role while "Fundamentals" stayed)
+                i = min(range(len(items)), key=lambda i: (worth(' '.join(items[i].get('items') or []) if isinstance(items[i], dict) else str(items[i])), -i))
+                x = items.pop(i)
+            else:
+                x = items.pop()
             return f"{sec}: {ats_plain(x if isinstance(x, str) else x.get('name') or x.get('org') or x.get('title') or x.get('label', ''))[:60]}"
 
     plan = [lambda: entry('volunteering', 1), lambda: bullet('volunteering', 1), lambda: bullet('projects', 2), lambda: bullet('leadership', 1), lambda: bullet('experience', 2, 2),
