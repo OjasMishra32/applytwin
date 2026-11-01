@@ -1260,6 +1260,15 @@ _orig = 'Trained a convolutional neural network in PyTorch to spot 5 leaf diseas
 res.append(ok('Deep Learning' in (_tl.check_rewrite(_orig, 'Trained a PyTorch model to classify 5 leaf diseases from photos, reaching 92% test accuracy', '', _jdml) or '')
               and _tl.check_rewrite(_orig, 'Trained a PyTorch CNN to classify 5 leaf diseases from photos, reaching 92% test accuracy', '', _jdml) is None,
               'rewrites keep the posting keywords the original had'))
+# resume import: "B.S. Computer Science" splits into degree and major; "Austin, TX" means the US; tool words count toward roles
+from applytwin import importer as _imp
+_dm = _imp.DEGREE_FIELD.match('B.S. Computer Science')
+res.append(ok(_dm and _dm.group(2) == 'Computer Science' and not _imp.DEGREE_FIELD.match('Bachelor of Science')
+              and _imp.DEGREE_FIELD.match('BA, Economics').group(2) == 'Economics', 'degree lines without "in" still give the major'))
+_rl = [r for r, syn in match.ROLE_SYNONYMS.items() if any(_re.search(r'\b' + _re.escape(x), 'built a react app; trained pytorch models; pandas dashboards') for x in syn)]
+res.append(ok({'software engineer', 'machine learning', 'data science'} <= set(_rl) and 'biology' not in
+              [r for r, syn in match.ROLE_SYNONYMS.items() if any(_re.search(r'\b' + _re.escape(x), 'human-centered computing lab') for x in syn)],
+              f'role guesses come from real evidence, not the word "lab" ({_rl})'))
 # Greenhouse jobs are spaced apart in a batch (rapid Greenhouse submits trigger emailed security codes)
 _pc = [j['ats'] for j in api.pace([{'ats': 'greenhouse'}, {'ats': 'greenhouse'}, {'ats': 'lever'}, {'ats': 'greenhouse'}, {'ats': 'ashby'}])]
 res.append(ok(_pc == ['greenhouse', 'lever', 'greenhouse', 'ashby', 'greenhouse'], f'Greenhouse jobs never back to back when there is other work {_pc}'))

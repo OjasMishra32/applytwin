@@ -14,6 +14,17 @@ export const getv = (p, k) => k.startsWith('eeo.') ? (p.eeo || {})[k.slice(4)] :
 export const setv = (p, k, v) => k.startsWith('eeo.') ? { ...p, eeo: { ...(p.eeo || {}), [k.slice(4)]: v } } : { ...p, [k]: v }
 export const missing = (qs, p) => (qs || []).filter(q => !q.optional && [undefined, null, ''].includes(getv(p, q.key)))
 
+// one answer that settles others: a U.S. citizen or green card holder is authorized to work and needs no sponsorship
+function implied(p, key) {
+  if (key !== 'citizenship') return p
+  const yes = /^U\.S\. (citizen|permanent resident)/.test(p.citizenship || '')
+  if (!yes) return p
+  let out = p
+  if ([undefined, null, ''].includes(getv(out, 'work_authorized_us'))) out = setv(out, 'work_authorized_us', true)
+  if ([undefined, null, ''].includes(getv(out, 'needs_sponsorship'))) out = setv(out, 'needs_sponsorship', false)
+  return out
+}
+
 export function ProfileQuestions({ qs, p, setP, groups, showMissing, filled = [], large }) {
   if (!qs) return <div className="skel h-64" />
   const names = groups || [...new Set(qs.map(q => q.group))]
@@ -22,6 +33,11 @@ export function ProfileQuestions({ qs, p, setP, groups, showMissing, filled = []
       {names.map(g => (
         <section key={g}>
           {!large && <div className="mb-1.5 px-4 text-[13px] font-medium text-muted">{g}{g.startsWith('Voluntary') && ' · you can decline any of these'}</div>}
+          {g.startsWith('Voluntary') && qs.some(q => q.group === g && q.kind === 'select' && [undefined, null, ''].includes(getv(p, q.key))) &&
+            <div className="mb-2 flex justify-end"><button onClick={() => setP(qs.filter(q => q.group === g && q.kind === 'select').reduce((acc, q) => {
+              const d = (q.options || []).find(o => /decline|do not want|prefer not/i.test(o))
+              return d && [undefined, null, ''].includes(getv(acc, q.key)) ? setv(acc, q.key, d) : acc
+            }, p))} className="text-[13px] font-medium text-signal-ink hover:underline">Decline all of these</button></div>}
           <div className="card divide-y divide-white/[.06] overflow-hidden">
             {qs.filter(q => q.group === g).map(q => {
               const v = getv(p, q.key)
@@ -36,7 +52,7 @@ export function ProfileQuestions({ qs, p, setP, groups, showMissing, filled = []
                   <div className="w-full shrink-0 sm:w-[46%]">
                     {q.kind === 'yesno' ? <YesNo value={v} onChange={x => setP(setv(p, q.key, x))} />
                       : q.kind === 'select' ? (
-                        <select value={v || ''} onChange={e => setP(setv(p, q.key, e.target.value))}
+                        <select value={v || ''} onChange={e => setP(implied(setv(p, q.key, e.target.value), q.key))}
                           className={'h-9 w-full rounded-[10px] bg-white/[.06] px-3 text-[14px] outline-none focus:ring-2 focus:ring-signal ' + (v ? 'text-white' : 'text-faint')}>
                           <option value="" disabled>Choose…</option>
                           {(v && !q.options.includes(v) ? [v, ...q.options] : q.options).map(o => <option key={o} value={o} className="text-black">{o}</option>)}

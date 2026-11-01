@@ -223,11 +223,20 @@ def parse(text):
                 d = re.split(r';', d)[0]
                 if re.match(r'(relevant )?coursework', d, re.I):
                     cur['coursework'] = [c.strip() for c in re.split(r',', d.split(':', 1)[-1]) if c.strip()]
+                    cur['_cw'] = True
+                    continue
+                if cur.pop('_cw', None) and ',' in d and ':' not in d and not re.search(r'honou?rs|dean|award|scholar|gpa', d, re.I):
+                    # the coursework line wrapped onto the next one ("Machine Learning, Statistics" was saved as an honor)
+                    cur['coursework'] += [c.strip() for c in d.split(',') if c.strip()]
                     continue
                 m = re.search(r'bachelor|master|\bb\.?s\.?\b|\bb\.?a\.?\b|\bm\.?s\.?\b|ph\.?d|associate|\bbsn\b|\bbba\b|\bmba\b', d, re.I)
                 if m and not cur.get('degree'):
                     deg, _, maj = d.partition(' in ')
-                    cur['degree'], cur['major'] = _clean(deg), _clean(maj)
+                    if not maj:   # "B.S. Computer Science", "BA, Economics": the field follows the degree itself
+                        dm = DEGREE_FIELD.match(d)
+                        if dm:
+                            deg, maj = dm.group(1), dm.group(2)
+                    cur['degree'], cur['major'] = _clean(deg), _clean(re.split(r'[;,]\s*minor', maj, flags=re.I)[0])
                     minor = re.search(r'minor in ([^;,]+)', s2, re.I)
                     if minor:
                         cur['minor'] = _clean(minor.group(1))
@@ -342,6 +351,8 @@ RESUME:
 """
 
 
+DEGREE_FIELD = re.compile(r"^\s*((?:bachelor|master)(?:'s)?(?: of [a-z]+(?: (?:and|in) [a-z]+)?)?|b\.?\s?s\.?(?:e\.?)?|b\.?\s?a\.?|b\.?\s?eng\.?|"
+                          r"m\.?\s?s\.?|m\.?\s?a\.?|m\.?\s?eng\.?|bsn|bba|mba|ph\.?\s?d\.?)[\s,:\-–]+(?!of\b|in\b)([a-z][a-z &/'-]{2,80})$", re.I)
 DEGREES = [(r'\bb\.?s\.?e?\b|bachelor of science', 'Bachelor of Science'), (r'\bb\.?a\.?\b|bachelor of arts', 'Bachelor of Arts'),
            (r'\bb\.?eng|bachelor of engineering', 'Bachelor of Engineering'), (r'\bbfa\b|fine arts', 'Bachelor of Fine Arts'),
            (r'\bbba\b|business administration', 'Bachelor of Business Administration'), (r'associate', 'Associate'), (r'\bmba\b', 'MBA'),
@@ -361,9 +372,18 @@ def profile_from_resume(vault, p):
                 patch[site] = url
         if url and not any(x in url for x in ('linkedin', 'github', 'mailto:')) and not p.get('website') and 'website' not in patch:
             patch['website'] = url
+    for e in vault.get('education') or []:
+        e.pop('_cw', None)
     edu = (vault.get('education') or [{}])[0]
+    if not edu.get('major') and edu.get('degree'):   # a vault saved before degrees like "B.S. Computer Science" were split
+        dm = DEGREE_FIELD.match(edu['degree'])
+        if dm:
+            edu = {**edu, 'major': dm.group(2)}
     if not p.get('location') and 'location' not in patch and edu.get('location'):
         patch['location'] = edu['location']   # where you study; shown as from your resume so you can correct it
+    loc = patch.get('location') or p.get('location') or ''
+    if not p.get('country') and re.search(r',\s*(A[LKZR]|C[AOT]|D[EC]|FL|GA|HI|I[ADLN]|K[SY]|LA|M[ADEINOST]|N[CDEHJMVY]|O[HKR]|PA|RI|S[CD]|T[NX]|UT|V[AT]|W[AIVY])\b', loc):
+        patch['country'] = 'United States'   # "Austin, TX" is plainly the US: one less thing to type
     if edu.get('school'):
         if not p.get('school'):
             patch['school'] = edu['school']
@@ -375,6 +395,8 @@ def profile_from_resume(vault, p):
             patch['major'] = mm[0].strip()
         if not p.get('minor') and len(mm) > 1:
             patch['minor'] = mm[1].strip(' ;,.')
+        elif not p.get('minor') and edu.get('minor'):
+            patch['minor'] = edu['minor']
         if not p.get('gpa') and edu.get('gpa'):
             patch['gpa'] = edu['gpa']
         m = re.search(rf'({MONTH})?\s*((?:19|20)\d\d)', edu.get('end', ''), re.I)

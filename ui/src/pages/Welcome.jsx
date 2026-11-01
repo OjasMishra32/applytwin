@@ -246,8 +246,10 @@ export default function Welcome() {
         className="mx-auto grid size-14 place-items-center rounded-full bg-good text-white"><Check className="size-7" strokeWidth={3} /></motion.div>
       {empty ? <><H>No roles in your queue yet</H>
         <Sub>{scan?.done < scan?.sources ? 'Your twin is still reading job boards in the background; matches show up in Jobs as they come in. ' : ''}Widening your roles, terms or places finds more, and new roles arrive as companies post them.</Sub></>
-      : <><H>{(queue?.total || 0).toLocaleString()} roles ready</H>
-      <Sub>{queue?.dream ? `${queue.dream} at your dream companies, first in line. ` : ''}Every one gets its own resume. Press Start and your twin takes it from here.</Sub></>}
+      : <><H>{(queue?.total || 0).toLocaleString()} roles ready{scan?.done < scan?.sources ? ' so far' : ''}</H>
+      <Sub>{queue?.dream ? `${queue.dream} at your dream companies, first in line. ` : ''}{scan?.done < scan?.sources
+        ? 'Your twin is still reading job boards, and more roles arrive over the next few minutes. You can start now. '
+        : ''}Every one gets its own resume. Press Start and your twin takes it from here.</Sub></>}
     </Center>,
   }
   const group = qs && ['You', 'School', 'Work authorization', 'Standard questions', 'Voluntary self-identification'].includes(cur.id)
