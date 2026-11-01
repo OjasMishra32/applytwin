@@ -6,6 +6,7 @@ import { REPO_URL, useStars } from '../lib/star'
 import { HowItWorks, Logo } from './Steps'
 import './site.css'
 import { FAQ } from './faq.js'
+import { TESTIMONIALS } from './testimonials.js'
 
 /* apply.twinly.tech: the public home of ApplyTwin, built the way Apple builds a product page. One idea per scroll,
    the system font set large and tight, real product UI as the picture, and motion only where it explains something:
@@ -60,6 +61,7 @@ export default function Site() {
             <StarButton n={stars} />
             <a href="/demo" className="link inline-flex items-center gap-1.5 text-[17px]">Try the demo, no install</a>
           </div>
+          <Voices />
         </div>
         <div className="mx-auto mt-14 max-w-[1120px] min-[1800px]:max-w-[1360px] sm:mt-20"><Lid><AppWindow /></Lid></div>
         <p className="mx-auto mt-5 max-w-[1120px] min-[1800px]:max-w-[1360px] text-center text-[13px] faint">Autopilot, mid-run. Twenty-five applications queued, three already in.</p>
@@ -553,6 +555,25 @@ function GitHubMark({ size = 16 }) {
     <svg width={size} height={size} viewBox="0 0 16 16" aria-hidden fill="currentColor">
       <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
     </svg>
+  )
+}
+
+/* Students, in their own words, right under the install box: the first proof people see. */
+function Voices() {
+  return (
+    <div style={{ animationDelay: '0.5s' }} className="rise mx-auto mt-14 grid max-w-[1120px] gap-3 text-left sm:grid-cols-2 lg:grid-cols-4">
+      {TESTIMONIALS.map(t => (
+        <figure key={t.name} className="flex flex-col justify-between rounded-[20px] bg-[var(--bg-2)] p-5 ring-1 ring-[var(--line)]">
+          <blockquote className="text-[15px] leading-[1.45] [text-wrap:pretty]">“{t.quote}”</blockquote>
+          <figcaption className="mt-4 flex items-center gap-3">
+            <img src={t.photo} alt="" width="40" height="40" loading="lazy" className="size-10 shrink-0 rounded-full object-cover" />
+            <span className="min-w-0">
+              <a href={t.url} target="_blank" rel="noreferrer" className="block truncate text-[14px] font-semibold hover:underline">{t.name}</a>
+              <span className="block truncate text-[13px] muted">{t.school}</span>
+            </span>
+          </figcaption>
+        </figure>))}
+    </div>
   )
 }
 
