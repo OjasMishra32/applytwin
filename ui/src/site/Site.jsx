@@ -578,7 +578,10 @@ function Voices() {
 function Voice({ t, low, hidden }) {
   return (
     <figure aria-hidden={hidden || undefined} className={'flex max-w-[300px] shrink-0 items-end gap-2.5 ' + (low ? 'mt-10' : '')}>
-      <img src={t.photo} alt="" width="32" height="32" loading="lazy" className="mb-[30px] size-8 shrink-0 rounded-full object-cover" />
+      {t.photo
+        ? <img src={t.photo} alt="" width="32" height="32" loading="lazy" className="mb-[30px] size-8 shrink-0 rounded-full object-cover" />
+        : <span aria-hidden className="mb-[30px] grid size-8 shrink-0 place-items-center rounded-full bg-[var(--bubble)] text-[12px] font-semibold tracking-[0.02em]">
+            {t.name.split(' ').map(w => w[0]).join('').slice(0, 2)}</span>}
       <div className="min-w-0">
         <blockquote className="w-fit rounded-[20px] rounded-bl-[6px] bg-[var(--bubble)] px-4 py-2.5 text-[15px] leading-[1.38] [text-wrap:pretty]">{t.quote}</blockquote>
         <figcaption className="mt-2 flex items-center gap-1.5 pl-1 text-[12.5px] muted">

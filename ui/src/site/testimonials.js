@@ -1,5 +1,6 @@
 // What students said after using ApplyTwin, in their own words, shown on the home page. Everyone here agreed to be
 // featured. To add one: put a square photo in ./people/ (and the school's icon in ./schools/) and add an entry (order = order on the page).
+// No photo yet? Leave photo out and the card shows their initials.
 import anthony from './people/anthony-du.jpg'
 import hudson from './people/hudson-shields.jpg'
 import nicolas from './people/nicolas-rebolloso.jpg'
@@ -8,6 +9,7 @@ import shreyas from './people/shreyas-suman.jpg'
 import siya from './people/siya-rozani.jpg'
 import srijan from './people/srijan-kumbam.jpg'
 import cmu from './schools/cmu.edu.png'
+import nyu from './schools/nyu.edu.png'
 import scu from './schools/scu.edu.png'
 import spjimr from './schools/spjimr.org.png'
 import stanford from './schools/stanford.edu.png'
@@ -24,6 +26,8 @@ export const TESTIMONIALS = [
     quote: "It's tuff. Lowkey was using Claude agents to automate my applications, but yours does it way better." },
   { name: 'Shreyas Suman', school: 'Santa Clara University', short: 'Santa Clara', logo: scu, photo: shreyas, url: 'https://www.linkedin.com/in/shreyas-suman-ba9691355/',
     quote: "I applied to 25 places. I like it a lot. Like deadass, I'd pay for this." },
+  { name: 'Sahasra Kolli', school: 'New York University', short: 'NYU BTE', logo: nyu, url: 'https://www.linkedin.com/in/sahasra-kolli-b34b40262/',
+    quote: 'This is a lifesaver during recruiting season.' },
   { name: 'Raunak Mondal', school: 'Carnegie Mellon University', short: 'Carnegie Mellon', logo: cmu, photo: raunak, url: 'https://www.linkedin.com/in/raunakmondal1/',
     quote: 'Lol ts is genuinely insane. Where was this when I needed it earlier?' },
   { name: 'Siya Rozani', school: 'SP Jain Institute of Management & Research', short: 'SP Jain', logo: spjimr, photo: siya, url: 'https://www.linkedin.com/in/siya-rozani-9889592a1/',
