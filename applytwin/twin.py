@@ -92,7 +92,22 @@ def open_tab(url):
     """Open a page as a new tab in the twin's browser (starting it if needed)."""
     if not ensure():
         raise RuntimeError("Couldn't start your twin's browser. Is Google Chrome installed?")
-    _get('/json/new?' + urllib.parse.quote(url, safe=':/?&=%#'), method='PUT', timeout=5)
+    # through the browser's own Target.createTarget: /json/new?<url> cut a job link at its first '&' (Chrome reads the
+    # rest as its own parameters), so ?gh_jid=1&gh_src=x opened the wrong page
+    try:
+        ws = _WS(_get('/json/version')['webSocketDebuggerUrl'])
+        try:
+            ws.call('Target.createTarget', {'url': url})
+        finally:
+            ws.close()
+    except Exception:
+        _get('/json/new?' + urllib.parse.quote(url, safe=''), method='PUT', timeout=5)
+    for p in pages():   # the blank tab the window opened with: nothing to look at, and it read as "Apply did nothing"
+        if p.get('url') == 'about:blank' and len(pages()) > 1:
+            try:
+                _get('/json/close/' + p['id'], timeout=3)
+            except Exception:
+                pass
     return {"opened": True}
 
 

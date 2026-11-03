@@ -109,6 +109,13 @@ def claude():
 
 @check('app is running on localhost:4747')
 def _():
+    if not SCENARIO.startswith('live'):   # this commit is newer than main: don't let it update itself onto main mid-test
+        d = os.path.join(os.path.expanduser('~'), '.applytwin')
+        os.makedirs(d, exist_ok=True)
+        f = os.path.join(d, 'profile.json')
+        prof = json.load(open(f, encoding='utf-8')) if os.path.exists(f) else {}
+        prof.setdefault('apply', {})['auto_update'] = False
+        json.dump(prof, open(f, 'w', encoding='utf-8'))
     if not up(5):
         start_app()
         assert up(90), 'never answered'
@@ -275,10 +282,19 @@ def _():
         return 'skipped: no Claude Code'
     sys.path.insert(0, APP_DIR)
     from applytwin import install   # what a run start does
-    install.ensure_browser('claude')
-    r = subprocess.run([claude(), 'mcp', 'list'], capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=240)
+    import io
+    import contextlib
+    buf, t = io.StringIO(), time.time()
+    with contextlib.redirect_stdout(buf):
+        install.ensure_browser('claude')
+    took = time.time() - t
+    cj = os.path.join(os.path.expanduser('~'), '.claude.json')
+    servers = list((json.load(open(cj, encoding='utf-8')).get('mcpServers') or {}) if os.path.exists(cj) else [])
+    r = subprocess.run([claude(), 'mcp', 'list'], capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=240,
+                       cwd=os.path.expanduser('~'))   # not the repo, whose .mcp.json would shadow the user's entry
     lines = [l for l in r.stdout.splitlines() if l.startswith(('applytwin:', 'playwright:'))]
-    assert len(lines) == 2 and all('Connected' in l for l in lines), r.stdout[-1500:]
+    assert len(lines) == 2 and all('Connected' in l for l in lines), (
+        f'ensure took {took:.0f}s, said {buf.getvalue()!r}, ~/.claude.json servers {servers}, claude at {claude()}\n' + r.stdout[-1200:])
     return ' | '.join(l.rsplit(' - ', 1)[-1] for l in lines)
 
 

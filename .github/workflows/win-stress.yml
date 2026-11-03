@@ -7,7 +7,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        scenario: [live-ps51, live-pwsh7, claude-first, unicode-user, no-node]
+        scenario: [live-ps51, live-pwsh7, claude-first, claude-after, unicode-user, no-node]
     runs-on: windows-latest
     timeout-minutes: 40
     steps:
@@ -17,7 +17,7 @@ jobs:
           python-version: '3.12'
       - name: Unicode user folder with a space
         if: matrix.scenario == 'unicode-user'
-        shell: powershell
+        shell: pwsh
         run: |
           $h = 'C:\Users\José Ñandú Test'; New-Item -ItemType Directory $h -Force | Out-Null
           "USERPROFILE=$h" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
@@ -47,7 +47,7 @@ jobs:
           $env:APPLYTWIN_REF = '${{ github.sha }}'; $env:APPLYTWIN_NO_APP = '1'
           Get-Content scripts/install-remote.ps1 -Raw | Invoke-Expression
       - name: Claude Code after ApplyTwin (Noah's order)
-        if: matrix.scenario == 'live-ps51'
+        if: matrix.scenario == 'live-ps51' || matrix.scenario == 'claude-after'
         shell: powershell
         run: npm install -g @anthropic-ai/claude-code; claude.cmd --version
       - name: Stress
