@@ -96,17 +96,16 @@ function Inbox() {
       <AnimatePresence>{open && (
         <motion.div initial={{ opacity: 0, y: -6, scale: .97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -4 }} transition={spring}
           className="fixed right-3 top-[60px] w-[min(360px,calc(100vw-24px))] origin-top-right md:absolute md:right-0 md:top-11 overflow-hidden rounded-[12px] bg-[#2a2a2c] p-2 shadow-[0_30px_80px_rgb(0_0_0/.5)] ring-1 ring-white/10">
-          <div className="px-3 pb-2 pt-1.5 text-[14px] font-semibold text-white">Needs you</div>
+          <div className="px-3 pb-1 pt-1.5 text-[15px] font-semibold text-white">Needs you</div>
           {n === 0 && <div className="px-3 pb-4 text-[13px] text-muted">Nothing right now. You'll get a notification if a site needs a code or a sign-in.</div>}
           <div className="max-h-[360px] overflow-y-auto">
             {groups.map(g => (
-              <button key={g.key} onClick={() => { setOpen(false); location.hash = 'agents' }} className="block w-full rounded-[10px] px-3 py-2.5 text-left hover:bg-white/[.05]">
-                <div className="flex items-baseline justify-between gap-3"><span className="truncate text-[13.5px] font-medium text-white">{g.title}</span>
-                  {g.count > 1 && <span className="shrink-0 text-[12px] tabular-nums text-faint">{g.count}</span>}</div>
-                <div className="mt-0.5 line-clamp-2 text-[12.5px] text-muted">{g.detail}</div>
+              <button key={g.key} onClick={() => { setOpen(false); location.hash = 'agents' }} className="block w-full rounded-[10px] px-3 py-3 text-left hover:bg-white/[.06]">
+                <div className="text-[14px] font-medium leading-snug text-white">{g.title}</div>
+                <div className="mt-1 text-[13px] leading-[1.45] text-[#c7c7cc]">{g.detail}</div>
               </button>))}
           </div>
-          {n > 0 && <button onClick={() => { setOpen(false); location.hash = 'agents' }} className="mt-1 w-full rounded-[10px] px-3 py-2 text-left text-[13px] font-medium text-signal-ink hover:bg-white/[.05]">Handle these on the Autopilot page</button>}
+          {n > 0 && <button onClick={() => { setOpen(false); location.hash = 'agents' }} className="mt-1 w-full rounded-[10px] px-3 py-2.5 text-left text-[14px] font-medium text-signal-ink hover:bg-white/[.06]">Open Autopilot to handle these</button>}
         </motion.div>)}</AnimatePresence>
     </div>
   )

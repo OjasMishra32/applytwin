@@ -2151,8 +2151,8 @@ def todo():
                 names.append(c)
         who = names[0] if len(names) == 1 else (', '.join(names[:2]) + (f' +{len(names) - 2}' if len(names) > 2 else '')) if names else g['site']
         g['title'] = {
-            'question': f"Answer {n} question{'s' if n > 1 else ''} only you know",
-            'ready': f"Review and submit {n} application{'s' if n > 1 else ''}",
+            'question': f"Answer {n} question{'s' if n > 1 else ''}",
+            'ready': f"{n} application{'s are' if n > 1 else ' is'} ready to submit",
             'email_code': f"Type the emailed code for {who}",
             'signin': f"Sign in to {who}",
             'account': f"Create your {who} account",
@@ -2163,7 +2163,8 @@ def todo():
             'dropdown': f"Pick an answer {who}'s form wouldn't take",
             'browser': "Your twin's browser didn't start",
         }.get(g['kind'], f"Finish {who}" if names else "Something needs a look")
-        g['detail'] = (blockers.ACTIONS.get(g['kind'], '').format(host=g['site'] or 'the site', n=n) if g['kind'] in blockers.ACTIONS
+        g['detail'] = (SHORT[g['kind']] if g['kind'] in SHORT
+                       else blockers.ACTIONS.get(g['kind'], '').format(host=g['site'] or 'the site', n=n) if g['kind'] in blockers.ACTIONS
                        else browser_fix() if g['kind'] == 'browser' else (g['entries'][0]['note'] or g['entries'][0]['text'])[:160])
         g['count'] = n
         out.append(g)
@@ -2183,11 +2184,10 @@ def todo():
         jobs_n = sum(g['count'] for g in rows)
         sec = {"key": 'sites', "kind": 'sites', "site": '', "count": jobs_n, "sites": rows, "entries": [],
                "title": f"Sign in to {len(rows)} site{'s' if len(rows) > 1 else ''}" if len(rows) > 1 else rows[0]['title'],
-               "detail": (f"{jobs_n} application{'s' if jobs_n > 1 else ''} stopped at a sign-in. Signing in for you is on now: press "
-                          "Finish on a site and your twin signs in (or makes the account) and finishes every job there."
-                          if accounts_status(check_google=False)['enabled'] else
-                          f"{jobs_n} application{'s' if jobs_n > 1 else ''} are filled up to a sign-in. Sign in once per site in your "
-                          "twin's browser and it finishes every job there, or turn on Sign in and create accounts for me in Settings.")}
+               "detail": (f"{jobs_n} application{'s' if jobs_n > 1 else ''} stopped at a sign-in. Press Finish on a site and your "
+                          "twin signs in and does the rest." if accounts_status(check_google=False)['enabled'] else
+                          f"{jobs_n} application{'s' if jobs_n > 1 else ''} stopped at a sign-in. Sign in once per site and your "
+                          "twin finishes the rest.")}
         rest.insert(next((i for i, g in enumerate(rest) if g['kind'] not in ('question', 'ready')), len(rest)), sec)
     return rest
 
@@ -2217,6 +2217,17 @@ def pending_jobs():
             seen.add(r['job_id'])
             out.append(r)
     return out
+
+
+SHORT = {   # the one line under each "Needs you" group: what it is and what to do, no counts (the title has them)
+    'question': "Only you know these. Answer once and every application reuses them.",
+    'ready': "Filled in and waiting for you to look over and press Submit.",
+    'eligibility': "These list a requirement your profile doesn't confirm. Take a look before they go out.",
+    'agreement': "There's a legal agreement to read and accept yourself, then submit.",
+    'assessment': "There's an assessment to take yourself.",
+    'upload': "The form wants a file you haven't added yet.",
+    'dropdown': "One answer wouldn't go into the form. Pick it yourself and submit.",
+}
 
 
 def needs_you():
