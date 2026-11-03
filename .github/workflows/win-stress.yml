@@ -55,3 +55,17 @@ jobs:
         env:
           PYTHONIOENCODING: utf-8
         run: python tests/win_stress.py ${{ matrix.scenario }}
+  render:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python tests/win_render.py render-out
+        env:
+          PYTHONIOENCODING: utf-8
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-resumes
+          path: render-out
