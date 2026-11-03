@@ -98,9 +98,13 @@ PLIST
     # launchd often refuses a bootstrap right after a bootout ("Bootstrap failed: 5"); give it a few tries
     for _ in 1 2 3 4 5; do launchctl bootstrap "gui/$(id -u)" "$PL" 2>/dev/null && break; sleep 1; done
     launchctl kickstart -k "gui/$(id -u)/tech.twinly.applytwin" >/dev/null 2>&1 && ok "ApplyTwin starts by itself when you log in"
-    mkdir -p "$HOME/Applications"
-    osacompile -o "$HOME/Applications/ApplyTwin.app" -e 'open location "http://localhost:4747"' >/dev/null 2>&1 && ok "ApplyTwin is in your Applications (find it with Spotlight)"
-    sleep 2; open "http://localhost:4747" ;;
+    # the Mac app (apply.twinly.tech/download) runs this itself and shows ApplyTwin in its own window: no shortcut, no browser tab
+    [ -n "${APPLYTWIN_NATIVE:-}" ] && exit 0
+    if [ ! -d /Applications/ApplyTwin.app ]; then
+      mkdir -p "$HOME/Applications"
+      osacompile -o "$HOME/Applications/ApplyTwin.app" -e 'open location "http://localhost:4747"' >/dev/null 2>&1 && ok "ApplyTwin is in your Applications (find it with Spotlight)"
+    fi
+    sleep 2; [ -d /Applications/ApplyTwin.app ] && open -a /Applications/ApplyTwin.app || open "http://localhost:4747" ;;
   *)
     if command -v systemctl >/dev/null && systemctl --user show-environment >/dev/null 2>&1; then
       mkdir -p "$HOME/.config/systemd/user"

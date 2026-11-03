@@ -79,6 +79,23 @@ def _app_link(url):
     return url if isinstance(url, str) and re.match(r'^http://(localhost|127\.0\.0\.1):\d+/[\w#/.?=&%-]*$', url) else APP_URL
 
 
+def _mac_app():
+    """True when the ApplyTwin Mac app (the download, not the notifier above) is installed."""
+    for d in ('/Applications', os.path.expanduser('~/Applications')):
+        try:
+            with open(os.path.join(d, 'ApplyTwin.app', 'Contents', 'Info.plist'), 'rb') as f:
+                if b'tech.twinly.applytwin.app' in f.read():
+                    return True
+        except OSError:
+            pass
+    return False
+
+
+def _click_link(url):
+    """With the Mac app installed a notification click opens that page in its window (applytwin://open/#agents)."""
+    return 'applytwin://open/' + url.split('/', 3)[3] if _mac_app() else url
+
+
 def notify(title, msg, url=''):
     # title and message can come from a job page via the agent: they go in as data (argv / environment / a file), never
     # into AppleScript or PowerShell source, where a quote would let them run commands
@@ -93,7 +110,7 @@ def notify(title, msg, url=''):
                         break
                     __import__('time').sleep(0.1)
                 with open(pending, 'w', encoding='utf-8') as f:
-                    f.write(f'{title}\n{msg}\n{url}\n')
+                    f.write(f'{title}\n{msg}\n{_click_link(url)}\n')
                 if not subprocess.run(['open', '-n', '-g', app], capture_output=True, timeout=15).returncode:
                     return
             subprocess.run(['osascript', '-e', 'on run argv', '-e',

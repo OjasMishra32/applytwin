@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Setting up ApplyTwin</title>
+<style>
+  :root { color-scheme: dark; --bg: #161617; --fg: #f5f5f7; --muted: #98989d; --faint: #636366; --line: rgb(255 255 255 / .08);
+    --blue: #0a84ff; --good: #30d158; --bad: #ff453a; }
+  html, body { height: 100%; margin: 0; }
+  body { background: var(--bg); color: var(--fg); font: 14px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased; letter-spacing: -0.012em; display: grid; place-items: center; -webkit-user-select: none; cursor: default; }
+  main { width: min(440px, calc(100% - 48px)); }
+  img { width: 64px; height: 64px; border-radius: 15px; display: block; }
+  h1 { font-size: 26px; font-weight: 600; letter-spacing: -0.02em; margin: 22px 0 6px; }
+  p { margin: 0; color: var(--muted); }
+  ol { list-style: none; padding: 0; margin: 28px 0 0; border-top: 1px solid var(--line); }
+  li { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--line); color: var(--faint); transition: color .3s; }
+  li i { width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid currentColor; box-sizing: border-box; flex: none; display: grid; place-items: center; }
+  li.now { color: var(--fg); }
+  li.now i { border-color: var(--blue); border-top-color: transparent; animation: spin .9s linear infinite; }
+  li.done { color: var(--muted); }
+  li.done i { background: var(--good); border-color: var(--good); }
+  li.done i::after { content: ""; width: 5px; height: 9px; border: solid #000; border-width: 0 2px 2px 0; transform: translateY(-1px) rotate(45deg); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .note { margin-top: 18px; font-size: 12.5px; color: var(--faint); }
+  .err { display: none; margin-top: 24px; }
+  .err.on { display: block; }
+  .err b { color: var(--bad); font-weight: 600; }
+  pre { margin: 12px 0 0; max-height: 150px; overflow: auto; padding: 10px 12px; border-radius: 8px; background: rgb(255 255 255 / .045);
+    border: 1px solid var(--line); font: 11px/1.45 "SF Mono", ui-monospace, monospace; color: var(--muted); white-space: pre-wrap; -webkit-user-select: text; }
+  .btns { display: flex; gap: 8px; margin-top: 14px; }
+  a.btn { text-decoration: none; padding: 6px 14px; border-radius: 999px; font-size: 13px; font-weight: 500; background: var(--blue); color: #fff; }
+  a.btn.alt { background: rgb(255 255 255 / .08); color: var(--fg); }
+</style>
+</head>
+<body>
+<main>
+  <img src="icon.png" alt="">
+  <h1 id="title">Setting up ApplyTwin</h1>
+  <p id="sub">This takes a minute or two, once. You don't need to do anything.</p>
+  <ol id="steps">
+    <li data-k="Getting Python ready"><i></i>Downloading what ApplyTwin runs on</li>
+    <li data-k="Getting the browser tools ready"><i></i>Getting the browser it fills forms in</li>
+    <li data-k="Installing ApplyTwin"><i></i>Installing ApplyTwin</li>
+    <li data-k="Connecting Claude Code and Codex"><i></i>Connecting Claude Code and Codex</li>
+    <li data-k="Checking everything works"><i></i>Checking everything works</li>
+    <li data-k="Starting ApplyTwin"><i></i>Starting ApplyTwin</li>
+  </ol>
+  <p class="note" id="note">Everything stays on this computer. ApplyTwin starts on its own when you log in, so it can find new jobs every day.</p>
+  <div class="err" id="err">
+    <p><b>Setup didn't finish.</b> Check that you're online, then try again. If it keeps happening, send us what's below.</p>
+    <pre id="log"></pre>
+    <div class="btns"><a class="btn" href="applytwin-setup://retry">Try again</a><a class="btn alt" href="applytwin-setup://log">Open the full log</a></div>
+  </div>
+</main>
+<script>
+  const items = [...document.querySelectorAll('li')]
+  // steps arrive in order; a skipped one (this Mac already had it) is marked done when a later one starts
+  window.step = k => {
+    document.getElementById('err').classList.remove('on')
+    if (k === 'Opening ApplyTwin' || k === 'Done') { items.forEach(li => { li.className = 'done' }); document.getElementById('title').textContent = 'Opening ApplyTwin'; return }
+    const at = items.findIndex(li => li.dataset.k === k)
+    if (at < 0) return
+    const first = !document.querySelector('li.done, li.now')
+    items.forEach((li, i) => { li.className = i < at ? 'done' : i === at ? 'now' : '' })
+    if (k === 'Starting ApplyTwin' && first) {   // already installed: only this step matters
+      items.forEach((li, i) => { li.style.display = i === at ? '' : 'none' })
+      document.getElementById('title').textContent = 'Starting ApplyTwin'
+      document.getElementById('sub').textContent = 'One moment.'
+      document.getElementById('note').style.display = 'none'
+    }
+  }
+  window.fail = log => {
+    document.querySelectorAll('li.now').forEach(li => { li.className = '' })
+    document.getElementById('log').textContent = log.trim().split('\n').slice(-14).join('\n')
+    document.getElementById('err').classList.add('on')
+  }
+</script>
+</body>
+</html>

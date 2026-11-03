@@ -1392,6 +1392,16 @@ _names = _re.findall(r'\bset (\w+) to', _inst._NOTIFIER_SRC)
 res.append(ok(_inst._app_link('http://localhost:4747/#jobs/ma_1') == 'http://localhost:4747/#jobs/ma_1'
               and _inst._app_link('https://evil.example/') == _inst.APP_URL and _inst._app_link('http://localhost:4747/" & x') == _inst.APP_URL
               and len({n.lower() for n in _names}) == len(set(_names)), 'notification links stay on localhost; notifier variables never clash'))
+_om = _inst._mac_app
+try:
+    _inst._mac_app = lambda: True
+    _mac_links = (_inst._click_link('http://localhost:4747/#jobs/ma_1'), _inst._click_link(_inst.APP_URL))
+    _inst._mac_app = lambda: False
+    _web_link = _inst._click_link('http://localhost:4747/#agents')
+finally:
+    _inst._mac_app = _om
+res.append(ok(_mac_links == ('applytwin://open/#jobs/ma_1', 'applytwin://open/') and _web_link == 'http://localhost:4747/#agents',
+              'with the Mac app installed, notification clicks open the page in the app'))
 if sys.platform == 'darwin':
     _nh = _tf.mkdtemp()
     _old = _inst.NOTIFIER

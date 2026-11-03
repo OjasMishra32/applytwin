@@ -31,6 +31,7 @@ def _usual_dirs():
         d += [os.path.join(os.environ.get('APPDATA', ''), 'npm'), os.path.join(os.environ.get('ProgramFiles', ''), 'nodejs')]
     else:
         d += ['/opt/homebrew/bin', '/usr/local/bin'] + sorted(glob.glob(os.path.join(h, '.nvm', 'versions', 'node', '*', 'bin')), reverse=True)
+        d.append(os.path.join(h, '.applytwin-app-runtime', 'node', 'bin'))   # the Node.js the Mac app downloads when there's none
     return [x for x in d if os.path.isdir(x)]
 
 
