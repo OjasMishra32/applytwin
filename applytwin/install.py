@@ -233,7 +233,7 @@ def refresh_agents():
         cj = os.path.expanduser('~/.claude.json')
         cur = (json.load(open(cj, encoding='utf-8')).get('mcpServers') or {}).get('applytwin') if os.path.exists(cj) else None
         stale = _plugin_installed() or not cur or cur.get('command') != _python() or cur.get('args') != [APPLYTWIN_BIN, 'mcp']
-        if stale and (cur or _plugin_installed() or os.path.isdir(os.path.expanduser('~/.claude/skills/applytwin-apply'))):
+        if stale:   # also when it was never added (Claude Code installed after ApplyTwin)
             _drop_plugin(claude)
             _claude_direct(claude)
     except Exception:
@@ -291,10 +291,24 @@ def has_browser(agent):
         return False
 
 
+def _claude_has_applytwin():
+    try:
+        cj = os.path.expanduser('~/.claude.json')
+        return bool(os.path.exists(cj) and (json.load(open(cj, encoding='utf-8')).get('mcpServers') or {}).get('applytwin'))
+    except (OSError, ValueError):
+        return False
+
+
 def ensure_browser(agent):
-    """Register the twin's browser when it's missing: it only got written at install time, so anyone who installed
-    Node.js after ApplyTwin had no browser, and their agent fell back to Chrome or computer-use tools that can't run
-    unattended ("browser access host is unavailable")."""
+    """Register ApplyTwin's own tools and the twin's browser when they're missing. Both only got written at install time,
+    so anyone who installed Claude Code or Node.js after ApplyTwin was missing one: without the browser their agent fell
+    back to tools that can't run unattended, and without ApplyTwin's tools a run had no queue and quit before one job."""
+    if agent == 'claude' and shutil.which('claude') and not _claude_has_applytwin():
+        try:
+            _drop_plugin(shutil.which('claude'))
+            _claude_direct(shutil.which('claude'))
+        except Exception:
+            pass
     if has_browser(agent) or not shutil.which('npx'):
         return
     try:
