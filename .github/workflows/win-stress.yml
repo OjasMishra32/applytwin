@@ -1,0 +1,57 @@
+name: win-stress
+on:
+  push:
+    branches: [win-stress]
+jobs:
+  stress:
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: [live-ps51, live-pwsh7, claude-first, unicode-user, no-node]
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Unicode user folder with a space
+        if: matrix.scenario == 'unicode-user'
+        shell: powershell
+        run: |
+          $h = 'C:\Users\José Ñandú Test'; New-Item -ItemType Directory $h -Force | Out-Null
+          "USERPROFILE=$h" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          "HOME=$h" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+      - name: No Node.js
+        if: matrix.scenario == 'no-node'
+        shell: powershell
+        run: |
+          $p = ($env:Path -split ';' | Where-Object { $_ -notmatch 'node|npm' }) -join ';'
+          "PATH=$p" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Claude Code first
+        if: matrix.scenario == 'live-pwsh7' || matrix.scenario == 'claude-first' || matrix.scenario == 'unicode-user'
+        shell: powershell
+        run: npm install -g @anthropic-ai/claude-code; claude.cmd --version
+      - name: Install from the live site (Windows PowerShell 5.1)
+        if: matrix.scenario == 'live-ps51'
+        shell: powershell
+        run: irm https://apply.twinly.tech/install.ps1 | iex
+      - name: Install from the live site (PowerShell 7)
+        if: matrix.scenario == 'live-pwsh7'
+        shell: pwsh
+        run: irm https://apply.twinly.tech/install.ps1 | iex
+      - name: Install this commit
+        if: "!startsWith(matrix.scenario, 'live')"
+        shell: powershell
+        run: |
+          $env:APPLYTWIN_REF = '${{ github.sha }}'; $env:APPLYTWIN_NO_APP = '1'
+          Get-Content scripts/install-remote.ps1 -Raw | Invoke-Expression
+      - name: Claude Code after ApplyTwin (Noah's order)
+        if: matrix.scenario == 'live-ps51'
+        shell: powershell
+        run: npm install -g @anthropic-ai/claude-code; claude.cmd --version
+      - name: Stress
+        shell: powershell
+        env:
+          PYTHONIOENCODING: utf-8
+        run: python tests/win_stress.py ${{ matrix.scenario }}
