@@ -202,9 +202,10 @@ def _python():
 def _claude_direct(claude):
     """Register ApplyTwin's MCP server straight from the installed app (not Claude Code's plugin cache, which keeps a frozen
     copy from install day: none of the self-updates ever reached the agent that way) and copy the skills."""
-    subprocess.run([claude, 'mcp', 'remove', '--scope', 'user', 'applytwin'], capture_output=True, timeout=60, **store.NOWIN)
+    # a first Claude Code launch on Windows (antivirus scanning the fresh install) can take well over a minute
+    subprocess.run([claude, 'mcp', 'remove', '--scope', 'user', 'applytwin'], capture_output=True, timeout=240, **store.NOWIN)
     r = subprocess.run([claude, 'mcp', 'add', '--scope', 'user', 'applytwin', '--', _python(), APPLYTWIN_BIN, 'mcp'],
-                       capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=60, **store.NOWIN)
+                       capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=240, **store.NOWIN)
     _copy_skills(os.path.expanduser('~/.claude/skills'))
     return r
 
@@ -306,9 +307,11 @@ def ensure_browser(agent):
     if agent == 'claude' and shutil.which('claude') and not _claude_has_applytwin():
         try:
             _drop_plugin(shutil.which('claude'))
-            _claude_direct(shutil.which('claude'))
-        except Exception:
-            pass
+            r = _claude_direct(shutil.which('claude'))
+            if r.returncode != 0 or not _claude_has_applytwin():
+                print(f"Couldn't add ApplyTwin to Claude Code: {(r.stderr or r.stdout or '').strip()[:300]}", flush=True)
+        except Exception as e:
+            print(f"Couldn't add ApplyTwin to Claude Code: {e}", flush=True)
     if has_browser(agent) or not shutil.which('npx'):
         return
     try:
