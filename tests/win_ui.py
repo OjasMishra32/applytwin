@@ -175,8 +175,11 @@ def main():
                     note('job', 'open')
                 page.goto(f'{BASE}/#studio')
                 page.wait_for_timeout(2500)
-                with page.expect_popup(timeout=90000) as pop:
-                    page.get_by_text('Download PDF').first.click()
+                page.get_by_text('Download PDF').first.click()
+                page.get_by_text('Your PDF is ready').first.wait_for(timeout=120000)   # it builds first, then offers Open
+                page.screenshot(path=os.path.join(OUT, f'{name}-studio-pdf-ready.png'))
+                with page.expect_popup(timeout=30000) as pop:
+                    page.get_by_role('button', name='Open').first.click()
                 pdf = pop.value
                 pdf.wait_for_load_state()
                 findings.append({'view': name, 'page': 'studio', 'kind': 'info', 'detail': f'Download PDF opened {pdf.url[:120]}'})
