@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { MotionConfig, motion, useInView } from 'motion/react'
 import { ArrowRight, Check, CircleSlash, Hand, KeyRound, Send, Share } from 'lucide-react'
 import { Logo } from './Steps'
-import { InstallBox, MY_OS, useTheme } from './Site'
+import { InstallBox, useTheme } from './Site'
 import './site.css'
 
 /* apply.twinly.tech/demo: ApplyTwin without installing anything, on any phone. A made-up student and three made-up
@@ -10,6 +10,7 @@ import './site.css'
    and page shown here. The application run is a replay of what the app does, and says so. */
 
 const EASE = [0.25, 0.1, 0.25, 1]
+const IS_WIN = typeof navigator !== 'undefined' && /windows/i.test(navigator.userAgent)
 const PHONE = typeof navigator !== 'undefined' && /iphone|android|ipad|mobile/i.test(navigator.userAgent)
 const A = '/demo-assets/'
 
@@ -41,7 +42,7 @@ export default function DemoPage() {
   const [data, setData] = useState(null)
   const [err, setErr] = useState(false)
   const [pick, setPick] = useState(0)
-  const [os, setOs] = useState(MY_OS)
+  const [win, setWin] = useState(IS_WIN)
   useEffect(() => { fetch(A + 'data.json').then(r => r.json()).then(setData).catch(() => setErr(true)) }, [])
   const job = data?.jobs?.[pick]
   return (
@@ -148,8 +149,8 @@ export default function DemoPage() {
           <h2 className="display-l text-[clamp(34px,5.5vw,60px)] [text-wrap:balance]">Do this for your applications.</h2>
           <p className="mx-auto mt-4 max-w-[560px] text-[17px] leading-relaxed muted [text-wrap:balance]">
             ApplyTwin is free and runs on your computer, using the Claude Code or Codex plan you already have. Setup takes about five minutes.</p>
-          {PHONE ? <PhoneGet /> : <div className="mx-auto mt-8 max-w-[640px] text-left"><InstallBox os={os} setOs={setOs} hero />
-            <p className="mt-4 text-center text-[14px] muted">{os === 'mac' ? 'Open it and it sets itself up. No Terminal.' : `Paste it into ${os === 'win' ? 'PowerShell' : 'Terminal'}. It checks what you need and tells you what's missing.`}</p></div>}
+          {PHONE ? <PhoneGet /> : <div className="mx-auto mt-8 max-w-[640px] text-left"><InstallBox win={win} setWin={setWin} hero />
+            <p className="mt-4 text-center text-[14px] muted">Paste it into {win ? 'PowerShell' : 'Terminal'}. It checks what you need and tells you what's missing.</p></div>}
           <a href="/" className="link mt-8 inline-block text-[16px]">How ApplyTwin works</a>
         </div>
       </section>

@@ -10,20 +10,15 @@ mkdir -p site/demo-assets && cp scripts/demo/out/* site/demo-assets/   # the dem
 node scripts/seo/build.mjs   # icons, titles, structured data, landing pages, sitemap
 cp scripts/install-remote.sh site/install.sh
 cp scripts/install-remote.ps1 site/install.ps1
-# the Mac app download (mac/build.sh); a build on a machine without it keeps the one that's live
-if [ -f mac/build/ApplyTwin.dmg ]; then cp mac/build/ApplyTwin.dmg site/ApplyTwin.dmg
-else curl -fsSL https://apply.twinly.tech/ApplyTwin.dmg -o site/ApplyTwin.dmg 2>/dev/null || rm -f site/ApplyTwin.dmg; fi
 tar -czf site/applytwin.tar.gz -s ',^\.,applytwin,' --exclude './ui/node_modules' --exclude './site' --exclude './scripts/demo/out' --exclude './mac/build' --exclude '*/__pycache__' \
   --exclude '*.pyc' --exclude '.DS_Store' --exclude './.vercel' --exclude './.claude' --exclude './.git' .
 cat > site/vercel.json <<'JSON'
 {
   "cleanUrls": true,
-  "rewrites": [{ "source": "/install", "destination": "/install.sh" }, { "source": "/download", "destination": "/ApplyTwin.dmg" }],
+  "rewrites": [{ "source": "/install", "destination": "/install.sh" }],
   "headers": [
     { "source": "/install(.sh|.ps1)?", "headers": [{ "key": "Content-Type", "value": "text/plain; charset=utf-8" }, { "key": "Cache-Control", "value": "no-cache" }] },
-    { "source": "/applytwin.tar.gz", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
-    { "source": "/(download|ApplyTwin.dmg)", "headers": [{ "key": "Content-Type", "value": "application/x-apple-diskimage" },
-      { "key": "Content-Disposition", "value": "attachment; filename=ApplyTwin.dmg" }, { "key": "Cache-Control", "value": "no-cache" }] }
+    { "source": "/applytwin.tar.gz", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] }
   ]
 }
 JSON

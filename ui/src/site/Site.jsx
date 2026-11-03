@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, MotionConfig, motion, useInView, useMotionValueEvent, useScroll, useTransform, useReducedMotion } from 'motion/react'
-import { Check, Copy, Download, Moon, Star, Sun } from 'lucide-react'
+import { Check, Copy, Moon, Star, Sun } from 'lucide-react'
 import { Avatar } from '../components/ui'
 import { REPO_URL, useStars } from '../lib/star'
 import { HowItWorks, Logo } from './Steps'
@@ -14,10 +14,7 @@ import { TESTIMONIALS } from './testimonials.js'
 
 const INSTALL = 'curl -fsSL apply.twinly.tech/install | bash'
 const INSTALL_WIN = 'irm apply.twinly.tech/install.ps1 | iex'
-const UA = typeof navigator !== 'undefined' ? navigator.userAgent : ''
-// the visitor's computer picks the first tab: Macs get the app download, Windows and Linux the one-line install
-export const MY_OS = /windows/i.test(UA) ? 'win' : /linux|x11|cros/i.test(UA) && !/android/i.test(UA) ? 'linux' : 'mac'
-export const MAC_DMG = '/download'
+const IS_WIN = typeof navigator !== 'undefined' && /windows/i.test(navigator.userAgent)
 
 
 // Apple's motion: long, eased, small. Nothing bounces; things settle.
@@ -35,7 +32,7 @@ const webgl = () => { try { const c = document.createElement('canvas'); return !
 
 export default function Site() {
   const stars = useStars()   // fetched once, shown on every star button
-  const [os, setOs] = useState(MY_OS)   // one OS choice, shared by every install box on the page
+  const [win, setWin] = useState(IS_WIN)   // one OS choice, shared by every install box on the page
   const [theme, setTheme] = useTheme()
   return (
     <MotionConfig reducedMotion="user">
@@ -52,14 +49,13 @@ export default function Site() {
           </h1>
           <p style={{ animationDelay: '0.22s' }} className="rise mx-auto mt-7 max-w-[660px] text-[19px] leading-[1.42] [text-wrap:balance] sm:text-[21px]">
             ApplyTwin is a free app for your computer. It finds internships that fit you, writes a one-page resume for each posting and fills out the application.
-            <span className="muted"> It runs on the Claude or ChatGPT plan you already pay for.</span>
+            <span className="muted"> It runs on the Claude Code or Codex plan you already pay for.</span>
           </p>
           <div style={{ animationDelay: '0.3s' }} className="rise mx-auto mt-9 max-w-[640px] text-left">
-            <InstallBox os={os} setOs={setOs} hero />
+            <InstallBox win={win} setWin={setWin} hero />
           </div>
           <p style={{ animationDelay: '0.36s' }} className="rise mx-auto mt-4 max-w-[560px] text-[14px] leading-[1.5] muted [text-wrap:balance]">
-            {os === 'mac' ? 'Open it and it sets itself up. No Terminal, nothing else to install.'
-              : <>Paste it into {os === 'win' ? 'PowerShell' : 'Terminal'}. ApplyTwin installs and opens on your computer at <span className="mono text-[var(--fg)]">localhost:4747</span>.</>}
+            Paste it into {win ? 'PowerShell' : 'Terminal'}. ApplyTwin installs and opens on your computer at <span className="mono text-[var(--fg)]">localhost:4747</span>.
           </p>
           <div style={{ animationDelay: '0.42s' }} className="rise mt-7 flex flex-wrap items-center justify-center gap-x-6 gap-y-3">
             <StarButton n={stars} />
@@ -114,21 +110,19 @@ export default function Site() {
       <section id="start" className="px-4 pt-24 sm:pt-36">
         <div className="mx-auto max-w-[1120px] min-[1800px]:max-w-[1360px]">
           <div className="text-center">
-            <Reveal><h2 className="display-l text-[clamp(38px,6vw,72px)]">{os === 'mac' ? 'Set up in a minute.' : 'Set up in one line.'}</h2></Reveal>
+            <Reveal><h2 className="display-l text-[clamp(38px,6vw,72px)]">Set up in one line.</h2></Reveal>
             <Reveal delay={0.05} className="mx-auto mt-4 max-w-[580px] text-[19px] leading-[1.45] muted [text-wrap:balance]">
-              {os === 'mac' ? 'Download ApplyTwin, drag it into Applications and open it. It gets everything else it needs by itself.'
-                : `Paste this into ${os === 'win' ? 'PowerShell' : 'Terminal'}. It is the only thing you install, and it puts the whole app on your computer.`}
+              Paste this into {win ? 'PowerShell' : 'Terminal'}. It is the only thing you install, and it puts the whole app on your computer.
             </Reveal>
-            <Reveal delay={0.1} className="mx-auto mt-10 max-w-[760px] text-left"><InstallBox os={os} setOs={setOs} /></Reveal>
-            <p className="mt-4 text-[14px] faint">{os === 'mac' ? 'For macOS 12 or newer, Apple silicon or Intel. You need a Claude or ChatGPT plan, and the app connects it for you.'
-              : 'Needs Python 3.9+, Node.js, and Claude Code or Codex. The installer checks for you.'}</p>
+            <Reveal delay={0.1} className="mx-auto mt-10 max-w-[760px] text-left"><InstallBox win={win} setWin={setWin} /></Reveal>
+            <p className="mt-4 text-[14px] faint">Needs Python 3.9+, Node.js, and Claude Code or Codex. The installer checks for you.</p>
           </div>
 
           <Reveal delay={0.05} className="mx-auto mt-20 max-w-[1040px] sm:mt-24">
-            <h3 className="text-center text-[21px] font-semibold tracking-[-0.015em] sm:text-[24px]">{os === 'mac' ? 'After you open it' : 'After you paste it'}</h3>
+            <h3 className="text-center text-[21px] font-semibold tracking-[-0.015em] sm:text-[24px]">After you paste it</h3>
           </Reveal>
           <ol className="after mx-auto mt-10 grid max-w-[1040px] gap-x-6 gap-y-0 lg:grid-cols-5">
-            {(os === 'mac' ? AFTER_MAC : AFTER).map(([t, d], i) => (
+            {AFTER.map(([t, d], i) => (
               <Reveal key={t} delay={i * 0.07} className="after-step">
                 <li className="list-none">
                   <div className="after-num">{i + 1}</div>
@@ -158,10 +152,10 @@ export default function Site() {
       {/* 10. Close */}
       <section className="px-4 pb-28 pt-28 sm:pb-40 sm:pt-40">
         <Reveal className="mx-auto max-w-[1120px] min-[1800px]:max-w-[1360px] text-center">
-          <h2 className="display-xl text-[clamp(52px,9vw,120px)] [text-wrap:balance]">{os === 'mac' ? 'Download it.' : 'Paste one line.'}<br /><span className="muted">Press Start.</span></h2>
+          <h2 className="display-xl text-[clamp(52px,9vw,120px)] [text-wrap:balance]">Paste one line.<br /><span className="muted">Press Start.</span></h2>
           <p className="mx-auto mt-6 max-w-[520px] text-[19px] leading-[1.45] muted [text-wrap:balance]">ApplyTwin is free and has no ads. A star on GitHub is how other students find it.</p>
           <div className="mt-9 flex flex-wrap items-center justify-center gap-x-7 gap-y-3">
-            {os === 'mac' ? <a href={MAC_DMG} className="btn gap-2"><Download className="size-[18px]" />Download for Mac</a> : <a href="#start" className="btn">Get the install line</a>}
+            <a href="#start" className="btn">Get the install line</a>
             <StarButton n={stars} />
           </div>
         </Reveal>
@@ -179,13 +173,6 @@ export default function Site() {
 }
 
 /* The five things that happen between pasting the line and your first application. */
-const AFTER_MAC = [
-  ['It sets itself up', 'The first time you open it, it gets everything it needs on its own. That takes about a minute.'],
-  ['Sign in with Google', 'Your setup and answers are saved to your account, so a new laptop picks up where you left off.'],
-  ['Connect Claude or ChatGPT', 'One click signs you in on their own page. It works on the plan you already have, with no API key.'],
-  ['Add your resume', 'Drop in the one you have. You answer the usual application questions once.'],
-  ['Press Start', 'It applies in its own browser window and pings you when it needs you.'],
-]
 const AFTER = [
   ['It installs', 'It downloads ApplyTwin and checks for Python, Node.js and your agent. Nothing to configure.'],
   ['The app opens', 'Your browser goes to localhost:4747. That is ApplyTwin, running on your own computer.'],
@@ -525,25 +512,17 @@ function AppWindow() {
   )
 }
 
-export function InstallBox({ os, setOs, hero }) {
+export function InstallBox({ win, setWin, hero }) {
   const [ok, setOk] = useState(false)
-  const [term, setTerm] = useState(false)   // Mac: the Terminal line, for people who'd rather paste it
-  const win = os === 'win'
   const cmd = win ? INSTALL_WIN : INSTALL
   const copy = () => { navigator.clipboard?.writeText(cmd).catch(() => {}); setOk(true); setTimeout(() => setOk(false), 1600) }
   return (
     <div>
       <div className={'mb-3 flex w-fit rounded-full bg-[var(--bg-2)] p-[3px] text-[13px] ring-1 ring-[var(--line)] ' + (hero ? 'mx-auto' : '')} role="tablist" aria-label="Your computer">
-        {[['mac', 'Mac'], ['win', 'Windows'], ['linux', 'Linux']].map(([o, l]) => (
-          <button key={o} role="tab" aria-selected={os === o} onClick={() => setOs(o)}
-            className={'rounded-full px-4 py-1.5 transition ' + (os === o ? 'bg-[var(--bg-3)] font-semibold text-[var(--fg)] shadow-sm' : 'muted hover:text-[var(--fg)]')}>{l}</button>))}
+        {[[false, 'Mac & Linux'], [true, 'Windows']].map(([w, l]) => (
+          <button key={l} role="tab" aria-selected={win === w} onClick={() => setWin(w)}
+            className={'rounded-full px-4 py-1.5 transition ' + (win === w ? 'bg-[var(--bg-3)] font-semibold text-[var(--fg)] shadow-sm' : 'muted hover:text-[var(--fg)]')}>{l}</button>))}
       </div>
-      {os === 'mac' && !term ? (
-        <div className={'flex flex-col items-center gap-3 ' + (hero ? '' : 'sm:flex-row sm:justify-center')}>
-          <a href={MAC_DMG} className="btn h-[52px] gap-2.5 px-7 text-[18px]"><Download className="size-5" />Download for Mac</a>
-          <button onClick={() => setTerm(true)} className="text-[14px] muted hover:text-[var(--fg)] hover:underline">or paste one line in Terminal</button>
-        </div>
-      ) : (<>
       <button onClick={copy} aria-label="Copy the install command"
         className={'cmd group flex w-full items-center gap-3 text-left ' + (hero ? 'rounded-[14px] py-3.5 pl-4 pr-3 sm:py-4 sm:pl-5' : 'rounded-[16px] py-4 pl-5 pr-4 sm:py-5 sm:pl-6')}>
         <span className={'mono min-w-0 flex-1 leading-snug [overflow-wrap:anywhere] ' + (hero ? 'text-[13px] sm:text-[16px]' : 'text-[13px] sm:text-[17px]')}>
@@ -551,8 +530,6 @@ export function InstallBox({ os, setOs, hero }) {
         <span className="copy flex h-8 shrink-0 items-center gap-1.5 rounded-full px-3 text-[13.5px] font-medium">
           {ok ? <Check className="size-4" /> : <Copy className="size-4" />}<span className="hidden sm:inline">{ok ? 'Copied' : 'Copy'}</span></span>
       </button>
-      {os === 'mac' && <button onClick={() => setTerm(false)} className="mt-3 block w-full text-center text-[14px] muted hover:text-[var(--fg)] hover:underline">Download the app instead</button>}
-      </>)}
       <span className="sr-only" aria-live="polite">{ok ? 'Copied to clipboard' : ''}</span>
     </div>
   )
