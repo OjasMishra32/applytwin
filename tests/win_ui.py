@@ -111,7 +111,8 @@ def main():
             ctx = browser.new_context(viewport={'width': w, 'height': h}, device_scale_factor=dpr)
             page = ctx.new_page()
             log = []
-            page.on('console', lambda m: m.type == 'error' and log.append(('console', m.text[:300])))
+            page.on('console', lambda m: m.type == 'error' and 'Failed to load resource' not in m.text and log.append(('console', m.text[:300])))
+            page.on('response', lambda r: r.status >= 400 and '/api/' not in r.url and log.append(('missing', f'{r.status} {r.url[:160]}')))
             page.on('pageerror', lambda e: log.append(('crash', str(e)[:300])))
             page.on('response', lambda r: r.status >= 400 and '/api/' in r.url and log.append(('http', f'{r.status} {r.request.method} {r.url[len(BASE):]}')))
             page.on('requestfailed', lambda r: log.append(('failed', f'{r.method} {r.url[len(BASE):]} {r.failure}')))
@@ -133,29 +134,56 @@ def main():
                 note(pg, 'load')
                 if name != 'laptop-150':   # buttons once is enough; the other views are for layout
                     continue
-                labels = []
-                for b in page.query_selector_all('button, [role=button], a[href^="#"]'):
-                    try:
-                        t = (b.inner_text() or b.get_attribute('aria-label') or b.get_attribute('title') or '').strip()
-                    except Exception:
-                        continue
-                    if t and len(t) < 60 and not UNSAFE.search(t) and t not in labels and b.is_visible():
-                        labels.append(t)
-                for i, t in enumerate(labels[:25]):
+                n = page.evaluate("() => document.querySelectorAll('button, [role=button], a[href^=\\'#\\']').length")
+                done = set()
+                for i in range(min(n, 40)):
+                    t = ''
                     try:
                         page.goto(f'{BASE}/#{pg}')
                         page.wait_for_timeout(1200)
-                        page.get_by_text(t, exact=True).first.click(timeout=4000)
+                        bs = page.query_selector_all('button, [role=button], a[href^="#"]')
+                        if i >= len(bs):
+                            break
+                        b = bs[i]
+                        t = (b.inner_text() or b.get_attribute('aria-label') or b.get_attribute('title') or '').strip().split('\n')[0]
+                        if not t or t in done or UNSAFE.search(t) or not b.is_visible():
+                            continue
+                        done.add(t)
+                        b.click(timeout=4000)
                         page.wait_for_timeout(1500)
                         safe = re.sub(r'[^a-z0-9]+', '-', t.lower())[:30]
                         page.screenshot(path=os.path.join(OUT, f'{name}-{pg}-click-{i:02d}-{safe}.png'))
-                        lay = page.evaluate(CHECK_JS)
-                        for c in lay['cut']:
+                        for c in page.evaluate(CHECK_JS)['cut']:
                             findings.append({'view': name, 'page': pg, 'kind': 'layout', 'detail': f"after '{t}': {c['why']}: {c['text']!r}"})
                         page.keyboard.press('Escape')
+                        page.wait_for_timeout(300)
+                        if page.query_selector('text=Describe the problem'):
+                            findings.append({'view': name, 'page': pg, 'kind': 'ux', 'detail': f"after '{t}': Escape did not close the Help panel"})
                     except Exception as e:
                         findings.append({'view': name, 'page': pg, 'kind': 'click', 'detail': f"'{t}': {str(e)[:160]}"})
                     note(pg, f"click '{t}'")
+            # every job's own page, and the PDF the Download button gives
+            try:
+                jobs = json.loads(urllib.request.urlopen(urllib.request.Request(BASE + '/api/jobs', headers={'Origin': BASE}), timeout=30).read())
+                jobs = jobs.get('jobs', jobs) if isinstance(jobs, dict) else jobs
+                for j in jobs[:4]:
+                    page.goto(f"{BASE}/#jobs/{j['id']}")
+                    page.wait_for_timeout(3000)
+                    page.screenshot(path=os.path.join(OUT, f"{name}-job-{str(j['id'])[:8]}.png"), full_page=True)
+                    for c in page.evaluate(CHECK_JS)['cut']:
+                        findings.append({'view': name, 'page': 'job', 'kind': 'layout', 'detail': f"{c['why']}: {c['text']!r}"})
+                    note('job', 'open')
+                page.goto(f'{BASE}/#studio')
+                page.wait_for_timeout(2500)
+                with page.expect_popup(timeout=90000) as pop:
+                    page.get_by_text('Download PDF').first.click()
+                pdf = pop.value
+                pdf.wait_for_load_state()
+                findings.append({'view': name, 'page': 'studio', 'kind': 'info', 'detail': f'Download PDF opened {pdf.url[:120]}'})
+                pdf.close()
+                note('studio', 'download pdf')
+            except Exception as e:
+                findings.append({'view': name, 'page': 'job/pdf', 'kind': 'flow', 'detail': str(e)[:300]})
             # the resume as the app previews it, and the PDF link it offers
             try:
                 page.goto(f'{BASE}/#studio')
