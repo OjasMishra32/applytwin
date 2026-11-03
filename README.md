@@ -15,7 +15,7 @@ curl -fsSL apply.twinly.tech/install | bash
 Windows, paste this into PowerShell:
 
 ```powershell
-irm apply.twinly.tech/install.ps1 | iex
+irm https://apply.twinly.tech/install.ps1 | iex
 ```
 
 Before you run it you need Python 3.9 or newer, Node.js, and Claude Code or Codex. The installer checks for each one and tells you what is missing.

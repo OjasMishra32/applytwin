@@ -13,7 +13,7 @@ import { TESTIMONIALS } from './testimonials.js'
    the window opening, the resume fanning into versions, the bullets rewriting themselves, the words lighting up. */
 
 const INSTALL = 'curl -fsSL apply.twinly.tech/install | bash'
-const INSTALL_WIN = 'irm apply.twinly.tech/install.ps1 | iex'
+const INSTALL_WIN = 'irm https://apply.twinly.tech/install.ps1 | iex'
 const IS_WIN = typeof navigator !== 'undefined' && /windows/i.test(navigator.userAgent)
 
 

@@ -1,4 +1,4 @@
-# ApplyTwin installer for Windows:  irm apply.twinly.tech/install.ps1 | iex
+# ApplyTwin installer for Windows:  irm https://apply.twinly.tech/install.ps1 | iex
 # Installs (or updates) ApplyTwin in %USERPROFILE%\.applytwin-app, connects it to Claude Code and Codex, checks your
 # setup, opens the app. No API keys: it runs on the Claude Code or Codex plan you already have.
 # Runs inside the user's own PowerShell window (irm | iex): it never calls exit (that would close the window), and the

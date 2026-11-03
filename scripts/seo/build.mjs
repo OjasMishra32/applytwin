@@ -62,7 +62,7 @@ const faqLd = items => ({ '@type': 'FAQPage', mainEntity: items.map(([q, a]) => 
 const STATIC = `<main style="max-width:760px;margin:0 auto;padding:64px 20px;font-family:-apple-system,BlinkMacSystemFont,sans-serif;line-height:1.5">
   <h1>You apply once. Your twin does the rest.</h1>
   <p>ApplyTwin is a free app for your computer. It finds internships that fit you, writes a one-page resume for each posting and fills out the application. It runs on the Claude Code or Codex plan you already pay for.</p>
-  <p>Install on Mac or Linux: <code>curl -fsSL apply.twinly.tech/install | bash</code>. On Windows: <code>irm apply.twinly.tech/install.ps1 | iex</code>.</p>
+  <p>Install on Mac or Linux: <code>curl -fsSL apply.twinly.tech/install | bash</code>. On Windows: <code>irm https://apply.twinly.tech/install.ps1 | iex</code>.</p>
   <h2>Everything between you and Submit.</h2>
   <p>It finds roles that fit your resume, graduation date and work authorization; writes an honest, tailored one-page resume for each; fills the application on Greenhouse, Lever, Ashby, Workday, iCIMS and more; and stops on the review screen so you press Submit.</p>
   <h2>No API key. No new subscription.</h2>
@@ -126,7 +126,7 @@ for (const p of PAGES) {
   <main>
     <h1>${esc(p.h1)}</h1>
     <p class="lede">${esc(p.lede)}</p>
-    <div class="install"><div>curl -fsSL apply.twinly.tech/install | bash</div><div>Windows: irm apply.twinly.tech/install.ps1 | iex</div></div>
+    <div class="install"><div>curl -fsSL apply.twinly.tech/install | bash</div><div>Windows: irm https://apply.twinly.tech/install.ps1 | iex</div></div>
     <a class="cta" href="/">See how ApplyTwin works</a>
     ${p.sections.map(([h, t]) => `<h2>${esc(h)}</h2>\n    <p>${esc(t)}</p>`).join('\n    ')}
     <h2>Questions</h2>
@@ -156,7 +156,7 @@ ApplyTwin is a free, open-source job application autopilot for students looking 
 - Fills applications on Greenhouse, Lever, Ashby, Workday, iCIMS, SmartRecruiters and Oracle in its own browser, and stops at the review screen unless the user turns on auto-submit.
 - Never types passwords, solves CAPTCHAs, creates accounts or accepts legal agreements.
 
-Install: \`curl -fsSL apply.twinly.tech/install | bash\` (Windows: \`irm apply.twinly.tech/install.ps1 | iex\`)
+Install: \`curl -fsSL apply.twinly.tech/install | bash\` (Windows: \`irm https://apply.twinly.tech/install.ps1 | iex\`)
 
 ## Pages
 - [Home](${SITE}/)
