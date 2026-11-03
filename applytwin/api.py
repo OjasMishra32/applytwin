@@ -1981,6 +1981,15 @@ def _watch_run_body(proc, agent, logf, n, model, prompt=None, restarts=0, run_id
         notify(f'Sign in to {name}', f'Your {name} login expired: {fix}, then press Launch again.', kind='signin')
     elif proc.returncode and not _run.get('stopped'):
         notify(f'{name} stopped early', f'Exit code {proc.returncode}. The last lines are in the Autopilot log.', kind='error')
+    elif (not _run.get('stopped') and prompt is None
+          and not store.rows('select 1 from applications where at >= ?', (started,))
+          and not store.rows('select 1 from claims where at >= ?', (started,))):
+        # it ended without touching a single job (a browser tool that never connected, a refused tool): the page just went
+        # back to Ready and nobody knew why. Say what it said last.
+        raw = open(logf, encoding='utf-8', errors='replace').read()[-3000:] if os.path.exists(logf) else ''
+        last = next((l.strip() for l in reversed(raw.splitlines()) if l.strip() and not l.startswith('$ ')), '')
+        notify(f'{name} stopped without applying', (last[:240] or 'It ended before starting a job.') +
+               ' The full log is under Autopilot log.', kind='error')
     release_claims(since=started, who=run_id)
     if not _run.get('stopped'):
         _next_followup()
