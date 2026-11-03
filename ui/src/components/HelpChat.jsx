@@ -16,6 +16,7 @@ export function HelpChat() {
   const load = () => api('/api/jobs/help/thread').then(r => setMsgs(r.thread || [])).catch(() => {})
   useEffect(() => { if (!open) return; load(); const t = setInterval(load, 3000); return () => clearInterval(t) }, [open])
   useEffect(() => { end.current?.scrollIntoView({ block: 'end' }) }, [msgs.length, open])
+  useEffect(() => { if (!open) return; const k = e => { if (e.key === 'Escape') setOpen(false) }; addEventListener('keydown', k); return () => removeEventListener('keydown', k) }, [open])
   const send = async t => {
     const s = (t ?? text).trim()
     if (!s || busy) return

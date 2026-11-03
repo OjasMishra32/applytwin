@@ -7,6 +7,8 @@ import { api } from '../lib/api'
 import { spring } from './ui'
 import { StarButton } from '../lib/star'
 
+const MOD = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent) ? '⌘' : 'Ctrl '   // Windows and Linux have no ⌘ key
+
 export const NAV = [['home', 'Today'], ['jobs', 'Jobs'], ['studio', 'Resume'], ['answers', 'Answers'], ['board', 'Applications'], ['agents', 'Autopilot']]
 
 /* Two overlapping squares: you, and your twin. */
@@ -143,7 +145,7 @@ export function Sidebar({ page, go, onPalette, auth, signIn, signOut }) {
       <div className={cn('fixed left-[220px] right-0 top-0 z-30 hidden h-[56px] items-center justify-end gap-2 border-b px-5 transition-[background-color,border-color] duration-200 md:flex',
         scrolled ? 'border-white/[.07] bg-[#161617]/80 backdrop-blur-xl backdrop-saturate-150' : 'border-transparent')}>
         <button onClick={onPalette} className="flex h-8 items-center gap-2 rounded-[8px] bg-white/[.06] px-3 text-[13px] text-muted transition hover:bg-white/[.1] hover:text-ink">
-          <Search className="size-3.5" /><span>Search</span><kbd className="text-[11px] text-faint">⌘K</kbd>
+          <Search className="size-3.5" /><span>Search</span><kbd className="text-[11px] text-faint">{MOD}K</kbd>
         </button>
         <StarButton compact quiet />
         <Inbox />
@@ -162,7 +164,7 @@ export function TopBar({ page, go, onPalette, matched, auth, signIn, signOut }) 
         </button>
         <div className="ml-auto flex items-center gap-2">
           <button onClick={onPalette} aria-label="Search" className="flex h-8 items-center gap-2 rounded-[8px] bg-white/[.05] px-2 text-[13px] text-muted transition hover:bg-white/[.08] hover:text-ink sm:px-3.5">
-            <Search className="size-4 sm:size-3.5" /><span className="hidden sm:inline">Search</span><kbd className="hidden text-[11px] text-faint sm:inline">⌘K</kbd>
+            <Search className="size-4 sm:size-3.5" /><span className="hidden sm:inline">Search</span><kbd className="hidden text-[11px] text-faint sm:inline">{MOD}K</kbd>
           </button>
           <button onClick={() => go('settings')} className={cn('grid size-8 place-items-center rounded-[8px] transition-colors', page === 'settings' ? 'bg-white/[.12] text-ink' : 'text-muted hover:bg-white/[.06] hover:text-ink')} title="Settings"><Settings2 className="size-4" /></button>
           
