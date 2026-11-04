@@ -12,7 +12,7 @@
   applytwin watch [--every 120] keep scanning; notify on new matches
   applytwin import FILE      import a resume (pdf, docx, tex, txt) into your vault
   applytwin queue            show your apply queue (dream companies first)
-  applytwin import-history tracker.csv   mark jobs you already applied to elsewhere
+  applytwin import-history tracker.xlsx  mark jobs you already applied to elsewhere (CSV, Excel, PDF, Word...)
   applytwin run [--agent claude|codex] [--n 25]   let your agent work through the queue
   applytwin update           update to the latest version (installed copies also update themselves on start)
   applytwin doctor           check your setup (no API keys needed: it runs on your Claude / Codex plan)

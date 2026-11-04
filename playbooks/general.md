@@ -11,16 +11,21 @@ value that *looks* filled but never registered with the page's framework.
    ("graduating Dec 2027 - Aug 2028", "Class of 2028", "graduate by May 2028") are compared with the user's
    `grad_month`/`grad_year`; outside it = Skipped with notes like "graduation window Dec 2027 - Aug 2028; user
    graduates May 2029". `already_applied` not empty = never submit again (log Skipped "duplicate: ...").
-3. Tailor: `applytwin_tailor_prompt` -> write the plan -> `applytwin_tailor_apply(job_id, plan)`. Use the returned PDF.
-   If any rewrites were rejected by the fact guard, that's fine; the original bullet was used.
+3. Tailor: `applytwin_tailor_apply(job_id)` with NO plan, when you reach the upload field: a dedicated writer started
+   building it when you claimed the job. Use the returned PDF. Write your own plan (`applytwin_tailor_prompt` ->
+   `applytwin_tailor_apply(job_id, plan)`) only when the user asked for a specific change to this resume.
 4. `applytwin_playbook(<ats>)` for this ATS's specifics.
 
 ## Filling
+- **One call per page.** Fill every text box, textarea, dropdown and checkbox you already have answers for in ONE
+  `browser_fill_form` call (it types like a person, so React forms register the values), then read them all back
+  with one `browser_evaluate`. Go field by field only for autocomplete boxes (location, school) and anything the
+  bulk fill left empty. Every browser action already returns the page: don't take a snapshot after each one.
 - **Upload the resume first** on ATSes that parse it (Workday, SmartRecruiters, Jobvite, Paylocity, Workable,
   Rippling): parsing fills fields a few seconds later and can wipe or duplicate what you typed. Wait for the
   parse, then fix fields. On Greenhouse upload LAST (it steals keyboard focus).
-- **Real input beats JS.** Many React forms ignore values set by script. Click the field (or focus it), select
-  all, type, press Tab. Then read the value back with JS before moving on.
+- **Real input beats JS.** Many React forms ignore values set by script (`el.value = ...`). Use `browser_fill_form`
+  or click the field and type, never set values from JS. Read the values back before moving on.
 - **Keystrokes only reach the foreground tab.** Click inside the page (or take a screenshot) before typing.
 - **Dropdowns:** open, read the options, click the exact option, then read the selected text back. Typing "No" can
   match "Yes, ... now ..."; typing "Male" can match "Female"; arrow keys skip past the right one. Never press Enter
@@ -77,5 +82,6 @@ value that *looks* filled but never registered with the page's framework.
 ## Pacing
 - Respect `daily_limit` and `per_company_cap` (applytwin_next_jobs already does). Many companies cap applications
   (often 2-3 per 30-60 days); a "maximum number of applications" message means stop for that company.
-- Greenhouse starts demanding email codes after ~6-8 rapid submits: space Greenhouse submits 4-5 minutes
-  apart and interleave other ATSes.
+- Greenhouse starts demanding email codes after ~6-8 rapid submits. `applytwin_next_jobs` already orders the batch
+  so Greenhouse jobs have other ATSes in between. Never sit and wait to pace yourself: filling the next form is the
+  spacing.

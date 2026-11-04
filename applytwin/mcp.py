@@ -34,6 +34,8 @@ TOOLS = [
     ("applytwin_import_applied", "Record jobs the user ALREADY applied to outside ApplyTwin (found in their confirmation emails, a tracker, or told to you), so they are never applied to again, even if they appear in a later scan. items: [{company, title, url?, date?, status?}]. Only record what you actually saw.",
      {"type": "object", "properties": {"items": {"type": "array", "items": {"type": "object", "properties": {"company": STR, "title": STR, "url": STR, "date": STR, "status": STR}, "required": ["company", "title"]}}, "source": STR}, "required": ["items"]},
      lambda a: api.import_applied(a.get('items') or [], a.get('source') or 'email')),
+    ("applytwin_import_tracker", "Import the user's own application tracker file (CSV, Excel .xlsx, .ods, PDF, Word .docx, HTML, Markdown, JSON or text; Numbers and old .xls must be exported first) by its column headers, so those jobs are never applied to again. Pass path (a file on this computer), or name + base64 data. If the file has no columns to read, the result gives read_file: read it yourself and record what it shows with applytwin_import_applied.",
+     S(path=STR, name=STR, data=STR), lambda a: api.import_history(a.get('path') or None, name=a.get('name') or '', data=a.get('data'), hand_off=False)),
     ("applytwin_add_job", "Track a job by URL (and optional pasted description) that the scrapers did not find.", S(url=STR, title=STR, company=STR, description=STR), lambda a: api.add_job(a['url'], a.get('title', ''), a.get('company', ''), a.get('description', ''))),
     ("applytwin_job_questions", "Greenhouse only: the application's questions with suggested answers from the bank, before opening the form.", S(job_id=STR), lambda a: api.job_questions(a['job_id'])),
     ("applytwin_ats_report", "ATS report: posting keyword coverage (matched/missing hard skills) + resume lint. Pass job_id or jd_text; omit both to lint the vault.", S(job_id=STR, jd_text=STR), lambda a: api.ats_report(a.get('job_id'), a.get('jd_text'))),
@@ -94,6 +96,23 @@ def _activity(name, args):
         pass
 
 
+def _heartbeat(every=30, upto=900):
+    """While one tool call runs (waiting on a resume that is still being written, a scan), keep telling the stuck-run
+    timer the twin is working. It stops after 15 minutes, so a call that truly hangs still gets the run restarted."""
+    import threading
+    import time
+    done, t0 = threading.Event(), time.time()
+
+    def beat():
+        while not done.wait(every) and time.time() - t0 < upto:
+            try:
+                store.save('activity.json', {**(store.load('activity.json', {}) or {}), "at": time.time()})
+            except Exception:
+                pass
+    threading.Thread(target=beat, daemon=True).start()
+    return done
+
+
 def main():
     for line in sys.stdin:
         line = line.strip()
@@ -124,12 +143,15 @@ def main():
             if not t:
                 reply(i, error={"code": -32602, "message": "unknown tool"})
                 continue
+            beat = _heartbeat()
             try:
                 _activity(p.get('name'), p.get('arguments') or {})
                 out = t[3](p.get('arguments') or {})
                 reply(i, {"content": [{"type": "text", "text": json.dumps(out, default=str, ensure_ascii=False)[:180000]}]})
             except Exception as e:
                 reply(i, {"content": [{"type": "text", "text": f"error: {e}\n{traceback.format_exc()[-800:]}"}], "isError": True})
+            finally:
+                beat.set()
         else:
             reply(i, error={"code": -32601, "message": f"method not found: {m}"})
 

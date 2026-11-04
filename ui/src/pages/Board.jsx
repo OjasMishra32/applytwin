@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { toast } from 'sonner'
-import { api, fileUrl } from '../lib/api'
+import { api, fileUrl, fileBody, TRACKER_FILES, trackerToast } from '../lib/api'
 import { useApp, Page } from '../App'
 import { Avatar, Title, spring } from '../components/ui'
 import { Download, Mail, Upload } from 'lucide-react'
@@ -24,13 +24,11 @@ export default function Board() {
   }
   const importCsv = async e => {
     const f = e.target.files?.[0]; if (!f) return
-    try {
-      const r = await api('/api/history', { text: await f.text() }); load()
-      toast.success(`Found ${r.known_applications.toLocaleString()} applications`, { description: `${r.matched.toLocaleString()} matched jobs in your queue, so your twin won't apply to them again.` })
-    } catch (err) { toast.error(err.message) } e.target.value = ''
+    try { const r = await api('/api/history', await fileBody(f)); load(); trackerToast(toast, r) }
+    catch (err) { toast.error("Couldn't import that file", { description: err.message }) } e.target.value = ''
   }
   const ImportBtn = ({ primary }) => (
-    <label className="cursor-pointer"><input type="file" accept=".csv,text/csv" className="hidden" onChange={importCsv} />
+    <label className="cursor-pointer" title="CSV, Excel, Google Sheets, Numbers export, Notion, PDF or Word"><input type="file" accept={TRACKER_FILES} className="hidden" onChange={importCsv} />
       <span className={'inline-flex h-10 items-center gap-1.5 rounded-full px-5 text-[14px] font-medium transition-colors ' + (primary ? 'bg-white text-[#1d1d1f] hover:bg-white/90' : 'bg-white/[.08] text-ink hover:bg-white/[.13]')}>
         <Upload className="size-4" />Import your tracker</span></label>)
   const fromEmail = async () => {
@@ -61,7 +59,7 @@ export default function Board() {
             <EmailBtn />
             <ImportBtn />
           </div>
-          <p className="mt-4 text-[12.5px] text-faint">Reads your "thank you for applying" emails, or a CSV from Simplify, Huntr, Teal, Notion or a spreadsheet.</p>
+          <p className="mt-4 text-[12.5px] text-faint">Reads your "thank you for applying" emails, or your tracker from Simplify, Huntr, Teal, Notion or a spreadsheet: CSV, Excel, PDF or Word.</p>
         </div>
       ) : (
       <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-4 sm:-mx-6 sm:px-6 md:-mx-10 md:px-10">

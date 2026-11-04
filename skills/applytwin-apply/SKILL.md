@@ -39,7 +39,9 @@ themselves on a careful day.
    (why this company, what interested you, anything else): write them yourself following `how`, never ask the user and
    never leave them blank. Anything else returned null is a fact only the user knows: collect those, ask the user ONCE
    for all of them (batch across jobs when you can), then `applytwin_save_answer` each.
-5. **Fill**: open `apply_url`, `applytwin_playbook(<job.ats>)`, and fill every field. Upload the tailored PDF.
+5. **Fill**: open `apply_url`, `applytwin_playbook(<job.ats>)`, and fill every field. Put everything you have answers
+   for on a page into ONE `browser_fill_form` call instead of typing field by field (type one at a time only into
+   autocomplete boxes), and don't snapshot after every action: each action already returns the page. Upload the tailored PDF.
    Write every open-ended answer (required or optional) from the vault + posting, following the `how` rules from step 4.
 6. **Verify**: read back every field value; fix anything empty or wrong (selects especially: pick options by
    clicking, never by keyboard on Workday, and check the shown text). Right before Submit, make sure the site doesn't
@@ -76,7 +78,8 @@ themselves on a careful day.
   (not on the submit step) goes back to the queue once (`requeued: true`). `stop: true` in any result = end the run.
 
 ## Between jobs
-- Respect pacing in the general playbook (Greenhouse spacing, company caps).
+- Respect pacing in the general playbook (company caps). `applytwin_next_jobs` already spaces Greenhouse jobs out;
+  never sit and wait between jobs.
 - Every ~5 jobs, give the user a 1-line progress update.
 - At the end: a short table of applied / ready for you / needs you / skipped, with links.
 

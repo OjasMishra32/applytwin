@@ -245,6 +245,46 @@ def fill_password(url, password):
         ws.close()
 
 
+# What a tab shows, boiled down: its text length and every form field's value. It only reads; nothing on the page
+# changes.
+_LOOK_JS = r"""
+(function(){ var s = String((document.body && document.body.innerText || '').length);
+  var f = document.querySelectorAll('input,textarea,select');
+  for (var i = 0; i < f.length && i < 400; i++) { var e = f[i];
+    s += '|' + (e.type === 'checkbox' || e.type === 'radio' ? e.checked : e.type === 'file' ? (e.files && e.files.length) : e.value); }
+  var h = 0; for (var j = 0; j < s.length; j++) h = (h * 31 + s.charCodeAt(j)) | 0;
+  return s.length + ':' + h; })()
+"""
+
+
+def look():
+    """A short digest of what the twin's tabs show: their addresses, titles, page text and form fields. It changes
+    whenever the agent types, picks an option, uploads a file or moves to another step, and stays the same while it is
+    stuck (a sign-in it can't pass, a page that hangs). '' when the browser isn't up."""
+    import hashlib
+    if not alive():
+        return ''
+    try:
+        tabs = [t for t in _get('/json/list') if t.get('type') in ('page', 'iframe')][:8]   # the newest tabs, and their forms in frames
+    except Exception:
+        return ''
+    parts = []
+    for t in tabs:
+        parts.append(f"{t.get('url')} {t.get('title')}")
+        if not t.get('webSocketDebuggerUrl'):
+            continue
+        try:
+            ws = _WS(t['webSocketDebuggerUrl'], timeout=3)   # a page whose script hangs just times out here
+            try:
+                r = ws.call('Runtime.evaluate', {"expression": _LOOK_JS, "returnByValue": True, "silent": True})
+                parts.append(str((r.get('result') or {}).get('value')))
+            finally:
+                ws.close()
+        except Exception:
+            continue
+    return hashlib.sha1('\n'.join(parts).encode('utf-8', 'replace')).hexdigest()
+
+
 _google = {"at": 0.0, "v": False}
 
 

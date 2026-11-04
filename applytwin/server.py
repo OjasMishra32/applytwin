@@ -96,7 +96,7 @@ POST = {
                                                      else bool(api.store.profile()['apply'].get('auto_submit'))),
     r'/api/finish/site': lambda m, qs, b: api.finish_site(b.get('site') or '', bool(b.get('submit'))),
     r'/api/open-twin': lambda m, qs, b: api.open_in_twin_browser(b['url']),
-    r'/api/history': lambda m, qs, b: api.import_history(text=b.get('text', '')),
+    r'/api/history': lambda m, qs, b: api.import_history(text=b.get('text'), name=b.get('name') or '', data=b.get('data')),   # any tracker file
     r'/api/agents/(claude|codex)/connect': lambda m, qs, b: api.connect_agent(m.group(1)),
     r'/api/history/email': lambda m, qs, b: api.start_run(b.get('agent') or api.store.profile()['apply'].get('agent') or 'claude', 1,
                                                           prompt=api.email_history_prompt()),

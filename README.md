@@ -40,7 +40,7 @@ From then on ApplyTwin runs like a normal app. It starts by itself when you log 
 
 **It fills the application.** Your own Claude Code or Codex opens the form in a browser, follows ApplyTwin's playbook for that application system, answers from your saved answers and uploads the tailored PDF. Then it stops on the review screen so you press Submit. If you turn on "Submit applications on its own" in Settings, it submits for you.
 
-**It remembers what you applied to.** The same role at the same company is never applied to twice. You can import a CSV of past applications from Simplify, Huntr, Teal, Notion or a Google Sheet.
+**It remembers what you applied to.** The same role at the same company is never applied to twice. You can import the tracker you already keep (Simplify, Huntr, Teal, Notion, a Google Sheet or your own) as CSV, Excel, PDF or Word. Numbers files need a quick export to CSV first.
 
 **It asks you only when it has to.** New questions it hasn't seen before come to you once, and it saves your answer for next time.
 

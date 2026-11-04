@@ -1335,6 +1335,9 @@ def run_prompt(n):
             "For every job: claim it, get its tailored resume with applytwin_tailor_apply(job_id) and NO plan (a dedicated writer builds it while you open the application), "
             "open the application in the browser, follow applytwin_playbook for its ATS, answer from applytwin_answer_questions (pass job_id, and the "
             "options of every dropdown/radio), submit only if my profile allows auto_submit, and log the result with applytwin_log_application. "
+            "Work quickly: ask applytwin_answer_questions once per page with all its questions, then fill everything you have answers for with ONE "
+            "browser_fill_form call (type field by field only into autocomplete boxes like location or school). Every browser action already "
+            "returns the page, so don't take a snapshot after each one. Never sit and wait to pace submits: applytwin_next_jobs already spaces them. "
             "If a site asks for an emailed verification code: if my profile.apply.email_codes is 'agent', read the newest code from that company "
             "in my email (your email/Gmail tool, or my webmail tab in the browser) and enter it; otherwise call applytwin_notify and move on. "
             "For sign-ins, passwords, CAPTCHAs or anything only I can do: fill everything you can first (on a no-account form fill the whole form; "
@@ -1887,11 +1890,31 @@ def _kill(proc):
 
 
 def _last_activity(since):
-    """When the agent last made progress: claimed a job, logged one, or asked the user for something."""
+    """When the agent last made progress: claimed a job, logged one, asked the user for something, called any ApplyTwin
+    tool, or had a resume being written for it."""
     t = [since, (store.load('activity.json', {}) or {}).get('at', 0)]
     for q in ('select max(at) m from claims', 'select max(at) m from applications', 'select max(at) m from inbox'):
         t.append((store.rows(q) or [{}])[0].get('m') or 0)
+    try:   # a build keeps its progress file fresh while it runs
+        d = store.path('progress')
+        t += [os.path.getmtime(os.path.join(d, f)) for f in os.listdir(d)]
+    except OSError:
+        pass
     return max(t)
+
+
+def _browser_moved(seen):
+    """True when the twin's browser shows something new since the last look: the agent typed, picked, uploaded or went
+    to another page. Filling one long form (Workday, a dozen questions) is all browser work with no ApplyTwin call, and
+    runs were stopped as "stuck" in the middle of it."""
+    from . import twin
+    try:
+        now = twin.look()
+    except Exception:
+        return False
+    moved = bool(now) and now != seen.get('look')
+    seen['look'] = now or seen.get('look')
+    return moved
 
 
 def _skip_stuck(since, minutes):
@@ -1925,10 +1948,13 @@ def _watch_run_body(proc, agent, logf, n, model, prompt=None, restarts=0, run_id
     # a run that makes no progress for apply.stuck_minutes is stuck on one application (waiting on a sign-in, a hung page):
     # skip that application and carry on with the rest instead of holding up the whole queue
     minutes = float(store.profile()['apply'].get('stuck_minutes') or 20)
-    started, stuck = time.time(), False
+    started, stuck, seen = time.time(), False, {}
+    browser_at = started
     while proc.poll() is None:
         time.sleep(min(15, minutes * 15))
-        if proc.poll() is None and time.time() - _last_activity(started) > minutes * 60:
+        if _browser_moved(seen):
+            browser_at = time.time()
+        if proc.poll() is None and time.time() - max(_last_activity(started), browser_at) > minutes * 60:
             stuck = True
             _kill(proc)
             try:
@@ -2282,45 +2308,84 @@ def finish_site(site, submit=False, agent=None):
     return finish_jobs(ids, submit, agent)
 
 
-HISTORY_COLS = {   # column names used by Simplify, Huntr, Teal, Notion, Google Sheets and hand-made trackers
-    'company': ('company', 'company name', 'employer', 'organization', 'firm'),
-    'title': ('title', 'job title', 'position', 'job position', 'role', 'job', 'job name'),
-    'url': ('url', 'link', 'job url', 'job link', 'posting', 'posting url', 'application link', 'apply link'),
-    'status': ('status', 'stage', 'list', 'application status', 'state', 'outcome'),
-}
+# words that mean the row is a plan, not an application: "To apply", "Not applied yet", "Interested", a blank checkbox
+NOT_APPLIED = re.compile(r"\bnot\s+(?:yet\s+)?(?:applied|submitted|started|sent)|\b(?:have|has|did)\s*n[o']?t\s+(?:yet\s+)?(?:applied|submitted|sent|apply)"
+                         r"|\bto\s*apply\b|\bwant|\bplan|interested|saved|wish ?list|bookmark|considering|maybe|later|draft|\bto\s*do\b"
+                         r"|^\s*(?:no|n|false|0|☐|-)\s*$", re.I)
+YES = re.compile(r"^\s*(?:yes|y|true|1|✓|✔|☑|x|done|applied|submitted|sent)\s*$|\d{1,4}[/.-]\d{1,2}", re.I)
 
 
-def import_history(csv_path=None, text=None):
-    """Mark jobs you already applied to elsewhere so your twin never applies twice. Reads a CSV export from any tracker
-    (Simplify, Huntr, Teal, Notion, a Google Sheet, or company,title,url,status columns); matches by the posting's job id
-    in the URL, then by company + role."""
-    import csv
-    import io
-    rows = list(csv.reader(io.StringIO(text) if text is not None else open(csv_path, newline='', encoding='utf-8-sig', errors='replace')))
-    if not rows:
-        return {"matched": 0, "known_applications": 0}
-    head = [h.strip().lower() for h in rows[0]]
-    idx = {k: next((i for i, h in enumerate(head) if h in names), None) for k, names in HISTORY_COLS.items()}
-    if idx['company'] is None or idx['title'] is None:   # no header: company,title,url,status
-        idx, body = {'company': 0, 'title': 1, 'url': 2, 'status': 3}, rows
+def _history_rows(tabs):
+    """The table in the file that is the tracker: (rows, {column: index}, header row), or None."""
+    from . import tracker
+    best = None
+    for kind, rows in tabs:
+        for hi, r in enumerate(rows[:30]):   # a title row or two ("My 2026 internship search") often sits above it
+            idx = tracker.header_index(r)
+            if idx:
+                if not best or len(rows) - hi > len(best[0]):
+                    best = (rows[hi + 1:], idx, r)
+                break
+    return best
+
+
+def import_history(csv_path=None, text=None, name=None, data=None, hand_off=True):
+    """Mark jobs you already applied to elsewhere so your twin never applies twice. Reads a tracker in any format
+    (CSV, Excel, Google Sheets, Numbers or Notion export, PDF, Word, HTML, Markdown, JSON) from Simplify, Huntr, Teal,
+    Notion or a hand-made sheet, by its header row; matches by the posting's job id in the URL, then by company + role.
+    A file with no columns to read (a PDF of notes, a typed list) goes to your agent, which reads it like you would
+    (hand_off=False: the agent asking is told to read it itself)."""
+    from . import tracker
+    if csv_path:
+        with open(csv_path, 'rb') as f:
+            name, data = csv_path, f.read()
+    try:
+        tabs = tracker.tables(name or '', data, text)
+    except tracker.Unreadable as e:
+        raise RuntimeError(str(e))
+    found_table = _history_rows(tabs)
+    if found_table:
+        body, idx, head = found_table
     else:
-        body = rows[1:]
-    cell = lambda r, k: r[idx[k]].strip() if idx[k] is not None and idx[k] < len(r) else ''
+        rows = max((t for k, t in tabs if k != 'pdf'), key=len, default=[])
+        two = [r for r in rows if 2 <= len([c for c in r if c.strip()]) <= 12]
+        if rows and len(two) >= max(1, len(rows) * .6):   # no header: company,title,url,status
+            idx, body, head = {'company': 0, 'title': 1, 'url': 2, 'status': 3, 'date': None, 'applied': None}, rows, []
+        else:
+            return _history_by_agent(name, tabs, hand_off)
+    cell = lambda r, k: str(r[idx[k]]).strip() if idx.get(k) is not None and idx[k] < len(r) else ''
     ids, names, found = {}, {}, []
     for r in body:
         company, title, url, status = cell(r, 'company'), cell(r, 'title'), cell(r, 'url'), cell(r, 'status')
-        if not company or not title:
-            continue
-        if idx['status'] is not None and not status:
+        if not company or not title or (head and [company, title] == [cell(head, 'company'), cell(head, 'title')]):
+            continue   # blank, or the header again on the next page of a PDF
+        url = url if re.match(r'https?://', url) else next((c.strip() for c in r if re.match(r'\s*https?://', str(c))), url)
+        applied = cell(r, 'applied')
+        if idx.get('applied') is not None and not status:
+            if not YES.search(applied):
+                continue   # "Applied?" left unticked
+            status = 'Applied'
+        date = cell(r, 'date') or (applied if re.search(r'\d', applied) else '')
+        m = idx.get('status') is None and re.match(r"(.*?)\s*\b((?:appl|submit|interview|offer|reject|oa\b|assessment|screen|ghost|declin"
+                                                   r"|want|to apply|saved|interested|haven|no response|pending|waiting|in review|under review).*)$", date, re.I)
+        if m:   # a PDF where the date and status columns sit one space apart: "2025-10-01 Rejected"
+            date, status = m.group(1), m.group(2)
+        if idx.get('status') is not None and not status:
             continue   # a saved-but-not-applied row
         # intent first: "To apply", "Want to apply", "Not applied", "Interested" are plans, not applications
-        if re.search(r"\bnot\b|n't|\bto apply|want|plan|interested|saved|wishlist|bookmark|considering|maybe|later|draft", status, re.I):
+        if status and NOT_APPLIED.search(status):
             continue   # never applied: leave it in the queue
-        st = 'applied' if not status or re.search(r'appl|submit|interview|offer|reject|\boa\b|assessment|screen|ghost|declin', status, re.I) else 'skipped'
+        st = 'applied' if not status or re.search(r'appl|submit|interview|offer|reject|\boa\b|assessment|screen|ghost|declin|review|wait|pending|heard|response', status, re.I) else 'skipped'
         for m in re.findall(r'(?:token=|/jobs/|/)([0-9a-f]{8}-[0-9a-f-]{27}|\d{5,})', url or ''):
             ids[m] = st
         names[role_key(company, title)] = st
-        found.append({"company": company, "title": title, "url": url, "status": status or 'Applied', "source": 'tracker'})
+        found.append({"company": company, "title": title, "url": url, "status": status or 'Applied',
+                      "date": tracker.excel_date(date), "source": 'tracker'})
+    if not found:
+        if not found_table:
+            return _history_by_agent(name, tabs, hand_off)
+        raise RuntimeError("That file has company and role columns but no applications in it yet (every row is blank, "
+                           "or marked as saved or to apply).")
     remember_applied(found)
     n = 0
     for j in store.rows("select id, company, title, url, apply_url from jobs where status='new'"):
@@ -2332,6 +2397,37 @@ def import_history(csv_path=None, text=None):
             store.execute('update jobs set status=? where id=?', (st, j['id']))
             n += 1
     return {"matched": n, "known_applications": len(names)}
+
+
+def _history_by_agent(name, tabs, hand_off=True):
+    """A tracker ApplyTwin can't read column by column (a PDF of notes, a list typed in Word): your agent reads it and
+    records each application it shows, the way it reads your confirmation emails."""
+    from . import tracker
+    txt = '\n'.join(' | '.join(str(c) for c in r if str(c).strip()) for _, t in tabs for r in t).strip()
+    if len(txt) < 20:
+        raise RuntimeError(f"ApplyTwin couldn't find any applications in that file. It reads {tracker.KINDS} files with a "
+                           "column for the company and one for the role.")
+    os.makedirs(store.path('imports'), exist_ok=True)
+    f = store.path('imports', f'tracker-{int(time.time())}.txt')
+    with open(f, 'w', encoding='utf-8') as out:
+        out.write(txt[:400_000])
+    if not hand_off:
+        return {"matched": 0, "known_applications": 0, "read_file": f,
+                "note": "No company/role columns to read. Read this file and record each application it shows with applytwin_import_applied (source 'tracker')."}
+    prompt = (f"Read the file {f} with your Read tool. It is the job-application tracker I kept before ApplyTwin "
+              f"(from {os.path.basename(name or 'a file')}). For every job it shows I applied to (or interviewed for, was "
+              "rejected from, got an offer or an assessment from), record {company, title, url, date, status} with "
+              "applytwin_import_applied (source 'tracker') in batches of about 50, so ApplyTwin never applies to them again. "
+              "Skip rows that are only saved, planned or 'to apply'. Only record what the file shows; never guess a company "
+              "or role. Don't open a browser. Finish with how many you recorded.")
+    try:
+        r = _run_or_queue(HELP, prompt)
+    except Exception as e:
+        raise RuntimeError(f"ApplyTwin couldn't find company and role columns in that file, and your agent couldn't read it "
+                           f"for you ({e}). Export your tracker as CSV or Excel with a header row (Company, Role, Status), "
+                           "then import that.")
+    return {"matched": 0, "known_applications": 0, "reading": True, "queued": bool(r.get('queued') or r.get('busy')),
+            "note": "Your twin is reading it now and will add every application it finds. Your queue updates as it goes."}
 
 
 def remember_applied(items):

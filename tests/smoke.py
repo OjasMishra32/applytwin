@@ -1292,6 +1292,85 @@ finally:
 res.append(ok(_runs and 'applytwin-history' in (_runs[0] or '') and _fs.get('running') and not _fs.get('done')
               and not [r for r in api.inbox() if 'mail.google.com' in (r['url'] or '')] and _fs2.get('done'),
               f'Finish on the email sign-in restarts the email search ({_fs}, {_fs2})'))
+# your own tracker, in whatever format you keep it: a title row above the header, Excel (dates as day numbers, links on
+# cells), Word tables, a sheet printed to PDF, Notion's "Name" + checkbox, Markdown; Numbers and old .xls say how to export
+import zipfile as _zf, io as _io, base64 as _b64
+from applytwin import tracker as _trk
+store.save('applied_elsewhere.json', [])
+_csv = ('My 2026 search,,,\n,,,\nCompany,Position,Date Applied,Status\nStripe,Software Engineering Intern,2025-09-12,Applied\n'
+        'Notion,SWE Intern,,Want to apply\nRamp,Backend Intern,2025-10-01,Rejected\nDatadog,SWE Intern,2025-10-03,Haven\'t heard back\n')
+_h1 = api.import_history(name='t.csv', data=_b64.b64encode(_csv.encode()).decode())
+_seen = {(x['company'], x['status']) for x in api.applied_elsewhere()}
+res.append(ok(_h1['known_applications'] == 3 and ('Datadog', "Haven't heard back") in _seen and not any(c == 'Notion' for c, _ in _seen),
+              f'tracker CSV with a title row: header found, "to apply" rows left alone, "haven\'t heard back" counts ({_h1})'))
+_xb = _io.BytesIO()
+with _zf.ZipFile(_xb, 'w') as _z:
+    _ns = 'xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
+    _rel = '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">%s</Relationships>'
+    _z.writestr('xl/workbook.xml', f'<workbook {_ns}><sheets><sheet name="Apps" sheetId="1" r:id="rId1"/></sheets></workbook>')
+    _z.writestr('xl/_rels/workbook.xml.rels', _rel % '<Relationship Id="rId1" Target="worksheets/sheet1.xml" Type="x"/>')
+    _z.writestr('xl/sharedStrings.xml', f'<sst {_ns}><si><t>Company Name</t></si><si><t>Job Title</t></si><si><t>Applied On</t></si>'
+                '<si><t>Link</t></si><si><t>Coinbase</t></si><si><r><t>Software </t></r><r><t>Engineer Intern</t></r></si><si><t>posting</t></si></sst>')
+    _z.writestr('xl/worksheets/sheet1.xml', f'<worksheet {_ns}><sheetData><row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>1</v></c>'
+                '<c r="C1" t="s"><v>2</v></c><c r="D1" t="s"><v>3</v></c></row><row r="2"><c r="A2" t="s"><v>4</v></c><c r="B2" t="s"><v>5</v></c>'
+                '<c r="C2"><v>45567</v></c><c r="D2" t="s"><v>6</v></c></row></sheetData><hyperlinks><hyperlink ref="D2" r:id="rId9"/></hyperlinks></worksheet>')
+    _z.writestr('xl/worksheets/_rels/sheet1.xml.rels', _rel % '<Relationship Id="rId9" Target="https://www.coinbase.com/careers/positions/6543210" Type="x" TargetMode="External"/>')
+_h2 = api.import_history(name='Tracker.xlsx', data=_xb.getvalue())
+_cb = next((x for x in api.applied_elsewhere() if x['company'] == 'Coinbase'), {})
+res.append(ok(_h2['known_applications'] == 1 and _cb.get('title') == 'Software Engineer Intern' and _cb.get('date') == '2024-10-02'
+              and _cb.get('url', '').endswith('/6543210'), f'Excel tracker: rich text, date numbers and cell links read ({_cb})'))
+_db = _io.BytesIO()
+with _zf.ZipFile(_db, 'w') as _z:
+    _w = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
+    _tc = lambda t: f'<w:tc><w:p><w:r><w:t>{t}</w:t></w:r></w:p></w:tc>'
+    _z.writestr('word/document.xml', f'<w:document {_w}><w:body><w:tbl>' + ''.join('<w:tr>' + ''.join(map(_tc, r)) + '</w:tr>' for r in
+                [('Company', 'Role', 'Applied?'), ('Acme', 'ML Intern', 'Yes'), ('Globex', 'Data Intern', 'No')]) + '</w:tbl></w:body></w:document>')
+_h3 = api.import_history(name='apps.docx', data=_db.getvalue())
+_pdf_txt = ('                     Applications\n\nCompany                               Job Title                           Applied?\n'
+            'Initech      Software Engineer Intern, Summer 2026 Platform               Yes\n'
+            '             Infrastructure Team\nHooli        Data Science Intern                                          No\n\n\n          Page 1\n')
+_rows = _trk.text_rows(_pdf_txt)
+_notion = _trk.tables('n.csv', b'Name,Job,Applied\nAirbnb,SWE Intern,TRUE\nLyft,SWE Intern,FALSE\n')[0][1]
+_md = _trk.text_rows('| Company | Role | Status |\n|---|---|---|\n| Plaid | SWE Intern | Applied |\n')
+_errs = []
+for _nm, _raw in (('t.numbers', b'PK\x03\x04'), ('old.xls', b'\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1' + b'\0' * 64)):
+    _zb = _io.BytesIO()
+    if _nm.endswith('numbers'):
+        with _zf.ZipFile(_zb, 'w') as _z:
+            _z.writestr('Index/Document.iwa', b'x')
+        _raw = _zb.getvalue()
+    try:
+        api.import_history(name=_nm, data=_raw)
+    except RuntimeError as _e:
+        _errs.append(str(_e))
+res.append(ok(_h3['known_applications'] == 1 and _rows[1] == ['Initech', 'Software Engineer Intern, Summer 2026 Platform Infrastructure Team', 'Yes']
+              and len(_rows) == 3 and _trk.header_index(_notion[0]) and _trk.header_index(_notion[0])['company'] == 0
+              and _md[1] == ['Plaid', 'SWE Intern', 'Applied'] and len(_errs) == 2 and 'Export To' in _errs[0] and '.xlsx' in _errs[1],
+              f'Word tables, PDF columns with a wrapped cell, Notion and Markdown read; Numbers/.xls say how to export ({_rows[1:]}, {_errs})'))
+# a tracker with no columns (notes typed into a PDF or Word) goes to your agent to read, not a "found 0" dead end
+_runs, _sr = [], api.start_run
+api.start_run = lambda agent='claude', n=25, model=None, prompt=None, restarts=0: (_runs.append(prompt), {"running": True})[1]
+try:
+    _h4 = api.import_history(name='notes.txt', data=b'Jobs I applied to\nApplied to Google for STEP on Sept 3\nMeta, rejected after the OA\n')
+    _h5 = api.import_history(name='notes.txt', data=b'Jobs I applied to\nApplied to Google for STEP on Sept 3\n', hand_off=False)
+finally:
+    api.start_run = _sr
+res.append(ok(_h4.get('reading') and _runs and 'applytwin_import_applied' in _runs[0] and _h5.get('read_file') and len(_runs) == 1
+              and 'Google for STEP' in open(_h5['read_file'], encoding='utf-8').read(),
+              f'a tracker with no columns is handed to the agent to read ({_h4.get("note")})'))
+# the stuck-run timer: a resume being written, or the twin's browser changing, counts as the twin working
+os.makedirs(store.path('progress'), exist_ok=True)
+open(store.path('progress', 'job_x.json'), 'w').write('{}')
+_seen_b, _tw = {}, __import__('applytwin.twin', fromlist=['look'])
+_old_look = _tw.look
+_looks = iter(['a', 'a', 'b', ''])
+_tw.look = lambda: next(_looks)
+try:
+    _moves = [api._browser_moved(_seen_b) for _ in range(4)]
+finally:
+    _tw.look = _old_look
+res.append(ok(api._last_activity(0) >= time.time() - 5 and _moves == [True, False, True, False],
+              f'a resume build and browser changes keep a run from being stopped as stuck ({_moves})'))
 # "change this" on one job's resume: the request reaches the writer, ranked above ordering rules but never the truth rules
 _pq = _tl.prompt(store.resume(), {'id': 'rq1', 'title': 'Software Engineer Intern', 'company': 'Acme'}, 'Python, React',
                  {'request': 'Lead with my robotics project and drop the retail job'})

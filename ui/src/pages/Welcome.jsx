@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 import { ArrowLeft, Check, Copy, FileText, Loader2 } from 'lucide-react'
 import { AgentConnect } from '../components/AgentConnect'
 import { ImportWait } from '../components/ImportWait'
-import { api } from '../lib/api'
+import { api, fileBody, TRACKER_FILES, trackerToast } from '../lib/api'
 import { Accounts } from '../components/Accounts'
 import { useApp } from '../App'
 import { Drop, Segmented, Switch } from '../components/ui'
@@ -204,10 +204,10 @@ export default function Welcome() {
           <div className="text-[16px] font-semibold text-white">Find them in my email</div>
           <div className="mt-1 text-[13.5px] text-muted">{hist === 'email' ? 'Started. Your twin is reading your "thank you for applying" emails.' : 'Your twin reads your "thank you for applying" emails. Any email works.'}</div></button>
         <label className={'cursor-pointer rounded-[12px] px-5 py-4 transition-colors ' + (hist === 'csv' ? 'bg-[#1c1c1e] ring-2 ring-signal' : 'bg-[#1c1c1e] ring-1 ring-white/[.06] hover:bg-[#232325]')}>
-          <input type="file" accept=".csv,text/csv" className="hidden" onChange={async e => { const f = e.target.files?.[0]; if (!f) return
-            try { const r = await api('/api/history', { text: await f.text() }); setHist('csv'); toast.success(`Found ${r.known_applications} applications`) } catch (err) { toast.error(err.message) } }} />
+          <input type="file" accept={TRACKER_FILES} className="hidden" onChange={async e => { const f = e.target.files?.[0]; if (!f) return
+            try { const r = await api('/api/history', await fileBody(f)); setHist('csv'); trackerToast(toast, r) } catch (err) { toast.error("Couldn't import that file", { description: err.message }) } e.target.value = '' }} />
           <div className="text-[16px] font-semibold text-white">Import my tracker</div>
-          <div className="mt-1 text-[13.5px] text-muted">{hist === 'csv' ? 'Imported.' : 'A CSV from Simplify, Huntr, Teal, Notion or a spreadsheet.'}</div></label>
+          <div className="mt-1 text-[13.5px] text-muted">{hist === 'csv' ? 'Imported.' : 'From Simplify, Huntr, Teal, Notion or your own sheet. CSV, Excel, PDF or Word all work.'}</div></label>
       </div>
     </Center>,
     apply: <Center wide>
