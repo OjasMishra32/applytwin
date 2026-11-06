@@ -531,3 +531,159 @@ def import_resume(name='', data=None, text=None):
             "latex_source": bool(source_tex), "filled": sorted(patch),
             "fallback": why.strip(),
             "message": f"Found {found or 'your details'}." + why + ('' if structured else ' Check it in Resume Studio; your agent can polish it.')}
+
+
+# ------------------------------------------------------------------ skills from the user's public GitHub repos
+
+# dependency name -> the name a resume uses. Only libraries and tools a screener searches for; a repo's long tail of
+# helpers (clsx, lodash, eslint plugins) is noise on a page.
+DEPS = {
+    'react': 'React', 'next': 'Next.js', 'vue': 'Vue', 'svelte': 'Svelte', '@angular/core': 'Angular', 'express': 'Express',
+    'fastify': 'Fastify', '@nestjs/core': 'NestJS', 'three': 'three.js', '@react-three/fiber': 'React Three Fiber',
+    'tailwindcss': 'Tailwind CSS', 'vite': 'Vite', 'graphql': 'GraphQL', '@apollo/client': 'Apollo', 'prisma': 'Prisma',
+    '@prisma/client': 'Prisma', 'socket.io': 'Socket.IO', 'socket.io-client': 'Socket.IO', 'zod': 'Zod', 'redux': 'Redux',
+    '@reduxjs/toolkit': 'Redux', 'zustand': 'Zustand', 'jest': 'Jest', 'vitest': 'Vitest', 'playwright': 'Playwright',
+    '@playwright/test': 'Playwright', 'playwright-core': 'Playwright', 'cypress': 'Cypress', 'electron': 'Electron',
+    '@tauri-apps/api': 'Tauri', 'react-native': 'React Native', 'expo': 'Expo', 'd3': 'D3.js', 'stripe': 'Stripe',
+    '@supabase/supabase-js': 'Supabase', 'firebase': 'Firebase', 'mongoose': 'MongoDB', 'mongodb': 'MongoDB', 'pg': 'PostgreSQL',
+    'mysql2': 'MySQL', 'redis': 'Redis', 'ioredis': 'Redis', 'kafkajs': 'Kafka', 'openai': 'OpenAI API', '@anthropic-ai/sdk': 'Anthropic API',
+    '@google/genai': 'Gemini API', '@google/generative-ai': 'Gemini API', 'langchain': 'LangChain', '@mediapipe/tasks-vision': 'MediaPipe',
+    'chess.js': 'chess.js',
+    # Python
+    'torch': 'PyTorch', 'tensorflow': 'TensorFlow', 'jax': 'JAX', 'keras': 'Keras', 'transformers': 'Hugging Face Transformers',
+    'diffusers': 'Diffusers', 'accelerate': 'Accelerate', 'lightning': 'PyTorch Lightning', 'pytorch-lightning': 'PyTorch Lightning',
+    'scikit-learn': 'scikit-learn', 'sklearn': 'scikit-learn', 'xgboost': 'XGBoost', 'lightgbm': 'LightGBM', 'numpy': 'NumPy',
+    'pandas': 'pandas', 'polars': 'Polars', 'scipy': 'SciPy', 'statsmodels': 'statsmodels', 'matplotlib': 'Matplotlib',
+    'opencv-python': 'OpenCV', 'opencv-python-headless': 'OpenCV', 'onnx': 'ONNX', 'onnxruntime': 'ONNX Runtime',
+    'mediapipe': 'MediaPipe', 'open3d': 'Open3D', 'gsplat': 'gsplat', 'fastapi': 'FastAPI', 'flask': 'Flask', 'django': 'Django',
+    'pydantic': 'Pydantic', 'sqlalchemy': 'SQLAlchemy', 'celery': 'Celery', 'psycopg2': 'PostgreSQL', 'psycopg2-binary': 'PostgreSQL',
+    'psycopg': 'PostgreSQL', 'pymongo': 'MongoDB', 'duckdb': 'DuckDB', 'pyspark': 'Spark', 'boto3': 'AWS', 'snowflake-connector-python': 'Snowflake',
+    'langchain-core': 'LangChain', 'llama-index': 'LlamaIndex', 'gradio': 'Gradio', 'streamlit': 'Streamlit', 'pytest': 'pytest',
+    'ray': 'Ray', 'wandb': 'Weights & Biases', 'mlflow': 'MLflow', 'triton': 'Triton', 'cupy': 'CUDA', 'numba': 'Numba',
+    'cadquery': 'CadQuery', 'mujoco': 'MuJoCo', 'pybullet': 'PyBullet', 'rclpy': 'ROS 2', 'gymnasium': 'Gymnasium', 'gym': 'Gymnasium',
+}
+_DEP_PREFIX = {'@aws-sdk/': 'AWS', '@google-cloud/': 'GCP', '@azure/': 'Azure', 'azure-': 'Azure', 'google-cloud-': 'GCP',
+               '@radix-ui/': 'Radix UI', '@tanstack/': 'TanStack'}
+LANG_NAMES = {'Shell': 'Bash', 'Jupyter Notebook': 'Python', 'Vue': 'Vue', 'HCL': 'Terraform'}
+NOT_A_LANGUAGE = {'HTML', 'CSS', 'SCSS', 'Less', 'Makefile', 'Dockerfile', 'Procfile', 'Batchfile', 'PowerShell', 'ShaderLab',
+                  'Roff', 'TeX', 'Jupyter Notebook', 'Vim Script', 'Nix'}
+# files at a repo's root whose presence alone shows a tool
+_FILES = {'Dockerfile': 'Docker', 'docker-compose.yml': 'Docker', 'docker-compose.yaml': 'Docker', 'vercel.json': 'Vercel',
+          'serverless.yml': 'AWS Lambda', 'Chart.yaml': 'Kubernetes', 'skaffold.yaml': 'Kubernetes', 'CMakeLists.txt': 'CMake'}
+_MANIFESTS = ('package.json', 'requirements.txt', 'pyproject.toml', 'Cargo.toml', 'go.mod', 'Package.swift', 'environment.yml')
+
+
+def _gh(path, token=None, raw=False, timeout=12):
+    import urllib.request
+    url = ('https://raw.githubusercontent.com/' if raw else 'https://api.github.com/') + path
+    req = urllib.request.Request(url, headers={'User-Agent': 'ApplyTwin', 'Accept': 'application/vnd.github+json',
+                                               **({'Authorization': 'Bearer ' + token} if token and not raw else {})})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            body = r.read().decode('utf-8', 'ignore')
+        return body if raw else json.loads(body)
+    except Exception:
+        return None
+
+
+def _deps_of(name, txt):
+    """Dependency names from one manifest's text."""
+    if name == 'package.json':
+        try:
+            j = json.loads(txt)
+        except ValueError:
+            return []
+        return list((j.get('dependencies') or {})) + list((j.get('devDependencies') or {}))
+    if name in ('requirements.txt', 'environment.yml'):
+        return [re.split(r'[=<>~!\[ ;@]', l.strip().lstrip('- '))[0] for l in txt.splitlines()
+                if l.strip() and not l.strip().startswith(('#', '-r', '--', 'name:', 'channels:', 'dependencies:'))]
+    if name == 'pyproject.toml':
+        return re.findall(r'^\s*"?([A-Za-z0-9_.\-]+)\s*(?:[><=~!]|"\s*,|"$)', txt, re.M)
+    if name == 'Cargo.toml':
+        return ['rust:' + x for x in re.findall(r'^([a-z0-9_\-]+)\s*=', txt.split('[dependencies]', 1)[-1], re.M)]
+    if name == 'go.mod':
+        return ['go:' + x for x in re.findall(r'^\s*([\w.\-/]+)\s+v\d', txt, re.M)]
+    return []
+
+
+def github_skills(user, token=None, max_repos=20):
+    """What the user's own public GitHub repos show they've used: languages (by bytes of code) plus the libraries, frameworks
+    and tools named in each repo's manifests and root files. Forks are skipped (that code isn't theirs). Uses about one API
+    calls per repo (GitHub allows 60 an hour without a token; GITHUB_TOKEN raises that) and reads manifests from raw.githubusercontent.com.
+    Returns {"languages": [...], "frameworks": [...], "tools": [...], "repos": n, "evidence": {skill: [repo, ...]}}."""
+    user = re.sub(r'^(https?://)?(www\.)?github\.com/', '', (user or '').strip()).strip('/').split('/')[0]
+    if not re.fullmatch(r'[A-Za-z0-9-]{1,39}', user or ''):
+        raise ValueError('Give a GitHub username or profile link, like github.com/octocat')
+    token = token or os.environ.get('GITHUB_TOKEN') or os.environ.get('GH_TOKEN')
+    repos = _gh(f'users/{user}/repos?per_page=100&type=owner&sort=pushed', token)
+    if not isinstance(repos, list):
+        raise RuntimeError(f"Couldn't read github.com/{user}'s repos (no such user, or GitHub's rate limit; try again in an hour)")
+    repos = [r for r in repos if not r.get('fork') and not r.get('archived')][:max_repos]
+    langs, evidence = {}, {}
+
+    def saw(skill, repo):
+        evidence.setdefault(skill, [])
+        if repo not in evidence[skill]:
+            evidence[skill].append(repo)
+    for r in repos:
+        name, branch = r['name'], r.get('default_branch') or 'main'
+        for lang, n in (_gh(f'repos/{user}/{name}/languages', token) or {}).items():
+            if lang in NOT_A_LANGUAGE and lang not in LANG_NAMES:
+                continue
+            lang = LANG_NAMES.get(lang, lang)
+            langs[lang] = langs.get(lang, 0) + n
+            saw(lang, name)
+        tree = _gh(f'repos/{user}/{name}/git/trees/{branch}?recursive=1', token) or {}
+        paths = [t['path'] for t in tree.get('tree', []) if t.get('type') == 'blob'] or list(_MANIFESTS + tuple(_FILES))
+        paths = [p for p in paths if p.split('/')[-1] in _MANIFESTS + tuple(_FILES) and p.count('/') <= 3
+                 and not re.search(r'(^|/)(node_modules|vendor|third_party|ThirdParty|_vendor|examples?|\.venv)/', p)][:14]
+        for path in paths:
+            f = path.split('/')[-1]
+            txt = _gh(f'{user}/{name}/{branch}/{path}', raw=True)
+            if not txt:
+                continue
+            if f in _FILES:
+                saw(_FILES[f], name)
+            if f == 'Cargo.toml':
+                saw('Rust', name)
+            if f == 'go.mod':
+                saw('Go', name)
+            for d in _deps_of(f, txt):
+                d = d.strip().lower()
+                hit = DEPS.get(d) or next((v for k, v in _DEP_PREFIX.items() if d.startswith(k)), None)
+                if hit:
+                    saw(hit, name)
+    order = lambda xs: sorted(xs, key=lambda x: (-len(evidence.get(x, [])), x.lower()))
+    languages = [l for l, _ in sorted(langs.items(), key=lambda kv: -kv[1])]
+    tool_names = {'Docker', 'Kubernetes', 'AWS', 'AWS Lambda', 'GCP', 'Azure', 'Vercel', 'Supabase', 'Firebase', 'PostgreSQL',
+                  'MongoDB', 'MySQL', 'Redis', 'Kafka', 'DuckDB', 'Snowflake', 'Spark', 'CMake', 'Terraform', 'Stripe',
+                  'Weights & Biases', 'MLflow', 'Playwright', 'Cypress', 'Jest', 'Vitest', 'pytest'}
+    rest = [s for s in evidence if s not in langs]
+    return {"user": user, "repos": len(repos), "languages": languages,
+            "frameworks": order([s for s in rest if s not in tool_names]), "tools": order([s for s in rest if s in tool_names]),
+            "evidence": evidence}
+
+
+def merge_github_skills(vault, found, pick=None):
+    """Add GitHub-found skills to the vault's skills lines (new ones only; nothing the user wrote is changed or removed).
+    pick: only these names (the user reviewed the list). Languages go on the Languages line, libraries and frameworks on
+    Frameworks, the rest on Developer Tools, the labels top-firm resumes use."""
+    want = set(pick) if pick else None
+    have = {x.lower() for g in vault.get('skills', []) for x in (g.get('items') or []) if isinstance(x, str)}
+    groups = vault.setdefault('skills', [])
+    added = []
+
+    def line(label, rx):
+        g = next((g for g in groups if re.search(rx, g.get('label', ''), re.I)), None)
+        if not g:
+            g = {'label': label, 'items': []}
+            groups.append(g)
+        return g
+    for key, label, rx in (('languages', 'Languages', r'language'), ('frameworks', 'Frameworks', r'framework|librar|technolog'),
+                           ('tools', 'Developer Tools', r'tool|infra|cloud|platform')):
+        new = [x for x in found.get(key, []) if x.lower() not in have and (want is None or x in want)]
+        if new:
+            line(label, rx)['items'] += new
+            have |= {x.lower() for x in new}
+            added += new
+    return added

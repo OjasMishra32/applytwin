@@ -57,7 +57,9 @@ body { margin: 0; color: #111; font-variant-ligatures: none; font-feature-settin
        font-variant-numeric: lining-nums; font-kerning: normal; }
 .page { width: 8.5in; min-height: 11in; padding: var(--mt) var(--mx); font-family: var(--font); font-size: calc(var(--fs) * var(--k));
         line-height: var(--lh); hyphens: manual; overflow-wrap: break-word; }
-a { color: inherit; text-decoration: none; }
+/* every link is underlined so a reader can see what is clickable: a thin line set just under the text, so it never
+   crowds the line below. The text itself is unchanged, so ATS parsers read it the same */
+a { color: inherit; text-decoration: underline; text-decoration-thickness: .055em; text-underline-offset: .16em; }
 h1 { margin: 0; font-size: calc(var(--name) * var(--k)); line-height: 1.1; }
 .contact { margin-top: .2em; }
 .contact > span, .headline > span { white-space: nowrap; }
@@ -245,7 +247,8 @@ def _page(r, style, titles=None):
                     org = f'<a href="{html.escape(e["url"])}">{org}</a>'
                 body.append(f'<div class="entry"><div class="row"><span class="org">{org}</span><span>{html.escape(dates(e))}</span></div>')
                 if e.get('title') or e.get('location'):
-                    body.append(f'<div class="row"><span class="role">{md(e.get("title", ""))}</span>'
+                    stack = (' <span class=tag>| ' + html.escape(', '.join(e['stack'])) + '</span>') if e.get('stack') else ''
+                    body.append(f'<div class="row"><span class="role">{md(e.get("title", ""))}{stack}</span>'
                                 f'<span class="meta">{html.escape(e.get("location", ""))}</span></div>')
                 if e.get('bullets'):
                     body.append('<ul>' + ''.join(f'<li>{md(x)}</li>' for x in e['bullets']) + '</ul>')

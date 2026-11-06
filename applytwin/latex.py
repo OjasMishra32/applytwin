@@ -14,6 +14,11 @@ PREAMBLE = r"""\documentclass[letterpaper,11pt]{article}
 \usepackage[usenames,dvipsnames]{color}
 \usepackage{enumitem}
 \usepackage[hidelinks]{hyperref}
+\usepackage{calc}
+% every link is underlined: a thin rule drawn just under the link text, so it adds no line height and leaves the text
+% (and the spaces around it, see \atfs) exactly as a parser reads it
+\newcommand{\lk}[1]{\rlap{\rule[-1.4pt]{\widthof{#1}}{0.4pt}}#1}
+\newcommand{\atfs}{\ifdefined\pdffakespace\pdffakespace\fi}
 \usepackage[english]{babel}
 \usepackage{tabularx}
 \usepackage[T1]{fontenc}
@@ -67,7 +72,7 @@ def tex(s):
     out, i = [], 0
     for m in re.finditer(r'\[([^\]]+)\]\(([^)\s]+)\)', s or ''):
         out.append(_bold(esc(s[i:m.start()])))
-        out.append(r'\href{%s}{%s}' % (url(m.group(2)), _bold(esc(m.group(1)))))
+        out.append(r'\href{%s}{\lk{%s}}' % (url(m.group(2)), _bold(esc(m.group(1)))))
         i = m.end()
     out.append(_bold(esc((s or '')[i:])))
     return ''.join(out)
@@ -89,7 +94,7 @@ def build_tex(r, k=1.0):
     contact = [esc(x) for x in (b.get('phone'), b.get('email'), b.get('location'), b.get('status')) if x]
     for l in b.get('links', []):
         label = l.get('label') or re.sub(r'^https?://(www\.)?', '', l.get('url', '')).rstrip('/')
-        contact.append(r'\href{%s}{\underline{%s}}' % (url(l.get('url', '')), esc(label)))
+        contact.append(r'\href{%s}{\lk{%s}}' % (url(l.get('url', '')), esc(label)))
     body = [r'\begin{center}', r'\textbf{\Huge \scshape %s} \\ \vspace{1pt}' % esc(b.get('name', ''))]
     if b.get('headline'):
         body.append(r'\small %s \\ \vspace{1pt}' % r' $\cdot$ '.join(tex(h) for h in b['headline']))
@@ -119,8 +124,9 @@ def build_tex(r, k=1.0):
         elif sec in ('experience', 'leadership', 'volunteering'):
             body.append(r'\resumeSubHeadingListStart')
             for e in data:
-                org = tex(e.get('org', '')) if not e.get('url') else r'\href{%s}{%s}' % (url(e['url']), tex(e.get('org', '')))
-                body.append(r'\resumeSubheading{%s}{%s}{%s}{%s}' % (org, dates(e), tex(e.get('title', '')), esc(e.get('location', ''))))
+                org = tex(e.get('org', '')) if not e.get('url') else r'\href{%s}{\lk{%s}}' % (url(e['url']), tex(e.get('org', '')))
+                role = tex(e.get('title', '')) + ((r' $|$ ' + esc(', '.join(e['stack']))) if e.get('stack') else '')
+                body.append(r'\resumeSubheading{%s}{%s}{%s}{%s}' % (org, dates(e), role, esc(e.get('location', ''))))
                 if e.get('bullets'):
                     body += [r'\resumeItemListStart'] + [r'\resumeItem{%s}' % tex(x) for x in e['bullets']] + [r'\resumeItemListEnd']
             body.append(r'\resumeSubHeadingListEnd')
@@ -145,7 +151,7 @@ def build_tex(r, k=1.0):
                 else:
                     t = tex(x.get('title', ''))
                     if x.get('url'):
-                        t = r'\href{%s}{%s}' % (url(x['url']), t)
+                        t = r'\href{%s}{\lk{%s}}' % (url(x['url']), t)
                     body.append(r'\resumeItem{%s%s%s}' % ((tex(x['role']) + ': ') if x.get('role') else '', t,
                                                           (r'. \textbf{%s}' % tex(x['venue'])) if x.get('venue') else ''))
             body.append(r'\end{itemize}\vspace{-4pt}')
@@ -156,7 +162,13 @@ def build_tex(r, k=1.0):
         pre = pre.replace('letterpaper', 'a4paper')
     if k < 0.93:
         pre += '\n\\setlist{itemsep=-1pt}\n'
-    return pre + '\n\\begin{document}\n' + '\n'.join(body) + '\n\\end{document}\n'
+    doc = '\n'.join(body)
+    # pdfTeX drops the word space next to a boxed underline from the text layer ("prototypeand"): put a real space
+    # character back on each side of a link that sits between words
+    lk = r'\\href\{[^{}]*\}\{\\lk\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}\}'
+    doc = re.sub(r'(?<= )(' + lk + ')', r'\\atfs{}\1', doc)
+    doc = re.sub('(' + lk + r')(?= )', r'\1\\atfs{}', doc)
+    return pre + '\n\\begin{document}\n' + doc + '\n\\end{document}\n'
 
 
 # pdfLaTeX first, as on Overleaf: with glyphtounicode and \pdfinterwordspaceon its text layer has real spaces and plain

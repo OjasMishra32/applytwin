@@ -89,6 +89,7 @@ POST = {
     r'/api/ats': lambda m, qs, b: api.ats_report(b.get('job_id'), b.get('jd'), b.get('resume')),
     r'/api/import': lambda m, qs, b: api.import_resume(b.get('name', ''), b.get('data'), b.get('text')),
     r'/api/import/cancel': lambda m, qs, b: api.cancel_import(),
+    r'/api/import/github': lambda m, qs, b: api.import_github(b.get('user', ''), bool(b.get('apply')), b.get('pick')),
     r'/api/run': lambda m, qs, b: api.start_run(b.get('agent', 'claude'), int(b.get('n', 25))),
     r'/api/run/stop': lambda m, qs, b: api.stop_run(),
     r'/api/update': lambda m, qs, b: update_now(),

@@ -1,6 +1,6 @@
 """End-to-end smoke test on a throwaway APPLYTWIN_HOME: vault -> render every template -> tailor + fact guard -> answers -> MCP."""
 import json
-import time, os, subprocess, sys, tempfile, time
+import copy, time, os, subprocess, sys, tempfile, time
 os.environ.setdefault('APPLYTWIN_NO_TWIN', '1')   # never open or reach the real twin browser
 os.environ.setdefault('APPLYTWIN_SCAN_INLINE', '1')   # scans stay in-process so tests can stand in for them
 os.environ["APPLYTWIN_NO_TELEMETRY"] = "1"   # tests never count as installs
@@ -1412,6 +1412,40 @@ if sys.platform == 'darwin':
     finally:
         _inst.NOTIFIER = _old
     res.append(ok(bool(_built) and _sig, 'macOS notifier app builds and its signature checks out'))
+
+# tech stack on each role's title line, links underlined without losing spaces in the text layer, GitHub skills import
+from applytwin import tailor as _tst, latex as _lx, importer as _imp
+_ex = json.load(open(os.path.join(ROOT, 'examples', 'resume.example.json')))
+_sr = {'experience': copy.deepcopy(_ex['experience']), 'skills': _ex['skills']}
+_tst._role_stacks(_sr)
+_st0 = _sr['experience'][0].get('stack') or []
+res.append(ok(_st0[:2] == ['Go', 'Kafka'] and all(_tst._names_tool(x, ' '.join(_sr['experience'][0]['bullets'])) for x in _st0)
+              and all(len(e['title']) + len(', '.join(e.get('stack') or [])) + 3 <= _tst.STACK_CHARS for e in _sr['experience']),
+              f'role stack comes only from tools the role\'s own bullets name, in order, and fits the title line: {_st0}'))
+_fin = {'experience': copy.deepcopy(_ex['experience']), 'skills': _ex['skills']}
+_tst._house_rules(_fin, {'field': 'finance'})
+res.append(ok(not any(e.get('stack') for e in _fin['experience']), 'finance resumes get no stack on the title line'))
+_lr = copy.deepcopy(_ex); _lr['experience'] = copy.deepcopy(_sr['experience'])
+_ltx = _lx.build_tex(_lr)
+res.append(ok(r'\lk{' in _ltx and r'\underline{' not in _ltx and r'$|$ Go, Kafka' in _ltx and r'\atfs{}' in _ltx,
+              'latex: links use the thin underline, role stacks are on the title line, real spaces kept around links'))
+_rl2 = render.render(_lr, 'latex', os.path.join(os.environ['APPLYTWIN_HOME'], 'l2.pdf'))
+_tl2 = render.pdf_text(_rl2['pdf']) or ''
+res.append(ok(_rl2['pages'] == 1 and not _ats.text_layer_issues(_tl2) and 'Go, Kafka' in _tl2,
+              f'latex with stacks and underlined links: 1 page, clean text layer {_ats.text_layer_issues(_tl2)}'))
+_css = render.CSS if hasattr(render, 'CSS') else open(os.path.join(ROOT, 'applytwin', 'render.py'), encoding='utf-8').read()
+res.append(ok('text-decoration: underline' in _css and 'text-underline-offset' in _css, 'html templates underline every link'))
+_pkg = json.dumps({'dependencies': {'react': '1', 'next': '1', 'clsx': '1', '@aws-sdk/client-s3': '1'}, 'devDependencies': {'vitest': '1'}})
+_req = 'torch==2.1\nnumpy>=1\n# comment\nscikit-learn[all]; python_version>"3"\n-r other.txt\n'
+_dd = _imp._deps_of('package.json', _pkg) + _imp._deps_of('requirements.txt', _req)
+_hits = {_imp.DEPS.get(d.lower()) or next((v2 for k2, v2 in _imp._DEP_PREFIX.items() if d.lower().startswith(k2)), None) for d in _dd} - {None}
+res.append(ok(_hits == {'React', 'Next.js', 'AWS', 'Vitest', 'PyTorch', 'NumPy', 'scikit-learn'},
+              f'github import reads package.json and requirements.txt into resume names, skipping helper libs: {sorted(_hits)}'))
+_gv = {'skills': [{'label': 'Languages', 'items': ['Python']}, {'label': 'Tools', 'items': ['Git']}]}
+_add = _imp.merge_github_skills(_gv, {'languages': ['Python', 'Go'], 'frameworks': ['React'], 'tools': ['Docker', 'git']}, pick=['Go', 'React', 'Docker'])
+res.append(ok(_add == ['Go', 'React', 'Docker'] and _gv['skills'][0]['items'] == ['Python', 'Go'] and _gv['skills'][1]['items'] == ['Git', 'Docker']
+              and any(g['label'] == 'Frameworks' and g['items'] == ['React'] for g in _gv['skills']),
+              'github skills merge: only new picked names, onto the matching lines, nothing removed'))
 
 print(f'\n{sum(res)}/{len(res)} passed')
 sys.exit(0 if all(res) else 1)

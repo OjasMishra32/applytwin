@@ -1256,6 +1256,8 @@ def _house_rules(res, ctx):
             if res.get(sec):
                 res[sec] = _newest_first(res[sec]) if sec == 'experience' else \
                     sorted(res[sec], key=lambda e: _when_end(e), reverse=True)
+    if ctx.get('field') not in ('finance', 'consulting') and not prof.get('chronological'):
+        _role_stacks(res)
     if prof.get('force_order') and res.get('order'):
         lead = [s for s in prof['force_order'] if s in res['order']]
         res['order'] = lead + [s for s in res['order'] if s not in lead]
@@ -1268,6 +1270,32 @@ def _house_rules(res, ctx):
                 name = parts[0] if len(parts) == 1 else ', '.join(parts[:-1]) + ' & ' + parts[-1]
             t.setdefault(sec, name)   # a heading the user named in their vault stays theirs
         res['titles'] = t
+
+
+STACK_CHARS = 70   # title + stack stay on one line next to the location
+
+
+def _role_stacks(res):
+    """Engineering resumes from people who landed top-firm roles name the stack on each role ("Software Engineer Intern |
+    Go, Kafka, PostgreSQL"), so a screener and an ATS keyword search both see it at a glance. The stack comes only from the
+    role's own vault tech list (or, without one, the skills its bullets already name), cut to what fits on the title line."""
+    known = [x for g in res.get('skills', []) for x in (g.get('items') or []) if isinstance(x, str) and x.strip()]
+    for e in res.get('experience', []):
+        if e.get('stack'):
+            continue
+        tech = [t for t in (e.get('tech') or []) if isinstance(t, str) and t.strip()]
+        if not tech:   # no tech list on the role: the skills the role's own bullets name, in the order they come up
+            text = ' '.join(e.get('bullets') or [])
+            hits = [(min((m.start() for m in re.finditer(re.escape(x.split()[0]), text)), default=10 ** 6), x)
+                    for x in known if _names_tool(x, text)]
+            tech = [x for _, x in sorted(hits)]
+        out = []
+        for t in tech:
+            if len(e.get('title', '')) + len(', '.join(out + [t.strip()])) + 3 > STACK_CHARS or len(out) == 5:
+                break
+            out.append(t.strip())
+        if len(out) >= 2:   # one tool on its own reads as filler ("IT Support Assistant | Bash")
+            e['stack'] = out
 
 
 US_PERSON = re.compile(r'security clearance|\bu\.?s\.? (citizen|person)|\bitar\b|export[- ]controlled|'

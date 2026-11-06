@@ -35,6 +35,11 @@ The vault is a SUPERSET, not a resume:
 - Skills: group into 3-6 labeled lines (Languages, Frameworks, Tools/Infra, AI/ML, Data, Hardware...). Only
   skills they have actually used; it's fine to ask "have you used X in a project?" for borderline items.
 
+- GitHub: if they have one, call `applytwin_import_github(user)`. It reads their public repos' languages and the
+  frameworks and tools in each repo's manifests. Show them the list, then `apply=true` with `pick` = the ones they
+  agree they've really used. Name each role's stack in its bullets too ("in Go and Kafka"): the tailor puts the tools
+  a role's bullets name on that role's title line, the way top-firm resumes do.
+
 Show the user a compact summary (counts + 3 of the improved bullets, before/after) and save.
 
 ## 4. Profile (`applytwin_update_profile`)

@@ -1286,6 +1286,21 @@ def import_resume(name='', data=None, text=None):
     return importer.import_resume(name, data, text)
 
 
+def import_github(user, apply=False, pick=None):
+    """Skills the user's public GitHub repos show (languages, frameworks, tools from their manifests). apply=False returns the
+    list for the user to review; apply=True (with an optional pick of names) adds the new ones to the vault's skills lines.
+    Nothing the user already wrote is changed."""
+    from . import importer
+    found = importer.github_skills(user)
+    if not apply:
+        return {"ok": True, **found, "next": "Show the user the list; call again with apply=true (and pick=[...] to keep only some)."}
+    v = get_vault()
+    added = importer.merge_github_skills(v, found, pick)
+    if added:
+        save_vault(v)
+    return {"ok": True, "added": added, "repos": found["repos"], "skills": v.get("skills", [])}
+
+
 def import_progress():
     from . import importer
     return importer.import_progress()
