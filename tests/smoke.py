@@ -1447,5 +1447,12 @@ res.append(ok(_add == ['Go', 'React', 'Docker'] and _gv['skills'][0]['items'] ==
               and any(g['label'] == 'Frameworks' and g['items'] == ['React'] for g in _gv['skills']),
               'github skills merge: only new picked names, onto the matching lines, nothing removed'))
 
+# release notice: shown once per install for the release it belongs to, never twice
+from applytwin import update as _upd
+_nh = tempfile.mkdtemp()
+_n1 = _upd.release_notice('', home=_nh, force=True); _n2 = _upd.release_notice('', home=_nh, force=True)
+res.append(ok((_n1 is None) == (_upd.version() not in _upd.NOTICES) and _n2 is None,
+              'release notice: shown once per install, then never again'))
+
 print(f'\n{sum(res)}/{len(res)} passed')
 sys.exit(0 if all(res) else 1)

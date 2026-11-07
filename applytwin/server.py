@@ -500,6 +500,7 @@ def serve(port=4747, open_browser=True):
     # update after the app is up (the page opens right away), and only in the copy that owns the port
     threading.Thread(target=lambda: (_t.sleep(3), _self_update()), daemon=True).start()
     threading.Thread(target=api.on_start, daemon=True).start()
+    threading.Thread(target=lambda: (_t.sleep(5), _upd.release_notice(url)), daemon=True).start()   # once per release
     from . import telemetry
     telemetry.start()   # anonymous install count (random ID, OS, version); off in Settings   # keep updating while it runs for days
     print(f'ApplyTwin is running at {url}  (data in {store.HOME})', flush=True)

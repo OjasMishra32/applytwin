@@ -195,3 +195,44 @@ def apply(sha=None):
             os.remove(lock)
         except OSError:
             pass
+
+# One-time notices shown after an install updates to a release: {version: (os.name it's for or '', title, message)}
+NOTICES = {
+    '1.4.0': ('nt', 'ApplyTwin 1.4', 'We fixed some major bugs, so everything should be much smoother now.'),
+}
+
+
+def version():
+    try:
+        return open(os.path.join(APP, 'VERSION'), encoding='utf-8').read().strip()
+    except OSError:
+        return ''
+
+
+def release_notice(url='', home=None, force=False):
+    """Show this release's notice once per install (desktop notification). Returns the notice shown or None.
+    Developer checkouts never get it unless force=True (tests)."""
+    v = version()
+    n = NOTICES.get(v)
+    if not n or (n[0] and n[0] != os.name and not force) or (is_checkout() and not force):
+        return None
+    if home is None:
+        from . import store
+        home = store.HOME
+    seen_path = os.path.join(home, 'notices_seen.json')
+    try:
+        seen = json.load(open(seen_path, encoding='utf-8'))
+    except (OSError, ValueError):
+        seen = []
+    if v in seen:
+        return None
+    try:   # mark first: a crash while showing it must not repeat it on every start
+        os.makedirs(home, exist_ok=True)
+        with open(seen_path, 'w', encoding='utf-8') as f:
+            json.dump(seen + [v], f)
+    except OSError:
+        return None
+    if not force:
+        from . import install
+        install.notify(n[1], n[2], url)
+    return {'version': v, 'title': n[1], 'message': n[2]}
