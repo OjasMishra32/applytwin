@@ -146,21 +146,34 @@ export default function Agents() {
   const [gaps, setGaps] = useState([])
   useEffect(() => { api('/api/questions').then(d => setGaps(d.missing || [])).catch(() => {}) }, [])
   const since = useRef(+(safeGet('at:runStart') || 0) || Date.now() / 1000 - 3 * 3600)
-  const refresh = () => { api('/api/inbox').then(setInbox); api('/api/applications').then(setApps) }
+  const refresh = () => {
+    api('/api/inbox' + (document.hidden ? '?bg=1' : '')).then(setInbox).catch(() => {})
+    api('/api/applications').then(setApps).catch(() => {})
+  }
+  const wasRunning = useRef(false)
 
   useEffect(() => {
-    api('/api/queue?n=60').then(setQ); refresh()
+    api('/api/queue?n=60').then(setQ).catch(e => { setQ({ total: 0, dream: 0, jobs: [] }); toast.error(e.message) }); refresh()
     api('/api/agents').then(a => {
       setAgents(a)
       if (!a[agent]?.signed_in) { const ok = Object.keys(a).find(k => a[k].signed_in); if (ok) setAgent(ok) }
     }).catch(() => {})
   }, [])
-  useEffect(() => { if (!run?.running) return; const t = setInterval(refresh, 5000); return () => clearInterval(t) }, [run?.running])
+  useEffect(() => {
+    if (!run?.running) return
+    const t = setInterval(() => { if (!document.hidden) refresh() }, 5000)
+    return () => clearInterval(t)
+  }, [run?.running])
   useEffect(() => {   // fast while a run is going, slow otherwise, so runs started elsewhere (Needs you, a message) show up too
     let t, live = true
     const poll = async () => {
-      try { const r = await api('/api/run'); if (!live) return; setRun(r); if (!r.running) refresh(); t = setTimeout(poll, r.running ? 2000 : 6000) }
-      catch { if (live) t = setTimeout(poll, 6000) }
+      try {
+        const r = await api('/api/run'); if (!live) return; setRun(r)
+        // the lists only change when a run does something: refresh them once when it ends, not on every idle poll
+        if (!r.running && wasRunning.current) refresh()
+        wasRunning.current = !!r.running
+        t = setTimeout(poll, document.hidden ? 20000 : r.running ? 2000 : 6000)
+      } catch { if (live) t = setTimeout(poll, 6000) }
     }
     poll(); return () => { live = false; clearTimeout(t) }
   }, [])
@@ -188,7 +201,9 @@ export default function Agents() {
       toast.success(`${label} is applying`, { description: `Working through your next ${n} jobs.` })
     } catch (e) { toast.error(e.message) }
   }
-  const stop = async () => { setRun(await api('/api/run/stop', {})); toast('Stopped. Your queue keeps its place.') }
+  const stop = async () => {
+    try { setRun(await api('/api/run/stop', {})); toast('Stopped. Your queue keeps its place.') } catch (e) { toast.error(e.message) }
+  }
   const step = d => setN(SIZES[Math.max(0, Math.min(SIZES.length - 1, SIZES.indexOf(n) + d))] ?? 25)
 
   const now = run?.now
@@ -201,6 +216,8 @@ export default function Agents() {
 
   const dayStart = new Date().setHours(0, 0, 0, 0) / 1000
   const appliedToday = Math.max(stats?.applied_day ?? 0, apps.filter(a => a.status === 'Applied' && a.at >= dayStart).length)
+  // filled forms waiting for your Submit count toward the daily limit: show them, or "0 applied" next to "limit reached" looks broken
+  const readyToSubmit = stats?.ready_to_submit ?? 0
   const pct = Math.max(3, (session.length / Math.max(1, total)) * 100)
 
   return (
@@ -252,7 +269,7 @@ export default function Agents() {
           </div>
           {/* today at a glance */}
           <div className="grid grid-cols-3 border-t border-white/[.06]">
-            {[[appliedToday, 'Applied today'], [groups.length, groups.length === 1 ? 'Thing needs you' : 'Things need you'], [q ? q.total : null, 'Roles in your queue']].map(([v, l], k) => (
+            {[[appliedToday, readyToSubmit ? `Applied today · ${readyToSubmit} ready for your Submit` : 'Applied today'], [groups.length, groups.length === 1 ? 'Thing needs you' : 'Things need you'], [q ? q.total : null, 'Roles in your queue']].map(([v, l], k) => (
               <div key={l} className={'px-4 py-5 sm:px-7 ' + (k ? 'border-l border-white/[.06]' : '')}>
                 <div className="text-[22px] font-semibold tabular-nums tracking-[-0.02em] text-white sm:text-[26px]">{v == null ? '—' : v.toLocaleString()}</div>
                 <div className="mt-0.5 text-[12.5px] text-muted">{l}</div>

@@ -280,6 +280,15 @@ def lint(resume, pages=None, pdf_text=None):
     else:
         add('bullets', False, 'Add experience or project bullets')
     add('skills', bool(resume.get('skills')), 'A skills section (ATS keyword search hits it first)')
+    # names that came through an import half-split ("University of Florida –", "Acme Analytics, Tampa, FL ()") read as
+    # sloppy to a recruiter and fill application forms wrong: a perfect score must never hide them
+    messy = [f"{e.get(k)}" for s, ks in (('education', ('school', 'degree', 'major')), ('experience', ('org', 'title')))
+             for e in resume.get(s) or [] for k in ks
+             if re.search(r'\(\s*\)|\[\s*\]|\s[–—|,-]\s*$|^\s*[–—|,-]|\*\*', str(e.get(k) or ''))
+             or (k == 'school' and re.search(r',\s*(?:B\.?S|B\.?A|M\.?S|Bachelor|Master)\b', str(e.get(k) or '')))]
+    if re.search(r'[*_`]{2}', (resume.get('basics') or {}).get('name') or ''):
+        messy.append((resume.get('basics') or {}).get('name'))
+    add('fields', not messy, 'Schools, employers and titles read cleanly' + (': fix these in Resume Studio' if messy else ''), items=messy)
     if pages is not None:
         yrs = _years_out(resume)
         add('pages', pages == 1 or (pages == 2 and yrs > 8), f'{pages} page(s): students and new grads keep it to one')

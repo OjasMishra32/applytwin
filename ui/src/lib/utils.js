@@ -16,3 +16,11 @@ const ATS = { workday: 'Workday', greenhouse: 'Greenhouse', ashby: 'Ashby', orac
   successfactors: 'SuccessFactors', workable: 'Workable', themuse: 'The Muse', taleo: 'Taleo', jobvite: 'Jobvite', rippling: 'Rippling',
   eightfold: 'Eightfold', linkedin: 'LinkedIn', jazzhr: 'JazzHR', bamboohr: 'BambooHR', icims: 'iCIMS', other: 'Company site' }
 export const atsName = a => ATS[a] || (a ? a[0].toUpperCase() + a.slice(1) : '')
+// a file's raw bytes as base64: the app decodes them itself (Excel and Notepad on Windows save CSV and text in "ANSI" or
+// UTF-16, which File.text() would garble by reading it as UTF-8)
+export const fileB64 = async f => {
+  const u = new Uint8Array(await f.arrayBuffer())
+  let bin = ''
+  for (let i = 0; i < u.length; i += 0x8000) bin += String.fromCharCode(...u.subarray(i, i + 0x8000))
+  return btoa(bin)
+}

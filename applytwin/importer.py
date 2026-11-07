@@ -29,28 +29,62 @@ ONE = re.compile(rf'\b({MONTH}\s+(?:19|20)\d\d|(?:19|20)\d\d)\b', re.I)
 BULLET = re.compile(r'^\s*(?:\*(?!\*)|[^\w\s(\[*"\'$€£#@<]|o(?=\s+[A-Z])|\d+[.)])\s+')
 EMAIL = re.compile(r'[\w.+-]+@[\w-]+\.[\w.-]+')
 PHONE = re.compile(r'(?:\+?\d{1,2}[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}')
+LIGATURES = str.maketrans({'ﬀ': 'ff', 'ﬁ': 'fi', 'ﬂ': 'fl', 'ﬃ': 'ffi', 'ﬄ': 'ffl', 'ﬅ': 'st', 'ﬆ': 'st'})
 URL = re.compile(r'(?:https?://)?(?:www\.)?(?:linkedin\.com/in/[\w-]+|github\.com/[\w-]+|[\w-]+\.(?:me|dev|io|com|org|net|ai|app)(?:/[\w./-]*)?)', re.I)
+
+
+def decode_text(raw):
+    """A text file's bytes as text, in whatever encoding Windows saved it: UTF-8 (with or without the BOM Notepad adds),
+    UTF-16 (Notepad's "Unicode", PowerShell 5's `>`), or the "ANSI" code page Word's Plain Text export uses (cp1252).
+    None when it isn't text at all."""
+    if raw[:2] in (b'\xff\xfe', b'\xfe\xff'):
+        try:
+            return raw.decode('utf-16')
+        except UnicodeDecodeError:
+            return None
+    if raw[:3] == b'\xef\xbb\xbf':
+        return raw[3:].decode('utf-8', 'replace')
+    head = raw[:4096]
+    if len(head) >= 16 and head[1::2].count(0) > len(head) // 4 and head[0::2].count(0) < len(head) // 16:
+        try:
+            return raw.decode('utf-16-le')   # UTF-16 without its BOM
+        except UnicodeDecodeError:
+            return None
+    if head.count(b'\0') > 8:
+        return None
+    try:
+        return raw.decode('utf-8')
+    except UnicodeDecodeError:
+        s = raw.decode('cp1252', 'replace')
+        ctrl = sum(1 for c in s[:4096] if ord(c) < 32 and c not in '\t\r\n\f')
+        return None if ctrl > len(s[:4096]) // 20 else s
 
 
 def extract_text(name='', data=None, text=None):
     if text:
-        return text, None
+        return text.lstrip('﻿'), None
     raw = base64.b64decode(data or '')
     low = (name or '').lower()
     if low.endswith('.pdf') or raw[:4] == b'%PDF':
         try:
             from pypdf import PdfReader
             with store.quiet_pypdf():   # a damaged PDF gets our own message below, not pypdf's log line
-                return '\n'.join(p.extract_text() or '' for p in PdfReader(io.BytesIO(raw)).pages), None
+                txt = '\n'.join(p.extract_text() or '' for p in PdfReader(io.BytesIO(raw)).pages)
+            # typeset ligatures ("Airﬂow", "ﬁlter") come out as one glyph: spell them out, or skill matching misses them
+            return txt.translate(LIGATURES), None
         except ImportError:
             import shutil
             import subprocess
             import tempfile
             if shutil.which('pdftotext'):
-                with tempfile.NamedTemporaryFile(suffix='.pdf') as f:
+                # delete=False: Windows won't let another program open a temporary file this process still holds
+                with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as f:
                     f.write(raw)
-                    f.flush()
-                    return subprocess.run(['pdftotext', '-layout', f.name, '-'], capture_output=True, text=True, encoding='utf-8', errors='replace').stdout, None
+                try:
+                    return subprocess.run(['pdftotext', '-layout', f.name, '-'], capture_output=True, text=True, encoding='utf-8',
+                                          errors='replace', **store.NOWIN).stdout, None
+                finally:
+                    os.remove(f.name)
             raise RuntimeError('Reading PDFs needs pypdf: run  python3 -m pip install pypdf  (or paste the text instead)')
         except Exception:   # damaged, password-protected or not really a PDF: say so, not pypdf's internals
             raise RuntimeError("ApplyTwin couldn't open that PDF (it may be damaged or password-protected). Export it again, "
@@ -62,9 +96,13 @@ def extract_text(name='', data=None, text=None):
         except (zipfile.BadZipFile, KeyError):   # a .pptx, .xlsx, .pages or a broken download
             raise RuntimeError("That file isn't a Word (.docx) document ApplyTwin can read. Save it as a PDF or .docx, or paste the text instead.")
         x = re.sub(r'</w:p>', '\n', x)
-        return re.sub(r'<[^>]+>', '', x), None
-    s = raw.decode('utf8', 'replace')
-    if raw[:4096].count(b'\0') > 8 or s[:4096].count('\ufffd') > 40:   # an image, an old .doc, a .pages file: not text
+        x = re.sub(r'<w:tab\b[^>]*/>', '\t', x)   # tab stops line up "Title<tab>City": keep them apart
+        x = re.sub(r'<w:(?:br|cr)\b[^>]*/>', '\n', x)   # Shift+Enter line breaks inside one paragraph
+        x = re.sub(r'<w:noBreakHyphen\b[^>]*/>', '-', x)
+        import html
+        return html.unescape(re.sub(r'<[^>]+>', '', x)), None   # "Procter &amp; Gamble" is "Procter & Gamble"
+    s = decode_text(raw)
+    if s is None or s[:4096].count('\ufffd') > 40:   # an image, an old .doc, a .pages file: not text
         raise RuntimeError("ApplyTwin can't read that kind of file. Use a PDF, Word (.docx) or text file, or paste the text instead.")
     if low.endswith('.tex') or '\\documentclass' in s:
         return tex_to_text(s), s
@@ -123,16 +161,34 @@ def _head(line):
 def _dates(s):
     m = RANGE.search(s)
     if m:
-        return m.group(1).strip().title(), m.group(2).strip().title(), s[:m.start()] + s[m.end():]
+        return m.group(1).strip().title(), m.group(2).strip().title(), _undated(s[:m.start()] + s[m.end():])
     ms = list(ONE.finditer(s))
     if ms:
         m = ms[-1]  # the date is usually at the end of the line
-        return '', m.group(1).title(), s[:m.start()] + s[m.end():]
+        return '', m.group(1).title(), _undated(s[:m.start()] + s[m.end():])
     return '', '', s
 
 
+def _undated(s):
+    """What's left of a line once its date is cut out: no empty "( )" from "(May 2026 – Aug 2026)", and no lone
+    "Expected" / "Anticipated" that only described the date."""
+    s = re.sub(r'\(\s*\)|\[\s*\]', ' ', s)
+    return re.sub(r'\b(?:expected|anticipated|graduating|grad\.?|est\.?|class of)\s*(?=$|[|,;·—–]|\s[|·—–-]\s)', ' ', s, flags=re.I)
+
+
 def _clean(s):
-    return re.sub(r'\s+', ' ', re.sub(r'\s*[|,;·–-]\s*$', '', s.strip(' |·,-–'))).strip()
+    return re.sub(r'\s+', ' ', re.sub(r'\s*[|,;·–—-]\s*$', '', s.strip(' |·,-–—'))).strip()
+
+
+# a job title, not an employer: "Software Engineering Intern — Acme" puts the title first, "Acme | Software Engineer" second
+TITLE_WORD = re.compile(r'\b(?:intern(?:ship)?|co-?op|engineer|developer|analyst|assistant|associate|researcher|scientist|manager|'
+                        r'consultant|designer|coordinator|specialist|fellow|lead|director|president|founder|co-?founder|officer|'
+                        r'tutor|instructor|teacher|technician|programmer|architect|administrator|representative|advisor|'
+                        r'chair|captain|treasurer|secretary)s?\b', re.I)
+
+
+def _titleish(s):
+    return bool(TITLE_WORD.search(s)) and not re.search(r',\s*[A-Z]{2}\b', s)
 
 
 CITY2 = {'san', 'los', 'new', 'las', 'salt', 'st.', 'st', 'saint', 'fort', 'ft.', 'ann', 'palo', 'mountain', 'santa', 'long', 'baton', 'grand',
@@ -149,11 +205,15 @@ def split_loc(s):
     head, loc = m.group(1), m.group(2)
     if m.group(3) and m.group(3).lower() not in CITY2:
         head, loc = head + ' ' + m.group(3), loc[len(m.group(3)):].strip()
-    return head.strip(' |·,'), loc
+    return head.strip(' |·,–—-'), loc
 
 
 def unspace_caps(s):
-    """small-caps PDFs extract as 'E DUCATION' / 'A LEX  R IVERA'"""
+    """small-caps PDFs extract as 'E DUCATION' / 'A LEX  R IVERA'; letter-spaced headings as 'E D U C A T I O N' or
+    'W O R K  E X P E R I E N C E' (one space between letters, two between words)"""
+    t = s.strip()
+    if re.fullmatch(r'(?:[A-Z&](?: {1,3}|$)){4,}', t) and '  ' in t + '  ' and re.search(r'[A-Z] [A-Z] [A-Z]', t):
+        return ' '.join(w.replace(' ', '') for w in re.split(r' {2,}', t))
     return re.sub(r'\b([A-Z]) ([A-Z]{2,})\b', r'\1\2', s)
 
 
@@ -219,8 +279,8 @@ def parse(text):
                 cur = {"school": sch, "location": loc, "degree": "", "major": "", "start": a, "end": z}
                 v['education'].append(cur)
             else:
-                d = _clean(re.sub(r'gpa.*', '', rest, flags=re.I))
-                d = re.split(r';', d)[0]
+                full = _clean(re.sub(r'gpa.*', '', rest, flags=re.I))
+                d = re.split(r';', full)[0]
                 if re.match(r'(relevant )?coursework', d, re.I):
                     cur['coursework'] = [c.strip() for c in re.split(r',', d.split(':', 1)[-1]) if c.strip()]
                     cur['_cw'] = True
@@ -231,15 +291,18 @@ def parse(text):
                     continue
                 m = re.search(r'bachelor|master|\bb\.?s\.?\b|\bb\.?a\.?\b|\bm\.?s\.?\b|ph\.?d|associate|\bbsn\b|\bbba\b|\bmba\b', d, re.I)
                 if m and not cur.get('degree'):
-                    deg, _, maj = d.partition(' in ')
+                    # the minor comes off first, so its "in" ("..., Minor in Statistics") is never read as the major's
+                    main, *mn = re.split(r'[;,]?\s*\bminor(?:ing)?\s*(?:in\b|:|-|–)\s*', full, maxsplit=1, flags=re.I)
+                    main = re.split(r';', main)[0]
+                    deg, _, maj = main.partition(' in ')
                     if not maj:   # "B.S. Computer Science", "BA, Economics": the field follows the degree itself
-                        dm = DEGREE_FIELD.match(d)
+                        dm = DEGREE_FIELD.match(_clean(main))
                         if dm:
                             deg, maj = dm.group(1), dm.group(2)
-                    cur['degree'], cur['major'] = _clean(deg), _clean(re.split(r'[;,]\s*minor', maj, flags=re.I)[0])
-                    minor = re.search(r'minor in ([^;,]+)', s2, re.I)
+                    cur['degree'], cur['major'] = _clean(deg), _clean(re.split(r'\s+[|·—–]\s+', maj)[0])
+                    minor = _clean(re.split(r'\s+[|·—–]\s+|;', mn[0])[0]) if mn else ''
                     if minor:
-                        cur['minor'] = _clean(minor.group(1))
+                        cur['minor'] = minor
                 elif d:
                     cur.setdefault('honors', []).append(d)
                 cur['end'] = cur.get('end') or z
@@ -254,19 +317,25 @@ def parse(text):
                 v[sec].append(cur)
             cur.setdefault('bullets', []).append(s2)
             continue
-        header = bool(re.search(r'\s[|·]\s|^\*\*|^\[', s2))   # "Tinydb | Rust", **Bold**, [Name](url): a new entry
+        header = bool(re.search(r'\s[|·•]\s|^\*\*|^\[', s2))   # "Tinydb | Rust", **Bold**, [Name](url): a new entry
         if cur is not None and cur.get('bullets') and not header and not RANGE.search(s2) and (
                 s2[:1].islower() or (not ONE.search(s2[-12:]) and not split_loc(s2)[1])):   # a place or a date starts a new entry
             cur['bullets'][-1] += ' ' + s2  # a bullet that wrapped onto the next line
             continue
+        if sec == 'projects' and cur is not None and cur.get('name') and not cur.get('bullets') and not header and s2[:1].islower():
+            cur['tagline'] = _clean(f"{cur.get('tagline') or ''} {s2}")   # a one-line project description that wrapped
+            continue
         a, z, rest = _dates(s2)
-        parts = [p.strip() for p in re.split(r'\s+[|·]\s+|\s{3,}|\t', rest) if p.strip()]
+        sep = r'\s+[|·•—–]\s+|\s{3,}|\t'   # "Acme | Intern", "Acme • Intern", "Intern — Acme, Tampa, FL", tab or column gaps
+        parts = [p.strip() for p in re.split(sep, rest) if p.strip()]
         link = re.match(r'\*{0,2}\[([^\]]+)\]\(([^)]+)\)\*{0,2}(.*)', rest.strip())
         url = None
         if link:
             url, rest = link.group(2), link.group(1) + link.group(3)
-            parts = [p.strip() for p in re.split(r'\s+[|·]\s+|\s{3,}|\t', rest) if p.strip()]
-        if cur is None or cur.get('bullets') or (cur.get('title') and cur.get('org')):
+            parts = [p.strip() for p in re.split(sep, rest) if p.strip()]
+        # a project written as one line ("Name — what it does") right after another one starts a new project
+        next_project = sec == 'projects' and cur is not None and cur.get('name') and (header or re.search(r'\s[—–]\s', s2))
+        if cur is None or cur.get('bullets') or (cur.get('title') and cur.get('org')) or next_project:
             cur = {"bullets": []}
             v[sec].append(cur)
             if url:
@@ -276,14 +345,19 @@ def parse(text):
                 cur['tagline'] = _clean(' | '.join(parts[1:]))
                 cur['date'] = z
             else:
+                if len(parts) > 1 and _titleish(parts[0]) and not _titleish(parts[1]):
+                    parts[0], parts[1] = parts[1], parts[0]   # the title came first: the employer is the other part
                 org, loc = split_loc(_clean(parts[0] if parts else rest).replace('**', ''))
                 cur['org'] = org
                 if loc:
                     cur['location'] = loc
                 if len(parts) > 1:
-                    cur['location'] = _clean(parts[-1]) if re.search(r', [A-Z]{2}\b|remote', parts[-1], re.I) else ''
-                    if not cur['location']:
-                        cur['title'] = _clean(parts[1])
+                    at_end = re.search(r', [A-Z]{2}\b|remote', parts[-1], re.I)
+                    if at_end:
+                        cur['location'] = _clean(parts[-1])
+                    mid = parts[1:-1] if at_end else parts[1:]
+                    if mid:
+                        cur['title'] = _clean(mid[0]).replace('**', '')
                 cur['start'], cur['end'] = a, z
         else:
             if sec != 'projects':
@@ -298,6 +372,8 @@ def parse(text):
                     cur['start'], cur['end'] = cur.get('start') or a, cur.get('end') or z
     for sec in ('experience', 'projects', 'leadership', 'volunteering'):
         v[sec] = [e for e in v[sec] if e.get('bullets') or e.get('org') or e.get('name')]
+    for e in v['education']:
+        e.pop('_cw', None)   # parser bookkeeping, never saved into the vault
     if 'education' in v['order']:
         v['order'] = ['education'] + [s for s in v['order'] if s != 'education']
     return v
@@ -499,7 +575,7 @@ def import_resume(name='', data=None, text=None):
         raise RuntimeError("ApplyTwin found no text in that file. If it's a scan or a picture of your resume, export it as a PDF from "
                            "Word or Google Docs, or paste the text instead.")
     if source_tex:
-        with open(store.path('source.tex'), 'w', encoding='utf-8') as f:
+        with open(store.path('source.tex'), 'w', encoding='utf-8', newline='') as f:   # keep the file's own line endings
             f.write(source_tex)
     from . import api
     api.save_dump(f'# imported: {name or "pasted text"}\n{txt}')
@@ -511,6 +587,8 @@ def import_resume(name='', data=None, text=None):
     if not parsed:
         parsed = parse(txt)
     b = parsed.get('basics') or {}
+    if b.get('name'):   # a LaTeX \textbf{Jane Doe} name came through as "**Jane Doe**" and was typed into forms like that
+        b['name'] = re.sub(r'\s+', ' ', re.sub(r'[*_`\\{}]+', '', b['name'])).strip()
     if b.get('location'):
         b['location'] = clean_location(b['location'], b.get('name', ''))
     vault = merge(store.resume(), parsed)

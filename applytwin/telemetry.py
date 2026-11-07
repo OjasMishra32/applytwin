@@ -5,7 +5,7 @@ installed copy or a developer checkout, and which agent it uses (claude/codex). 
 jobs or applications. Turn it off in Settings (apply.telemetry = false) or with APPLYTWIN_NO_TELEMETRY=1.
 """
 import os
-import platform
+import sys
 import threading
 import time
 import uuid
@@ -35,7 +35,7 @@ def ping():
     from . import __version__, cloud, update
     try:
         cloud._req('POST', '/rest/v1/rpc/applytwin_ping', body={
-            "p_id": install_id(), "p_os": {'Darwin': 'mac', 'Windows': 'windows', 'Linux': 'linux'}.get(platform.system(), platform.system().lower()),
+            "p_id": install_id(), "p_os": ('windows' if os.name == 'nt' else 'mac' if sys.platform == 'darwin' else 'linux' if sys.platform.startswith('linux') else sys.platform),
             "p_version": __version__, "p_kind": 'checkout' if update.is_checkout() else 'installed',
             "p_agent": store.profile().get('apply', {}).get('agent') or ''}, timeout=10)
         return True

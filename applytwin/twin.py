@@ -79,13 +79,54 @@ def ensure():
     args = [exe, f'--user-data-dir={profile()}', f'--remote-debugging-port={PORT}', '--remote-debugging-address=127.0.0.1',
             '--no-first-run', '--no-default-browser-check', '--use-mock-keychain', '--password-store=basic',
             '--disable-blink-features=AutomationControlled', 'about:blank']
-    kw = {'creationflags': 0x00000008 | 0x00000200} if os.name == 'nt' else {'start_new_session': True}   # outlives the app
-    subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL, **kw)
-    for _ in range(60):
+    if os.name == 'nt':
+        # Through a launcher that exits at once, so Chrome has no living parent. Started straight from the agent's MCP server,
+        # Chrome sat inside the agent's process tree, and Stop (taskkill /T) or the stuck-run timer closed it with every
+        # half-filled application in it. Breaks away from the agent's job object too, where that's allowed.
+        import sys
+        launcher = ("import subprocess, sys\n"
+                    "for f in (0x01000000, 0):\n"
+                    "    try:\n"
+                    "        subprocess.Popen(sys.argv[1:], creationflags=0x08 | 0x200 | f, stdin=-3, stdout=-3, stderr=-3)\n"
+                    "        break\n"
+                    "    except OSError:\n"
+                    "        pass\n")
+        try:
+            subprocess.run([sys.executable, '-c', launcher, *args], timeout=30, stdin=subprocess.DEVNULL,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **store.NOWIN)
+        except Exception:
+            subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL,
+                             creationflags=0x00000008 | 0x00000200)
+    else:
+        subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL,
+                         start_new_session=True)   # outlives the app
+    for _ in range(180):   # a cold Chrome start on a slow laptop (antivirus scanning it) can take well over 15 seconds
         if alive():
             return True
         time.sleep(0.25)
     return False
+
+
+def why_not():
+    """Why the twin's window didn't come up, in words the user can act on (it used to always say "install Chrome", even
+    with Chrome installed)."""
+    from . import render
+    try:
+        exe = render.chrome()
+    except Exception:
+        exe = None
+    if not exe:
+        return "Couldn't open your twin's browser: ApplyTwin needs Google Chrome (or Microsoft Edge). Install Chrome, then press Start again."
+    try:
+        with socket.create_connection(('127.0.0.1', PORT), timeout=1):
+            busy = True
+    except OSError:
+        busy = False
+    if busy:
+        return (f"Couldn't open your twin's browser: another program is using port {PORT}. Close it (or restart the computer), "
+                "then press Start again.")
+    return ("Couldn't open your twin's browser: Chrome didn't start in time. Press Start again; if it happens again, restart "
+            "ApplyTwin. (A work or school computer can block the remote control Chrome needs.)")
 
 
 def open_tab(url):

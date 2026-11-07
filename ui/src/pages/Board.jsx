@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { toast } from 'sonner'
 import { api, fileUrl } from '../lib/api'
+import { fileB64 } from '../lib/utils'
 import { useApp, Page } from '../App'
 import { Avatar, Title, spring } from '../components/ui'
 import { Download, Mail, Upload } from 'lucide-react'
@@ -14,6 +15,7 @@ export default function Board() {
   const [drag, setDrag] = useState(null)
   const [over, setOver] = useState(null)
   const load = () => api('/api/applications?history=1').then(a => { const m = {}; a.forEach(x => { if (!m[x.job_id]) m[x.job_id] = x }); setApps(Object.values(m)) })
+    .catch(e => { setApps(x => x || []); toast.error("Couldn't load your applications", { description: e.message }) })
   useEffect(() => { load() }, [])
   const move = async (a, st) => {
     if (a.status === st) return
@@ -25,7 +27,7 @@ export default function Board() {
   const importCsv = async e => {
     const f = e.target.files?.[0]; if (!f) return
     try {
-      const r = await api('/api/history', { text: await f.text() }); load()
+      const r = await api('/api/history', { data: await fileB64(f) }); load()
       toast.success(`Found ${r.known_applications.toLocaleString()} applications`, { description: `${r.matched.toLocaleString()} matched jobs in your queue, so your twin won't apply to them again.` })
     } catch (err) { toast.error(err.message) } e.target.value = ''
   }

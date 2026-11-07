@@ -23,7 +23,7 @@ export function Accounts({ defaultEmail = '', className = '' }) {
   // every hook runs before the early return below (one after it blanked the whole Settings page)
   useEffect(() => {   // after you sign in to Google in the twin's window, the check mark appears on its own
     if (!st?.enabled || !st.google || st.google_signed_in) return
-    const t = setInterval(() => api('/api/accounts').then(r => setSt(x => ({ ...x, google_signed_in: r.google_signed_in }))).catch(() => {}), 5000)
+    const t = setInterval(() => !document.hidden && api('/api/accounts').then(r => setSt(x => ({ ...x, google_signed_in: r.google_signed_in }))).catch(() => {}), 5000)
     return () => clearInterval(t)
   }, [st?.enabled, st?.google, st?.google_signed_in])
   if (!st) return null

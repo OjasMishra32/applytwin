@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '../lib/api'
@@ -11,11 +11,21 @@ const SITE = { claude: 'Claude', codex: 'ChatGPT' }
 export function AgentConnect({ name, st, onChange, compact }) {
   const [asked, setAsked] = useState(false)
   const busy = st?.connecting && st.connecting.step !== 'failed'
+  const failed = st?.connecting?.step === 'failed'
+  const cb = useRef(onChange)
+  cb.current = onChange
   useEffect(() => {   // while it's installing or waiting on the browser sign-in, check every two seconds
-    if (!(busy || asked) || st?.signed_in) return
-    const t = setInterval(onChange, 2000)
-    return () => clearInterval(t)
-  }, [busy, asked, st?.signed_in, onChange])
+    // one check at a time (each runs the agent's own status command, about a second on a slow laptop: an interval stacked
+    // them up and kept the CPU busy), and none once it failed: the button is back for another try
+    if (!(busy || asked) || st?.signed_in || failed) return
+    let live = true, t
+    const tick = async () => {
+      try { await cb.current?.() } catch { /* the next check tries again */ }
+      if (live) t = setTimeout(tick, document.hidden ? 6000 : 2000)
+    }
+    t = setTimeout(tick, 2000)
+    return () => { live = false; clearTimeout(t) }
+  }, [busy, asked, st?.signed_in, failed])
   useEffect(() => { if (st?.signed_in && asked) { toast.success(`${LABEL[name]} is signed in`); setAsked(false) } }, [st?.signed_in, asked, name])
   if (!st || st.signed_in) return null
   const go = async e => {

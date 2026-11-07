@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { HelpChat } from './components/HelpChat'
 import { Toaster, toast } from 'sonner'
@@ -77,32 +77,42 @@ export default function App() {
     } else api('/api/auth').then(r => { setAuth(r); setAuthReady(true) }).catch(() => setAuthReady(true))
   }, [refresh])
   const signIn = async () => { try { sessionStorage.setItem('applytwin_login', '1') } catch {} const r = await api('/api/auth/login?redirect=' + encodeURIComponent(location.origin + '/')); location.href = r.url }
-  const signOut = async () => { setAuth(await api('/api/auth/logout', {})); toast('Signed out') }
+  const signOut = async () => { try { setAuth(await api('/api/auth/logout', {})); toast('Signed out') } catch (e) { toast.error(e.message) } }
   useEffect(() => {   // first time only: once setup is finished, an empty resume never sends you back into it
     if (state && !state.profile?.onboarded && (!location.hash || location.hash === '#home') && !(state.vault?.experience?.length || state.vault?.projects?.length)) location.hash = 'welcome'
   }, [state])
   const loadJobs = useCallback(() => api('/api/jobs?limit=200').then(setJobs).catch(() => {}), [])   // the state load already shows when the app is unreachable
   useEffect(() => { refresh(); loadJobs() }, [refresh, loadJobs])
   useEffect(() => keepCurrent(), [])
+  useEffect(() => {   // a file dropped just outside a drop box would make the browser open it in place of the app
+    const stop = e => { if (e.dataTransfer?.types?.includes('Files')) e.preventDefault() }
+    window.addEventListener('dragover', stop); window.addEventListener('drop', stop)
+    return () => { window.removeEventListener('dragover', stop); window.removeEventListener('drop', stop) }
+  }, [])
   useEffect(() => { const f = () => { setRoute(parse()); window.scrollTo({ top: 0 }) }; window.addEventListener('hashchange', f); return () => window.removeEventListener('hashchange', f) }, [])
   const go = (page, arg) => { location.hash = arg ? `${page}/${arg}` : page }
 
+  const scanning = useRef(false)
   const startScan = async () => {
-    try { await api('/api/scan', {}) } catch (e) { return toast.error("Couldn't start a scan", { description: e.message }) }
+    if (scanning.current) return   // a second press added a second 1-second poll for the whole scan
+    scanning.current = true
+    try { await api('/api/scan', {}) } catch (e) { scanning.current = false; return toast.error("Couldn't start a scan", { description: e.message }) }
     const id = toast.loading('Scanning every career page…', { description: 'SimplifyJobs, SmartRecruiters, Greenhouse, Lever, Ashby, Workday' })
     let misses = 0
     const tick = async () => {
       let s
       try { s = await api('/api/scan'); misses = 0 } catch (e) {   // a restart mid-scan: keep checking a while, never spin forever
         if (++misses < 20) return setTimeout(tick, 3000)
+        scanning.current = false
         return toast.error('Lost track of the scan', { id, description: 'It may still be running. New jobs show up in Jobs when it finishes.' })
       }
       setScan(s)
       const st = s.stats || {}
       if (s.running) {
         toast.loading(`Read ${(st.fetched || 0).toLocaleString()} postings`, { id, description: `${st.done || 0} of ${st.sources || '…'} sources · ${st.new || 0} new` })
-        return setTimeout(tick, 1000)
+        return setTimeout(tick, document.hidden ? 5000 : 1500)
       }
+      scanning.current = false
       if (st.new) toast.success(`${st.new.toLocaleString()} new jobs, ${(st.matched || 0).toLocaleString()} fit you`, { id, description: `${(st.fetched || 0).toLocaleString()} postings read from ${st.sources || 0} sources` })
       else toast.success("You're up to date", { id, description: `Read ${(st.fetched || 0).toLocaleString()} postings. Nothing new since your last scan; new roles appear here as companies post them.` })
       refresh(); loadJobs()

@@ -24,45 +24,105 @@ function Run {   # no param() block on purpose: every argument (even '-c' or '-m
     if ($conEnc) { try { [Console]::OutputEncoding = $conEnc } catch {} }
   }
 }
-function Die($m) { Write-Host "  x $m" -ForegroundColor Red; throw "ApplyTwin install stopped: $m" }
-
+# one clear message, not that message followed by a red PowerShell error dump (the catch at the end swallows it)
+function Die($m) { Write-Host "  x $m" -ForegroundColor Red; throw "ApplyTwin install stopped" }
+# a window keeps the PATH it was opened with: pick up Python / Node.js / Git installed since (winget, python.org)
+function RefreshPath {
+  foreach ($p in (@([Environment]::GetEnvironmentVariable('Path', 'Machine'), [Environment]::GetEnvironmentVariable('Path', 'User')) -join ';') -split ';') {
+    if ($p -and (($env:Path -split ';') -notcontains $p)) { $env:Path = "$env:Path;$p" }
+  }
+}
+# Nothing to install by hand, like the Mac app: a computer without Python or Node.js gets ApplyTwin's own copies in
+# %USERPROFILE%\.applytwin-app-runtime. No admin rights, no winget, no settings changed for other programs.
+$RT = Join-Path $env:USERPROFILE '.applytwin-app-runtime'
+$Arch = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64' -or $env:PROCESSOR_ARCHITEW6432 -eq 'ARM64') { 'arm64' } else { 'x64' }
+$PyUrl = 'https://github.com/astral-sh/python-build-standalone/releases/download/20261026/cpython-3.12.16%2B20261026-' +
+  $(if ($Arch -eq 'arm64') { 'aarch64' } else { 'x86_64' }) + '-pc-windows-msvc-install_only.tar.gz'
+$PyOrgUrl = "https://www.python.org/ftp/python/3.12.10/python-3.12.10-$(if ($Arch -eq 'arm64') { 'arm64' } else { 'amd64' }).exe"
+$NodeUrl = "https://nodejs.org/dist/v26.13.0/node-v26.13.0-win-$Arch.zip"
+# download into a temp folder next to the target, then rename: a half-finished download never looks installed
+function Fetch($url, $dest) {
+  New-Item -ItemType Directory -Force $RT | Out-Null
+  $tmp = Join-Path $RT ('.dl-' + [guid]::NewGuid())
+  New-Item -ItemType Directory $tmp | Out-Null
+  try {
+    $file = Join-Path $tmp ('a' + $(if ($url -like '*.zip') { '.zip' } else { '.tar.gz' }))
+    for ($i = 0; ; $i++) { try { Invoke-WebRequest $url -OutFile $file -UseBasicParsing; break } catch { if ($i -ge 2) { throw }; Start-Sleep 3 } }
+    $x = Join-Path $tmp 'x'; New-Item -ItemType Directory $x | Out-Null
+    if (Get-Command tar.exe -ErrorAction SilentlyContinue) { Run tar.exe -xf $file -C $x | Out-Null }   # zip too, and far quicker
+    elseif ($file -like '*.zip') { Expand-Archive $file $x }
+    $top = Get-ChildItem $x -Directory | Select-Object -First 1
+    if (-not $top) { throw "couldn't unpack $url" }
+    if (Test-Path $dest) { Remove-Item $dest -Recurse -Force }
+    Move-Item $top.FullName $dest
+  } finally { Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue }
+}
+# a folder on the PATH of new windows and programs (without expanding entries like %NVM_SYMLINK%), and of this one now
+function AddUserPath($dir) {
+  $k = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', $true)
+  $raw = [string]$k.GetValue('Path', '', [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+  if (($raw -split ';') -notcontains $dir) {
+    $k.SetValue('Path', ($(if ($raw) { "$raw;$dir" } else { $dir })), [Microsoft.Win32.RegistryValueKind]::ExpandString)
+    [Environment]::SetEnvironmentVariable('APPLYTWIN_PATH_REFRESH', '1', 'User')   # tells Windows the environment changed
+    [Environment]::SetEnvironmentVariable('APPLYTWIN_PATH_REFRESH', $null, 'User')
+  }
+  $k.Close()
+  if (($env:Path -split ';') -notcontains $dir) { $env:Path = "$dir;$env:Path" }
+}
+function FindPython {
+  # A real Python 3.9+ (the Microsoft Store placeholder only opens the Store, so test each candidate), also one installed
+  # without "Add python.exe to PATH" ticked, and ApplyTwin's own
+  $cands = @(@('py', '-3'), @('python'), @('python3'), @("$RT\python\python.exe"))
+  foreach ($g in @("$env:LOCALAPPDATA\Programs\Python\Python3*\python.exe", "$env:ProgramFiles\Python3*\python.exe", "$RT\python-org\python.exe")) {
+    foreach ($f in @(Get-ChildItem $g -ErrorAction SilentlyContinue | Sort-Object FullName -Descending)) { $cands += , @($f.FullName) }
+  }
+  foreach ($c in $cands) {
+    try {
+      $argv = @($c) + @('-c', "import sys; print(sys.executable if sys.version_info >= (3, 9) else '')")
+      $exe = Run @argv | Select-Object -Last 1
+      if ($LASTEXITCODE -eq 0 -and $exe -and (Test-Path -LiteralPath $exe.Trim())) { return $exe.Trim() }
+    } catch {}
+  }
+  return $null
+}
+try {
 Write-Host "Installing ApplyTwin" -ForegroundColor White
 # older Windows PowerShell can default to TLS 1.0, which GitHub refuses
 try { [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12 } catch {}
-# a window keeps the PATH it was opened with: pick up Python / Node.js installed since (winget, python.org)
-foreach ($p in (@([Environment]::GetEnvironmentVariable('Path', 'Machine'), [Environment]::GetEnvironmentVariable('Path', 'User')) -join ';') -split ';') {
-  if ($p -and (($env:Path -split ';') -notcontains $p)) { $env:Path = "$env:Path;$p" }
-}
+RefreshPath
 
-# A real Python 3.9+ (the Microsoft Store placeholder only opens the Store, so test each candidate), also one installed
-# without "Add python.exe to PATH" ticked
-$cands = @(@('py', '-3'), @('python'), @('python3'))
-foreach ($g in @("$env:LOCALAPPDATA\Programs\Python\Python3*\python.exe", "$env:ProgramFiles\Python3*\python.exe")) {
-  foreach ($f in @(Get-ChildItem $g -ErrorAction SilentlyContinue | Sort-Object FullName -Descending)) { $cands += , @($f.FullName) }
+$Py = FindPython
+if (-not $Py) {
+  Write-Host "  > Getting Python ready (a one-time download, about 45 MB)..." -ForegroundColor Cyan
+  try { Fetch $PyUrl "$RT\python" } catch { Write-Host "    That download didn't work ($($_.Exception.Message)); trying python.org instead." }
+  $Py = FindPython
 }
-$Py = $null
-foreach ($c in $cands) {
+if (-not $Py) {   # no tar.exe (Windows 10 before 2018) or GitHub unreachable: python.org's own installer, just for this user
   try {
-    $argv = @($c) + @('-c', "import sys; print(sys.executable if sys.version_info >= (3, 9) else '')")
-    $exe = Run @argv | Select-Object -Last 1
-    if ($LASTEXITCODE -eq 0 -and $exe -and (Test-Path -LiteralPath $exe.Trim())) { $Py = $exe.Trim(); break }
+    New-Item -ItemType Directory -Force $RT | Out-Null
+    $exe = Join-Path $RT 'python-setup.exe'
+    Invoke-WebRequest $PyOrgUrl -OutFile $exe -UseBasicParsing
+    Start-Process $exe -ArgumentList "/quiet InstallAllUsers=0 PrependPath=0 Include_launcher=0 Include_test=0 Shortcuts=0 TargetDir=`"$RT\python-org`"" -Wait
+    Remove-Item $exe -ErrorAction SilentlyContinue
   } catch {}
+  $Py = FindPython
 }
-if (-not $Py) { Die "ApplyTwin needs Python 3.9+. Install it with:  winget install Python.Python.3.12   (no winget? get it from https://www.python.org/downloads/ ), then run this again." }
+if (-not $Py) { Die "Python couldn't be set up on this computer. Check your internet connection and run this again, or install Python from https://www.python.org/downloads/ and run this again." }
 Ok "Python ($Py)"
-if (Get-Command npx -ErrorAction SilentlyContinue) { Ok "Node.js $(node -v)" } else { Warn "Node.js not found. Your twin needs it to drive a browser:  winget install OpenJS.NodeJS.LTS   (or https://nodejs.org)" }
+# Node.js runs the browser your twin fills forms in. Use this computer's own if it has one.
+if (-not (Get-Command npx -ErrorAction SilentlyContinue) -and -not (Test-Path "$RT\node\npx.cmd")) {
+  Write-Host "  > Getting the browser tools ready (a one-time download, about 40 MB)..." -ForegroundColor Cyan
+  try { Fetch $NodeUrl "$RT\node" } catch { Warn "The browser tools didn't download ($($_.Exception.Message)). ApplyTwin tries again when it starts." }
+}
+if (Test-Path "$RT\node\npx.cmd") {
+  AddUserPath "$RT\node"
+  AddUserPath "$env:APPDATA\npm"   # where Claude Code and Codex go when the app installs them
+}
+if (Get-Command npx -ErrorAction SilentlyContinue) { Ok "Browser tools (Node.js $(node -v))" }
 $have = $false
 if (Get-Command claude -ErrorAction SilentlyContinue) { Ok "Claude Code found"; $have = $true }
 if (Get-Command codex -ErrorAction SilentlyContinue) { Ok "Codex found"; $have = $true }
-if (-not $have) {
-  Warn "Neither Claude Code nor Codex is installed. Install one (any paid plan works, no API key):"
-  Write-Host "      npm install -g @anthropic-ai/claude-code     # then run: claude   and type /login"
-  Write-Host "      npm install -g @openai/codex                 # then run: codex login"
-}
-# npm's commands are .ps1 scripts in PowerShell, which this PC's script policy blocks ("running scripts is disabled")
-if (@('Restricted', 'AllSigned') -contains [string](Get-ExecutionPolicy)) {
-  Warn "PowerShell here blocks npm's commands. Type claude.cmd / codex.cmd / npm.cmd instead (or use Command Prompt)."
-}
+if (-not $have) { Write-Host "  - Claude Code or Codex: the app installs one for you (press Install and sign in). Any paid plan works, no API key." }
 
 # The newest commit on main that passed CI, so a broken change never reaches anyone
 $Sha = ''
@@ -147,7 +207,6 @@ Run $Py "$Dir\bin\applytwin" install-agents | Write-Host
 Write-Host "`nChecking your setup" -ForegroundColor White
 Run $Py "$Dir\bin\applytwin" doctor | Write-Host
 $global:LASTEXITCODE = 0   # doctor reports missing steps with a non-zero code; that's advice, not a failed install
-Write-Host "`n* Free for every student. If it helps you, star it: https://github.com/OjasMishra32/applytwin" -ForegroundColor Yellow
 if ($env:APPLYTWIN_NO_APP) { return }
 
 # Run like a normal app: start quietly at login (so localhost:4747 always works and daily scans happen), a Start menu entry
@@ -180,4 +239,9 @@ Write-Host "  ================================================================" 
 Write-Host "  No new tab? Type  http://localhost:4747  into your browser's address bar."
 Write-Host "  Open it any time: ApplyTwin in the Start menu, that address, or type: applytwin"
 Write-Host "  You can close this window. (apply.twinly.tech only shows your results; the app is http://localhost:4747.)"
+} catch {
+  # Die already said what to do; anything else gets one plain line, not PowerShell's error dump
+  if ("$($_.Exception.Message)" -ne 'ApplyTwin install stopped') { Write-Host "  x Install stopped: $($_.Exception.Message)" -ForegroundColor Red }
+  $global:LASTEXITCODE = 1
+}
 }

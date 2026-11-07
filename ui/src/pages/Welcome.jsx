@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { toast } from 'sonner'
 import { ArrowLeft, Check, Copy, FileText, Loader2 } from 'lucide-react'
 import { AgentConnect } from '../components/AgentConnect'
 import { ImportWait } from '../components/ImportWait'
 import { api } from '../lib/api'
+import { fileB64 } from '../lib/utils'
 import { Accounts } from '../components/Accounts'
 import { useApp } from '../App'
 import { Drop, Segmented, Switch } from '../components/ui'
@@ -32,6 +33,8 @@ export default function Welcome() {
   const [imp, setImp] = useState(() => (vault?.experience?.length || vault?.projects?.length)
     ? { name: vault.basics?.name, counts: Object.fromEntries(['experience', 'research', 'projects', 'leadership', 'skills'].map(k => [k, (vault[k] || []).length])) } : null)
   const [busy, setBusy] = useState(false)
+  const mounted = useRef(true)
+  useEffect(() => () => { mounted.current = false }, [])
   const [pasted, setPasted] = useState(null)   // window.prompt() flattens line breaks, which the resume reader needs
   const [agents, setAgents] = useState(null)
   const [scan, setScan] = useState(null)
@@ -53,7 +56,14 @@ export default function Welcome() {
   const loadAgents = useCallback(() => api('/api/agents').then(setAgents).catch(() => setAgents(a => a || {})), [])
   useEffect(() => { loadAgents() }, [loadAgents])
 
-  const save = () => api('/api/profile', p)
+  // only what changed since the last save: the whole profile (with its search settings) re-scored every saved job on each
+  // Continue, which made the next screens slow on a laptop
+  const saved = useRef(structuredClone(profile))
+  const save = () => {
+    const diff = Object.fromEntries(Object.entries(p).filter(([k, v]) => JSON.stringify(v) !== JSON.stringify(saved.current[k])))
+    if (!Object.keys(diff).length) return Promise.resolve()
+    return api('/api/profile', diff).then(r => { saved.current = structuredClone(p); return r })
+  }
   const upload = async body => {
     setBusy(true)
     try {
@@ -61,6 +71,7 @@ export default function Welcome() {
       if (r.fallback) toast(r.fallback, { description: 'Check it in Resume Studio; your agent can polish it later.' })
       if (r.vault) setState(st => ({ ...st, vault: r.vault }))
       const fresh = (await api('/api/state')).profile
+      saved.current = structuredClone(fresh)   // that's what the app has now
       setP(x => ({ ...structuredClone(fresh), search: { ...fresh.search, roles: fresh.search.roles?.length ? fresh.search.roles : (r.suggest_roles || []) } }))
     } catch (e) { toast.error(e.message) }
     setBusy(false)
@@ -70,10 +81,11 @@ export default function Welcome() {
     const t0 = Date.now()
     try { await save(); await api('/api/scan', {}) } catch { /* the scan also runs on its own later */ }
     const tick = async () => {
+      if (!mounted.current) return   // left onboarding: stop polling
       try {
         const r = await api('/api/scan'); setScan(r.stats || {})
-        if (r.running && Date.now() - t0 < 90000) return setTimeout(tick, 900)
-      } catch { if (Date.now() - t0 < 90000) return setTimeout(tick, 1500) }
+        if (r.running && Date.now() - t0 < 90000) return setTimeout(tick, 1500)
+      } catch { if (Date.now() - t0 < 90000) return setTimeout(tick, 2000) }
       try { setQueue(await api('/api/queue?n=5')); await refresh() } catch {}
       next()
     }
@@ -106,16 +118,33 @@ export default function Welcome() {
   const [derived, setDerived] = useState([])
   const [hist, setHist] = useState('')
   const START = { summer: 'May', fall: 'August', winter: 'January', spring: 'January' }
+  // one Continue at a time: saving takes a second on a slow laptop, and a second click skipped a screen (from "apply" it
+  // landed on the scan screen without starting the scan, with no button and no Back)
+  const [going, setGoing] = useState(false)
   const onContinue = async () => {
+    if (going) return
     if (cur.id === 'when' && intern && !p.earliest_start && picked.length) {   // you picked the term, so the start date follows from it
       const [term, yr] = picked[0].toLowerCase().split(' ')
       setP(x => ({ ...x, earliest_start: `${START[term] || 'May'} ${yr}` })); setDerived(['earliest_start'])
     }
     if (cur.id === 'agent') { next(); return build() }
     if (cur.id === 'done') { api('/api/profile', { onboarded: true }).catch(() => {}); return go(empty ? 'settings' : 'agents') }   // an empty queue has nothing to start on
-    if (i > 1) await save()
+    setGoing(true)
+    try { if (i > 1) await save() } finally { setGoing(false) }
     next()
   }
+
+  // Enter presses Continue, as in any setup screen (not while typing in a box: Enter adds a company or a role there)
+  const cont = useRef(onContinue)
+  cont.current = onContinue
+  useEffect(() => {
+    const k = e => {
+      if (e.key !== 'Enter' || e.repeat || e.isComposing || /^(INPUT|TEXTAREA|SELECT|BUTTON|A)$/.test(e.target?.tagName || '')) return
+      if (cur.cta && cur.ok && cur.id !== 'scan') { e.preventDefault(); cont.current() }
+    }
+    window.addEventListener('keydown', k)
+    return () => window.removeEventListener('keydown', k)
+  }, [cur])
 
   const body = {
     hello: <Center>
@@ -205,7 +234,7 @@ export default function Welcome() {
           <div className="mt-1 text-[13.5px] text-muted">{hist === 'email' ? 'Started. Your twin is reading your "thank you for applying" emails.' : 'Your twin reads your "thank you for applying" emails. Any email works.'}</div></button>
         <label className={'cursor-pointer rounded-[12px] px-5 py-4 transition-colors ' + (hist === 'csv' ? 'bg-[#1c1c1e] ring-2 ring-signal' : 'bg-[#1c1c1e] ring-1 ring-white/[.06] hover:bg-[#232325]')}>
           <input type="file" accept=".csv,text/csv" className="hidden" onChange={async e => { const f = e.target.files?.[0]; if (!f) return
-            try { const r = await api('/api/history', { text: await f.text() }); setHist('csv'); toast.success(`Found ${r.known_applications} applications`) } catch (err) { toast.error(err.message) } }} />
+            try { const r = await api('/api/history', { data: await fileB64(f) }); setHist('csv'); toast.success(`Found ${r.known_applications} applications`) } catch (err) { toast.error(err.message) } e.target.value = '' }} />
           <div className="text-[16px] font-semibold text-white">Import my tracker</div>
           <div className="mt-1 text-[13.5px] text-muted">{hist === 'csv' ? 'Imported.' : 'A CSV from Simplify, Huntr, Teal, Notion or a spreadsheet.'}</div></label>
       </div>
@@ -281,11 +310,14 @@ export default function Welcome() {
       </div>
       {cur.cta && <div className="fixed inset-x-0 bottom-0 z-20 border-t border-white/[.06] bg-paper pb-6 pt-4">
         <div className="mx-auto flex max-w-[760px] flex-col items-center gap-2 px-6">
-          <motion.button whileTap={{ scale: .97 }} onClick={onContinue} disabled={!cur.ok}
+          <motion.button whileTap={{ scale: .97 }} onClick={onContinue} disabled={!cur.ok || going}
             className="h-11 w-full max-w-[320px] rounded-full bg-signal text-[15px] font-semibold text-white transition-opacity disabled:opacity-35">{cur.cta}</motion.button>
-          {!cur.ok && group && <div className="text-[13px] text-muted">{groupLeft(cur.id)} left to answer</div>}
-          {cur.id === 'resume' && !imp && <button onClick={next} className="text-[13px] text-signal-ink hover:underline">I don't have one handy</button>}
-          {cur.id === 'companies' && <div className="text-[13px] text-muted">You can skip this one.</div>}
+          {/* always one line tall, so the button never jumps out from under the cursor when the hint comes or goes */}
+          <div className="flex h-5 items-center text-[13px] text-muted">
+            {!cur.ok && group ? `${groupLeft(cur.id)} left to answer`
+              : cur.id === 'resume' && !imp ? <button onClick={next} className="text-signal-ink hover:underline">I don't have one handy</button>
+              : cur.id === 'companies' ? 'You can skip this one.' : ''}
+          </div>
         </div>
       </div>}
     </div>

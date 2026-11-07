@@ -11,8 +11,11 @@ export default function Home() {
   const [next, setNext] = useState(null)
   const [setup, setSetup] = useState([])
   const [ready, setReady] = useState(null)
+  // reload these (each takes a second with a big job list) only when the numbers they depend on change, not on every
+  // refresh of the app's stats
+  const changed = `${stats?.matched}|${stats?.applied_7d}|${stats?.applied_today}|${JSON.stringify(stats?.jobs || {})}`
   useEffect(() => { api('/api/next?n=7').then(setNext).catch(() => {}); api('/api/setup').then(setSetup).catch(() => {})
-    api('/api/queue?n=0').then(q => setReady(q.total)).catch(() => {}) }, [stats])   // the same "ready" number Autopilot shows
+    api('/api/queue?n=0').then(q => setReady(q.total)).catch(() => {}) }, [changed])   // the same "ready" number Autopilot shows
   const first = (profile.name || '').split(' ')[0]
   const h = new Date().getHours()
   const greet = h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'

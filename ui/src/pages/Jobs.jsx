@@ -18,6 +18,7 @@ export default function Jobs({ arg }) {
   const t = useRef()
   const [lim, setLim] = useState(200)
   const load = () => api(`/api/jobs?q=${encodeURIComponent(q)}&status=${status}&order=${order}&limit=${lim}${status === 'new' ? '' : '&min=0'}`).then(setList)
+    .catch(e => { setList(l => l || []); toast.error("Couldn't load your jobs", { description: e.message }) })   // never a skeleton forever
   useEffect(() => { setLim(200) }, [q, status, order])   // a new search starts at the top
   useEffect(() => { clearTimeout(t.current); t.current = setTimeout(load, 180) }, [q, status, order, lim, scan?.running])
 
@@ -143,19 +144,33 @@ function JobSheet({ id, onClose, onChange }) {
   const [rep, setRep] = useState(null)
   const [tpl, setTpl] = useState('')
   const [building, setBuilding] = useState(false)
+  const buildingRef = useRef(false)
+  buildingRef.current = building
   const [prog, setProg] = useState(null)   // [progress, when it was read]
   const [res, setRes] = useState(null)
+  // a new preview only when a new resume is built (a fresh Date.now() on every render reloaded it on each keystroke)
+  const stamp = useMemo(() => Date.now(), [res])
   useEffect(() => {   // a build already running (Autopilot started it when it claimed this job) shows its progress too
     if (!id) return
-    let alive = true
-    const poll = () => api(`/api/jobs/${id}/progress`).then(r => { if (alive) setProg(r.progress ? [r.progress, Date.now()] : null) }).catch(() => {})
-    poll(); const t = setInterval(poll, 500)
-    return () => { alive = false; clearInterval(t) }
+    let alive = true, t, active = false
+    const poll = async () => {   // twice a second while a build runs, every few seconds otherwise (120 calls a minute per open job)
+      try {
+        const r = await api(`/api/jobs/${id}/progress`)
+        if (!alive) return
+        active = !!r.progress; setProg(r.progress ? [r.progress, Date.now()] : null)
+      } catch { /* next poll */ }
+      if (alive) t = setTimeout(poll, active || buildingRef.current ? 500 : 4000)
+    }
+    poll()
+    return () => { alive = false; clearTimeout(t) }
   }, [id])
   useEffect(() => {
     setJob(null); setRep(null); setRes(null); setBuilding(false); setProg(null)
     if (!id) return
-    api('/api/jobs/' + id).then(setJob); api(`/api/jobs/${id}/ats`).then(setRep)
+    // one after the other: both fetch the posting's description when it isn't saved yet, and doing it twice at once doubled
+    // the wait. A link to a job that's gone says so instead of loading forever.
+    api('/api/jobs/' + id).then(j => { setJob(j || false); return j && api(`/api/jobs/${id}/ats`) }).then(r => r && setRep(r))
+      .catch(() => setJob(j => j || false))
     api(`/api/jobs/${id}/resume`).then(r => r.result && setRes(prev => prev || r.result)).catch(() => {})   // the resume built last time
   }, [id])
   const [ask, setAsk] = useState('')   // "lead with my robotics project": a change to this job's resume, in plain words
@@ -194,7 +209,8 @@ function JobSheet({ id, onClose, onChange }) {
               className="fixed bottom-2 right-2 top-2 z-50 w-[min(760px,calc(100vw-16px))] overflow-y-auto overscroll-contain rounded-[14px] bg-[#1c1c1e] p-5 shadow-[0_40px_100px_rgb(0_0_0/.5)] outline-none ring-1 ring-white/10 sm:p-8">
               <Dialog.Title className="sr-only">{job?.title || 'Job'}</Dialog.Title>
               <button onClick={onClose} aria-label="Close" className="absolute right-4 top-4 grid size-8 place-items-center rounded-full bg-white/[.06] text-muted transition hover:bg-white/[.1] hover:text-ink"><X className="size-4" /></button>
-              {!job ? <div className="space-y-3 pt-6"><div className="skel h-12 w-2/3" /><div className="skel h-40" /><div className="skel h-64" /></div> : <>
+              {job === false ? <div className="pt-10 text-center text-[15px] text-muted">This job isn't in your list any more. It may have closed or been removed by a scan.</div>
+                : !job ? <div className="space-y-3 pt-6"><div className="skel h-12 w-2/3" /><div className="skel h-40" /><div className="skel h-64" /></div> : <>
                 <div className="flex flex-col items-start gap-3 pr-10 sm:flex-row sm:gap-4">
                   <Avatar name={job.company} size={48} />
                   <div className="min-w-0"><div className="text-[14px] text-muted">{job.company}</div>
@@ -258,7 +274,7 @@ function JobSheet({ id, onClose, onChange }) {
                         </div>
                         <div className="mt-1.5 text-[12px] text-faint">{res.request ? `Last change: "${res.request}". ` : ''}It can reorder, cut and reword. It never adds facts, numbers or titles you didn't give it.</div>
                       </form>
-                      <Paper src={`/preview?job=${id}&template=${res.style}&t=${Date.now()}`} className="mt-4" />
+                      <Paper src={`/preview?job=${id}&template=${res.style}&t=${stamp}`} className="mt-4" />
                       {res.dropped?.length > 0 && <div className="mt-3 text-[12.5px] text-faint">Left out to fit one page: {res.dropped.slice(0, 6).join(' · ')}{res.dropped.length > 6 ? '…' : ''}</div>}
                     </motion.div>)}
                 </div>
@@ -296,7 +312,8 @@ function AddJob({ open, setOpen }) {
           <p className="mb-5 mt-1 text-[14px] text-muted">Paste the link. Pasting the description too makes the resume sharper.</p>
           <div className="space-y-4">
             {[['url', 'Job link', 'https://…'], ['title', 'Title', 'Software Engineer Intern'], ['company', 'Company', 'Acme']].map(([k, l, ph]) => (
-              <label key={k} className="block"><div className="label mb-1.5">{l}</div><input className="box" placeholder={ph} value={f[k]} onChange={e => setF({ ...f, [k]: e.target.value })} /></label>))}
+              <label key={k} className="block"><div className="label mb-1.5">{l}</div><input className="box" placeholder={ph} value={f[k]} onChange={e => setF({ ...f, [k]: e.target.value })}
+                onKeyDown={e => { if (e.key === 'Enter' && (f.url.trim() || f.description.trim())) { e.preventDefault(); submit() } }} /></label>))}
             <label className="block"><div className="label mb-1.5">Description (optional)</div><textarea rows={5} className="box resize-none" value={f.description} onChange={e => setF({ ...f, description: e.target.value })} /></label>
           </div>
           <div className="mt-6 flex justify-end gap-2"><Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={submit} disabled={!f.url.trim() && !f.description.trim()}>Add job</Button></div>

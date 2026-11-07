@@ -3,7 +3,8 @@ import { motion } from 'motion/react'
 import * as RSwitch from '@radix-ui/react-switch'
 import * as RSlider from '@radix-ui/react-slider'
 import { ChevronRight, UploadCloud } from 'lucide-react'
-import { cn } from '../lib/utils'
+import { toast } from 'sonner'
+import { cn, fileB64 } from '../lib/utils'
 
 export const spring = { type: 'spring', stiffness: 420, damping: 34, mass: 0.8 }
 export const soft = { type: 'spring', stiffness: 220, damping: 28 }
@@ -148,20 +149,20 @@ export function Drop({ onFile, onText, compact }) {
   const input = useRef(null)
   const handle = async f => {
     if (!f) return
-    const b = await f.arrayBuffer()
-    let bin = ''; const u = new Uint8Array(b)
-    for (let i = 0; i < u.length; i += 0x8000) bin += String.fromCharCode(...u.subarray(i, i + 0x8000))
-    onFile({ name: f.name, data: btoa(bin) })
+    // the server takes up to 40 MB of request; a bigger file used to come back as a confusing "bad json"
+    if (f.size > 25e6) return toast.error('That file is over 25 MB', { description: 'Export your resume as a PDF or Word file (usually under 1 MB) and drop that.' })
+    onFile({ name: f.name, data: await fileB64(f) })
   }
   return (
     <div onDragOver={e => { e.preventDefault(); setOver(true) }} onDragLeave={() => setOver(false)}
       onDrop={e => { e.preventDefault(); setOver(false); handle(e.dataTransfer.files[0]) }} onClick={() => input.current.click()}
+      role="button" tabIndex={0} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); input.current.click() } }}
       className={cn('group relative flex cursor-pointer flex-col items-center justify-center rounded-[12px] border border-dashed text-center transition-colors',
         over ? 'border-signal bg-signal/[.06]' : 'border-white/[.16] bg-white/[.025] hover:border-white/30', compact ? 'px-6 py-7' : 'px-8 py-12')}>
-      <input ref={input} type="file" accept=".pdf,.txt,.md,.docx" className="hidden" onChange={e => handle(e.target.files[0])} />
+      <input ref={input} type="file" accept=".pdf,.docx,.tex,.txt,.md" className="hidden" onChange={e => { handle(e.target.files[0]); e.target.value = '' }} />
       <UploadCloud className="mb-3 size-7 text-muted" strokeWidth={1.6} />
       <div className="text-[15px] font-medium text-fg">Drop your resume here</div>
-      <div className="mt-1 text-[13px] text-muted">PDF, Word or plain text</div>
+      <div className="mt-1 text-[13px] text-muted">PDF, Word, LaTeX or plain text</div>
       {onText && !compact && <button onClick={e => { e.stopPropagation(); onText() }} className="mt-4 text-[14px] font-medium text-signal-ink hover:underline">Or paste text instead</button>}
     </div>
   )

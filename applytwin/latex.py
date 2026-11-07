@@ -176,11 +176,27 @@ def build_tex(r, k=1.0):
 ENGINES = ('pdflatex', 'tectonic', 'lualatex', 'xelatex')
 
 
+def _tex_dirs():
+    """Where TeX installs put their programs when PATH doesn't say (the app starts at login, before MiKTeX or TeX Live
+    may have been installed, and keeps that PATH)."""
+    if os.name != 'nt':
+        return ['/Library/TeX/texbin', '/opt/homebrew/bin', '/usr/local/bin']
+    import glob
+    from .store import refresh_path
+    refresh_path()
+    la, pf = os.environ.get('LOCALAPPDATA', ''), os.environ.get('ProgramFiles', r'C:\Program Files')
+    return ([os.path.join(la, 'Programs', 'MiKTeX', 'miktex', 'bin', 'x64'), os.path.join(pf, 'MiKTeX', 'miktex', 'bin', 'x64')]
+            + sorted(glob.glob(r'C:\texlive\*\bin\windows') + glob.glob(r'C:\texlive\*\bin\win64'), reverse=True)
+            + [os.path.join(la, 'Programs', 'tectonic'), os.path.join(os.path.expanduser('~'), '.cargo', 'bin')])
+
+
 def engines():
-    out = []
+    out, dirs = [], None
     for e in ENGINES:
-        p = shutil.which(e) or next((os.path.join(d, e) for d in ('/Library/TeX/texbin', '/opt/homebrew/bin', '/usr/local/bin')
-                                     if os.path.exists(os.path.join(d, e))), None)
+        p = shutil.which(e)
+        if not p:
+            dirs = dirs if dirs is not None else _tex_dirs()
+            p = next((shutil.which(e, path=d) for d in dirs if os.path.isdir(d) and shutil.which(e, path=d)), None)
         if p:
             out.append((e, p))
     return out
@@ -200,6 +216,8 @@ def compile_tex(src, out_pdf):
             f = os.path.join(td, 'resume.tex')
             open(f, 'w', encoding='utf-8').write(src)
             cmd = [exe, f] if name == 'tectonic' else [exe, '-interaction=nonstopmode', '-halt-on-error', 'resume.tex']
+            if name != 'tectonic' and 'miktex' in exe.lower():
+                cmd.insert(1, '--enable-installer')   # install a missing package quietly, not with a dialog nobody sees
             try:   # one pass: there are no cross-references, so a second run changes nothing
                 rc = subprocess.run(cmd, cwd=td, capture_output=True, timeout=180, **NOWIN).returncode
             except (OSError, subprocess.SubprocessError):

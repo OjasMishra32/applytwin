@@ -52,9 +52,30 @@ def _no_console():
         pass
 
 
+_VT = [None]
+
+
+def _color_ok():
+    """A terminal that shows colors. Windows 10's classic console (cmd.exe) prints the escape codes as "←[33m" unless
+    the program turns its color mode on, so turn it on once; if that fails, no colors."""
+    if sys.stdout is None or not sys.stdout.isatty():
+        return False
+    if os.name != 'nt':
+        return True
+    if _VT[0] is None:
+        try:
+            import ctypes
+            k = ctypes.windll.kernel32
+            h, mode = k.GetStdHandle(-11), ctypes.c_uint32()
+            _VT[0] = bool(k.GetConsoleMode(h, ctypes.byref(mode))) and bool(k.SetConsoleMode(h, mode.value | 0x0004))
+        except Exception:
+            _VT[0] = False
+    return _VT[0]
+
+
 def _paint(code, s):
     """Color in a terminal only: piped (the Windows installer shows this output) the escape codes print as junk."""
-    return f'\033[{code}m{s}\033[0m' if sys.stdout is not None and sys.stdout.isatty() else s
+    return f'\033[{code}m{s}\033[0m' if _color_ok() else s
 
 
 def main():

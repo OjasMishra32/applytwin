@@ -38,7 +38,9 @@ themselves on a careful day.
    theirs): log Skipped with `skip_reason`. `formats` gives a date as MM/YYYY, YYYY-MM, etc. Results with `action: "write"` are open-ended questions
    (why this company, what interested you, anything else): write them yourself following `how`, never ask the user and
    never leave them blank. Anything else returned null is a fact only the user knows: collect those, ask the user ONCE
-   for all of them (batch across jobs when you can), then `applytwin_save_answer` each.
+   for all of them (batch across jobs when you can), then `applytwin_save_answer` each. **In Autopilot (an unattended
+   run) never ask and never wait:** nobody is there to answer and a question ends the run. Log the job Needs User with
+   notes `required question: <exact text>` and move on to the next job.
 5. **Fill**: open `apply_url`, `applytwin_playbook(<job.ats>)`, and fill every field. Upload the tailored PDF.
    Write every open-ended answer (required or optional) from the vault + posting, following the `how` rules from step 4.
 6. **Verify**: read back every field value; fix anything empty or wrong (selects especially: pick options by

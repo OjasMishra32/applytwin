@@ -89,7 +89,7 @@ def cli(*args, timeout=180, input=None):
 def http(path, body=None):
     req = urllib.request.Request(f'http://127.0.0.1:{PORT}{path}', data=None if body is None else json.dumps(body).encode(),
                                  headers={'Content-Type': 'application/json'})
-    with urllib.request.urlopen(req, timeout=60) as r:
+    with urllib.request.urlopen(req, timeout=240) as r:   # a first tailor on a slow laptop (Intel N100) takes over a minute
         raw = r.read()
         return json.loads(raw) if r.headers.get('Content-Type', '').startswith('application/json') else raw.decode()
 

@@ -5,6 +5,7 @@ import sys
 import mimetypes
 import os
 import re
+import socket
 import traceback
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -28,6 +29,18 @@ def _q(qs, k, d=None):
     return (qs.get(k) or [d])[0]
 
 
+# Fixed types for the files the app serves. On Windows `mimetypes` reads the registry, where editors and installers often
+# leave .js as text/plain: the browser then refuses the app's script and the page stays blank.
+_TYPES = {'.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css',
+          '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg',
+          '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.woff': 'font/woff', '.pdf': 'application/pdf',
+          '.tex': 'text/plain', '.txt': 'text/plain', '.webmanifest': 'application/manifest+json'}
+
+
+def content_type(path, default='application/octet-stream'):
+    return _TYPES.get(os.path.splitext(path)[1].lower()) or mimetypes.guess_type(path)[0] or default
+
+
 GET = {
     r'/api/vault/backups': lambda m, qs, b: api.vault_backups(),
     r'/api/state': lambda m, qs, b: {"profile": api.get_profile(), "vault": api.get_vault(), "stats": api.stats(),
@@ -37,7 +50,7 @@ GET = {
     r'/api/jobs': lambda m, qs, b: api.list_jobs(_q(qs, 'q', ''), _q(qs, 'status', 'new'),
                                                  float(_q(qs, 'min')) if _q(qs, 'min') else None, int(_q(qs, 'limit', 150)),
                                                  _q(qs, 'ats'), _q(qs, 'order', 'fit')),
-    r'/api/jobs/([\w-]+)': lambda m, qs, b: api.get_job(m.group(1)),
+    r'/api/jobs/([\w-]+)': lambda m, qs, b: api.get_job(m.group(1), 'later'),   # opens at once; the description fills in
     r'/api/jobs/([\w-]+)/questions': lambda m, qs, b: api.job_questions(m.group(1)),
     r'/api/jobs/([\w-]+)/ats': lambda m, qs, b: api.ats_report(job_id=m.group(1)),
     r'/api/jobs/([\w-]+)/progress': lambda m, qs, b: api.tailor_progress(m.group(1)),
@@ -59,7 +72,7 @@ GET = {
     r'/api/update': lambda m, qs, b: api.update_status(),
     r'/api/agents': lambda m, qs, b: api.agent_status(),
     r'/api/auth': lambda m, qs, b: cloud.status(),
-    r'/api/inbox': lambda m, qs, b: api.inbox_poll(),
+    r'/api/inbox': lambda m, qs, b: api.inbox_poll(watching=_q(qs, 'bg') != '1'),
     r'/api/accounts': lambda m, qs, b: api.accounts_status(),
     r'/api/needs-you': lambda m, qs, b: api.needs_you(),
     r'/api/jobs/([\w-]+)/thread': lambda m, qs, b: {"thread": api.thread(m.group(1))},
@@ -97,7 +110,7 @@ POST = {
                                                      else bool(api.store.profile()['apply'].get('auto_submit'))),
     r'/api/finish/site': lambda m, qs, b: api.finish_site(b.get('site') or '', bool(b.get('submit'))),
     r'/api/open-twin': lambda m, qs, b: api.open_in_twin_browser(b['url']),
-    r'/api/history': lambda m, qs, b: api.import_history(text=b.get('text', '')),
+    r'/api/history': lambda m, qs, b: api.import_history(text=b.get('text'), data=b.get('data')),
     r'/api/agents/(claude|codex)/connect': lambda m, qs, b: api.connect_agent(m.group(1)),
     r'/api/history/email': lambda m, qs, b: api.start_run(b.get('agent') or api.store.profile()['apply'].get('agent') or 'claude', 1,
                                                           prompt=api.email_history_prompt()),
@@ -222,20 +235,37 @@ class H(BaseHTTPRequestHandler):
             if (not p.startswith(os.path.realpath(store.path('resumes')) + os.sep) or not os.path.isfile(p)
                     or not p.lower().endswith(('.pdf', '.tex', '.png', '.json'))):
                 return self._send(403, {"error": "forbidden"})
-            return self._send(200, open(p, 'rb').read(), mimetypes.guess_type(p)[0] or 'application/octet-stream')
+            with open(p, 'rb') as fh:
+                return self._send(200, fh.read(), content_type(p))
         rel = 'index.html' if u.path in ('/', '') else u.path.lstrip('/')
         f = os.path.realpath(os.path.join(WEB, rel))
         if not f.startswith(os.path.realpath(WEB) + os.sep) or not os.path.isfile(f):
             f = os.path.join(WEB, 'index.html')
-        self._send(200, open(f, 'rb').read(), mimetypes.guess_type(f)[0] or 'text/plain')
+        with open(f, 'rb') as fh:
+            self._send(200, fh.read(), content_type(f, 'text/plain'))
+
+    def _drain(self, n):
+        """Read and drop a request body we're refusing. Windows resets a connection closed with unread data waiting, and
+        the client then sees "connection aborted" instead of our answer."""
+        left = min(max(n, 0), MAX_BODY)
+        while left > 0:
+            chunk = self.rfile.read(min(left, 65536))
+            if not chunk:
+                break
+            left -= len(chunk)
 
     def do_POST(self):
-        if not self._trusted(post=True):
-            return self._send(403, {"error": "forbidden"})
         try:
             n = int(self.headers.get('Content-Length') or 0)
-            if not 0 <= n <= MAX_BODY:
-                raise ValueError('body too large')
+        except ValueError:
+            n = -1
+        if not self._trusted(post=True):
+            self._drain(n)
+            return self._send(403, {"error": "forbidden"})
+        if not 0 <= n <= MAX_BODY:
+            self.close_connection = True   # don't read an oversized body; say why instead of "bad json"
+            return self._send(413, {"error": "That file is too large. Use a PDF or Word file under 25 MB."})
+        try:
             body = json.loads(self.rfile.read(n) or b'{}')
         except ValueError:
             return self._send(400, {"error": "bad json"})
@@ -399,6 +429,29 @@ class _Server(ThreadingHTTPServer):
         super().server_bind()
 
 
+class _Server6(_Server):
+    address_family = socket.AF_INET6
+
+    def server_bind(self):
+        try:
+            self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 1)
+        except (AttributeError, OSError):
+            pass
+        super().server_bind()
+
+
+def _also_ipv6(port):
+    """Answer on [::1] too. Windows (and some Linux setups) try IPv6 first for "localhost"; with nothing listening there,
+    every request waits for that attempt to fail before falling back to 127.0.0.1 (about 2 s from Python, a few hundred ms
+    per request in Chrome), which made the whole app feel slow."""
+    try:
+        s6 = _Server6(('::1', port), H)
+    except (OSError, ValueError):
+        return None   # IPv6 is off, or something else already has [::1]:port: 127.0.0.1 still works
+    threading.Thread(target=s6.serve_forever, daemon=True).start()
+    return s6
+
+
 def serve(port=4747, open_browser=True):
     import time as _t
     import urllib.request
@@ -432,11 +485,16 @@ def serve(port=4747, open_browser=True):
     if srv is None:
         raise SystemExit(f'Ports {port}-{port + 19} are all busy. Free one, or run: applytwin app --port 5050')
     port = srv.server_address[1]
+    _also_ipv6(port)
     url = f'http://localhost:{port}'
     # on start: re-apply the current matching rules to saved jobs (so fixes like the skip list reach existing queues),
     # then refresh jobs if the last scan is old
     from . import install
     threading.Thread(target=lambda: (install.refresh_skills(), install.refresh_agents(), api.tidy_inbox(), api.rescore(), api.scan_if_stale()), daemon=True).start()
+    if not os.environ.get('APPLYTWIN_NO_TWIN'):   # tests never download these
+        from . import agents
+        # Node.js (Windows: ApplyTwin's own copy when the PC has none), then the browser tool, so Start is quick
+        threading.Thread(target=lambda: (agents.ensure_node(), install.prewarm_browser_tool()), daemon=True).start()
     threading.Thread(target=_update_loop, daemon=True).start()
     threading.Thread(target=_code_watch, daemon=True).start()
     # update after the app is up (the page opens right away), and only in the copy that owns the port

@@ -88,7 +88,8 @@ def save_vault(vault, force=False):
 def save_dump(text):
     """Raw brain-dump text (old resumes, LinkedIn, notes). An agent turns it into the structured vault."""
     with open(store.path('dump.md'), 'a', encoding='utf-8') as f:
-        f.write(f'\n\n<!-- {time.strftime("%Y-%m-%d %H:%M")} -->\n{text.strip()}\n')
+        # Windows files end lines with \r\n, which text mode would write back as \r\r\n (a blank line after every line)
+        f.write(f'\n\n<!-- {time.strftime("%Y-%m-%d %H:%M")} -->\n{text.replace(chr(13) + chr(10), chr(10)).replace(chr(13), chr(10)).strip()}\n')
     return {"ok": True, "chars": len(text), "next": "Ask your agent: 'twin: structure my dump into my vault' (skill applytwin-onboard)"}
 
 
@@ -285,11 +286,34 @@ def list_jobs(query='', status='new', min_fit=None, limit=100, ats_filter=None, 
     return out
 
 
+_desc_fetching = set()
+
+
+def _fetch_description_later(job_id):
+    """Download a posting's description in the background, once at a time per job (the page shows what's saved now)."""
+    if job_id in _desc_fetching:
+        return
+    _desc_fetching.add(job_id)
+
+    def work():
+        try:
+            get_job(job_id)
+        except Exception:
+            pass
+        finally:
+            _desc_fetching.discard(job_id)
+    threading.Thread(target=work, daemon=True).start()
+
+
 def get_job(job_id, with_description=True):
     r = store.rows('select * from jobs where id=?', (job_id,))
     if not r:
         return None
     j = r[0]
+    if with_description == 'later':   # the page: open now; a slow careers site (up to a minute with retries) fills in after
+        if len(j.get('description') or '') < 400:
+            _fetch_description_later(job_id)
+        return j
     if with_description and len(j.get('description') or '') < 400:
         d = sources.fetch_description(j)
         if d and len(d) > len(j.get('description') or ''):   # keep it: it was being downloaded again on every view
@@ -422,7 +446,9 @@ def next_jobs(n=10):
         return {"remaining_today": left, "jobs": [], "stop": True, "note": down}
     skip, applied = p['search'].get('companies_skip', []), store.company_counts()
     waiting, later, deferred = blocked_hosts(), retry_later(), {}
-    for j in list_jobs(status='new', limit=400):
+    # every open job, as the queue counts them: capped, skipped and waiting companies used to fill the first 400 and the
+    # agent was handed nothing ("queue empty") while the page said hundreds of roles were ready
+    for j in list_jobs(status='new', limit=20000):
         if already_done(j, done, ids) or any(match.same_company(s, j['company']) for s in skip):
             continue
         if not_applyable(j, p) or j['id'] in later:   # a homepage link, a clear knockout, or a page error retried later
@@ -826,6 +852,7 @@ def _requeue(job_id, cat, notes):
 
 
 def log_application(job_id, status='Applied', notes='', resume_path='', agent=False, company='', title=''):
+    _todo_cache['v'] = None
     st, nt, action = triage(job_id, status, notes, agent)
     if action == 'requeue' and store.rows('select 1 from jobs where id=?', (job_id,)):
         last = store.latest_status(job_id)
@@ -850,7 +877,11 @@ def log_application(job_id, status='Applied', notes='', resume_path='', agent=Fa
 
 
 def applications(limit=500, history=False):
-    rows = store.rows('select * from applications order by at desc limit ?', (limit,))
+    if history:   # the board: every application's latest state (the newest 500 log rows left heavy users' older ones out)
+        rows = store.rows('select * from applications a where id = (select b.id from applications b where b.job_id=a.job_id '
+                          'order by b.at desc, b.id desc limit 1) order by at desc')
+    else:
+        rows = store.rows('select * from applications order by at desc limit ?', (limit,))
     if history:   # roles applied to before ApplyTwin (imported from a tracker), so the board shows the whole search
         logged = {r['job_id'] for r in store.rows('select job_id from applications')}
         rows += [{"id": 'h' + j['id'], "job_id": j['id'], "company": j['company'], "title": j['title'], "url": j['url'], "status": 'Applied',
@@ -898,6 +929,10 @@ def stats():
             # hours and counts ones waiting at review; showing that as "today" said 2 on one page and 0 on another)
             "applied_day": store.rows("select count(distinct job_id) n from applications where status='Applied' and at>=?",
                                       (time.mktime(time.localtime()[:3] + (0, 0, 0, 0, 0, -1)),))[0]['n'],
+            # filled and waiting for the user's Submit (they count toward the daily limit): shown next to "Applied today"
+            "ready_to_submit": store.rows(f"select count(distinct job_id) n from applications where {store.COUNTED} and status='Needs User' "
+                                          "and at>? and not exists (select 1 from applications b where b.job_id=applications.job_id "
+                                          "and b.at>applications.at and b.status='Applied')", (time.time() - 86400,))[0]['n'],
             "matched": store.rows("select count(*) n from jobs where status='new' and fit>=?",
                                   (store.profile()['search'].get('min_fit', 65),))[0]['n']}
 
@@ -991,6 +1026,16 @@ def tailor_progress(job_id):
     return {"progress": tailor.progress(job_id)}
 
 
+def _still_working():
+    """Mark the run as making progress (the stuck-run timer reads activity.json), keeping what it says it's doing."""
+    try:
+        a = store.load('activity.json', {}) or {}
+        if a:
+            store.save('activity.json', {**a, "at": time.time()})
+    except Exception:
+        pass
+
+
 def tailor_apply(job_id, plan=None, template=None, mode='auto', fresh=False, request=None):
     """The tailored resume for a job. Without a plan: the dedicated writer's build (started at claim; waited for if still
     running), which is the best quality. With a plan: built from that plan."""
@@ -1012,7 +1057,12 @@ def tailor_apply(job_id, plan=None, template=None, mode='auto', fresh=False, req
         pretailor(job_id)
         slot = _tailoring.get(job_id)
         if slot:
-            slot['thread'].join(timeout=900)   # longer than the slowest build: never start a second one alongside it
+            # longer than the slowest build (never start a second one alongside it), in slices that tell the stuck-run timer
+            # the twin is still working: a slow laptop's long build used to get a healthy run killed as "stuck"
+            end = time.time() + 900
+            while slot['thread'].is_alive() and time.time() < end:
+                slot['thread'].join(timeout=15)
+                _still_working()
             if slot['thread'].is_alive():
                 return {"error": "Your resume is still being written. It will be ready here in a moment."}
             if slot.get('result') and slot.get('vault') == _vault_stamp() and (not template or slot['result'].get('style') == template):
@@ -1370,7 +1420,9 @@ def run_prompt(n):
             "A graduation window in the posting (applytwin_get_job knockouts, or text like 'graduating Dec 2027 - Aug 2028'), or a graduation dropdown "
             "whose options all end before my grad date (applytwin_answer_questions says knockout), that my grad date is outside of IS clearly ineligible: log Skipped with that exact reason. "
             "If applytwin_get_job shows already_applied, or the site says I already applied, log Skipped as a duplicate and never submit twice. "
-            "Never invent facts (no guessed birth dates or recommender names: log Needs User with the exact question). Give a 1-line update every 5 jobs.")
+            "Never invent facts (no guessed birth dates or recommender names: log Needs User with the exact question). "
+            "This run is unattended: never stop to ask me anything or wait for an answer (a question ends the run); whatever "
+            "needs me goes to applytwin_notify plus a Needs User log, and you go on to the next job. Give a 1-line update every 5 jobs.")
 
 
 def doctor():
@@ -1378,7 +1430,14 @@ def doctor():
 
 
 def agent_status():
-    return {n: {**agents.status(n, fresh=bool(_connecting.get(n))), "connecting": _connect_view(n)} for n in agents.NAMES}
+    out = {}
+    for n in agents.NAMES:
+        # a fresh check (it starts the agent's own program, about a second each) only while an install or sign-in is under
+        # way, and once per call: a failed connect used to make every poll check fresh, twice, forever
+        busy = (_connecting.get(n) or {}).get('step') in ('installing', 'signing_in')
+        st = agents.status(n, fresh=busy)
+        out[n] = {**st, "connecting": _connect_view(n, st)}
+    return out
 
 
 _connecting = {}   # name -> {"step": "installing" | "signing_in" | "failed", "at", "error", "proc"}
@@ -1386,11 +1445,11 @@ LOGIN_CMD = {'claude': ['auth', 'login', '--claudeai'], 'codex': ['login']}
 NPM_PKG = {'claude': '@anthropic-ai/claude-code', 'codex': '@openai/codex'}
 
 
-def _connect_view(name):
+def _connect_view(name, st=None):
     c = _connecting.get(name)
     if not c:
         return None
-    if c['step'] == 'signing_in' and agents.status(name, fresh=True)['signed_in']:
+    if c['step'] == 'signing_in' and (st or agents.status(name, fresh=True))['signed_in']:
         _connecting.pop(name, None)   # done: the browser sign-in finished
         return None
     if time.time() - c['at'] > 900 and c['step'] != 'failed':   # nobody finished in 15 minutes: stop waiting
@@ -1436,7 +1495,7 @@ def connect_agent(name):
                 subprocess.run(cmd, stdout=log, stderr=subprocess.STDOUT, timeout=600, **store.NOWIN)
                 agents._cache.pop(name, None)
             if not agents.exe(name):
-                npm = agents.exe('npm')
+                npm = agents.exe('npm') or (agents.ensure_node() and agents.exe('npm'))   # Windows: ApplyTwin's own Node.js
                 if not npm:
                     c.update(step='failed', error="Node.js isn't installed, so it can't be installed for you. Get it from nodejs.org, "
                                                   "then press this again.")
@@ -1802,7 +1861,11 @@ _RUN_LOCK = threading.Lock()
 def pick_agent(agent):
     """The agent to run: the one asked for if it's installed and signed in, otherwise whichever one is (someone with only
     Codex pressing 'Find them in my email' got 'Claude Code is not installed')."""
-    ready = lambda a: bool(agents.exe(a)) and agents.status(a, fresh=True)['signed_in']
+    def ready(a):
+        if not agents.exe(a):
+            return False
+        s = agents.status(a, fresh=True)
+        return bool(s['signed_in'] and not s.get('needs_shell'))
     if ready(agent):
         return agent
     return next((a for a in agents.NAMES if a != agent and ready(a)), agent)
@@ -1820,9 +1883,15 @@ def _start_run(agent, n, model, prompt, restarts):
     import subprocess
     if _run['proc'] and _run['proc'].poll() is None:
         return {**run_status(), "busy": True}
-    if prompt is None and store.applied_count_today() >= store.profile()['apply'].get('daily_limit', 40):
-        raise RuntimeError(f"You've reached today's limit of {store.profile()['apply'].get('daily_limit', 40)} applications. "
-                           "Raise it in Settings, or your twin continues tomorrow.")
+    limit = store.profile()['apply'].get('daily_limit', 40)
+    if prompt is None and store.applied_count_today() >= limit:
+        # filled forms waiting for the user's Submit count toward the limit (auto-submit is off by default), while the page
+        # counts only submitted ones: say so, or "Applied today 0" next to "limit reached" reads as broken
+        sent = store.rows("select count(distinct job_id) n from applications where status='Applied' and at>?", (time.time() - 86400,))[0]['n']
+        waiting = max(0, limit - sent)
+        raise RuntimeError(f"Your twin has handled today's limit of {limit} applications in the last 24 hours"
+                           + (f": {waiting} are filled and waiting for you to press Submit (see Needs you)" if waiting else '')
+                           + ". Raise the limit in Settings, or your twin continues as the day rolls over.")
     picked = pick_agent(agent)
     if picked != agent:
         agent, model = picked, None
@@ -1833,6 +1902,9 @@ def _start_run(agent, n, model, prompt, restarts):
     st = agents.status(agent, fresh=True)
     if not st['signed_in']:
         raise RuntimeError(f"{st['label']} is signed out. Press Sign in on the Autopilot page, finish in your browser, then press Start again.")
+    if st.get('needs_shell'):
+        raise RuntimeError("Claude Code can't run on this PC yet: on Windows it needs Git for Windows (or PowerShell 7). Install it: "
+                           + agents.SHELL_FIX + ". Or switch to Codex.")
     from . import cloud
     if not (cloud.status()['signed_in'] or os.environ.get('APPLYTWIN_SKIP_SIGNIN') or os.environ.get('CI')):
         raise RuntimeError('Sign in first: open ApplyTwin (type applytwin in a terminal) and continue with Google.')
@@ -1846,9 +1918,18 @@ def _start_run(agent, n, model, prompt, restarts):
             "anything; keep calling tools until every job is handled or a tool result says stop. Your one final message ends the run.")
     store.save('run_health.json', {})   # a new run gets a fresh chance at its browser
     from . import install
+    agents.ensure_node()   # no Node.js on this PC: ApplyTwin gets its own (once) instead of sending the user to nodejs.org
     install.ensure_browser(agent)
-    if not install.has_browser(agent) and not shutil.which('npx'):
-        raise RuntimeError("Your twin's browser needs Node.js. Install it from nodejs.org, then press Start again.")
+    if not install.has_browser(agent) and not os.environ.get('APPLYTWIN_AGENT_MCP_CONFIG'):   # an isolated run brings its own
+        if not agents.exe('npx'):
+            raise RuntimeError("Your twin's browser tools couldn't be set up (they download once, about 40 MB). Check your "
+                               "internet connection and press Start again." if os.name == 'nt' else
+                               "Your twin's browser needs Node.js. Install it from nodejs.org, then press Start again.")
+        if install.LAST_ERROR[0]:
+            # registering it just failed: without its browser tool the agent can open nothing and the run would end at once
+            # with 0 applications, so say why now (only on a real error: Claude Code may keep its settings elsewhere)
+            raise RuntimeError(f"Couldn't connect your twin's browser to {'Claude Code' if agent == 'claude' else 'Codex'} "
+                               f"({install.LAST_ERROR[0][:200]}). Press Start again; if it happens again, restart ApplyTwin.")
     if agent == 'claude':
         # runs on the user's own Claude subscription; only ApplyTwin's tools and a browser are pre-approved, so it never stalls on a prompt
         tools = ('mcp__plugin_applytwin_applytwin,mcp__applytwin,mcp__playwright,mcp__claude-in-chrome,'
@@ -1867,11 +1948,14 @@ def _start_run(agent, n, model, prompt, restarts):
     from . import twin
     if not twin.ensure():   # the twin's own window, kept open between runs so half-filled forms are still there
         f.close()
-        raise RuntimeError("Couldn't open your twin's browser. ApplyTwin needs Google Chrome (or Chromium/Edge) installed.")
+        raise RuntimeError(twin.why_not())
     # run from the data folder, not the repo, so the agent loads the installed plugin rather than the repo's dev .mcp.json
     # the instructions go in on stdin: on Windows, claude/codex are .cmd wrappers and cmd.exe would mangle quotes in a long argument
     run_id = f'run-{int(time.time() * 1000)}'
     env = {**os.environ, 'APPLYTWIN_RUN_ID': run_id}   # the agent's ApplyTwin tools tag their claims with this run
+    # Claude Code gives each tool server 30 s to start; the browser tool's first `npx` download (and every new release it
+    # fetches) can take longer on a slow laptop or connection, and a server that missed it is never retried in a run
+    env.setdefault('MCP_TIMEOUT', '120000')
     proc = subprocess.Popen(cmd, stdout=f, stderr=subprocess.STDOUT, stdin=subprocess.PIPE, cwd=store.HOME, text=True, encoding='utf-8', env=env,
                             errors='replace', **(store.NOWIN if os.name == 'nt' else {'start_new_session': True}))   # its own group: Stop ends its browser too
     f.close()   # the agent has its own handle to the log; keeping ours open leaked one file per run
@@ -1883,8 +1967,30 @@ def _start_run(agent, n, model, prompt, restarts):
     return run_status()
 
 
-AUTH_ERRORS = ('failed to authenticate', 'oauth session expired', 'not logged in', 'please run /login', 'invalid api key',
-               'unauthorized', 'status 401')
+AUTH_ERRORS = ('failed to authenticate', 'oauth session expired', 'oauth token has expired', 'please run /login', 'invalid api key',
+               'run codex login')
+# words a run summary uses about job sites too ("Workday: not logged in", "401 Unauthorized"): only the agent's own sign-in
+# when the run logged nothing (a summary like that used to cancel the automatic continue and ask for a sign-in)
+WEAK_AUTH_ERRORS = ('not logged in', 'unauthorized', 'status 401')
+USAGE_LIMIT = re.compile(r"hit your (?:usage |weekly |session )?limit|reached your (?:usage |weekly |session |\w+ )?limit|usage limit (?:reached|exceeded)|"
+                         r"you've reached the limit|out of (?:usage|credits)|rate[_ ]limit(?:ed| reached| exceeded)|usage_limit_reached", re.I)
+
+
+def _agent_signed_out(tail, started):
+    if any(e in tail for e in AUTH_ERRORS):
+        return True
+    return any(e in tail for e in WEAK_AUTH_ERRORS) and not store.rows('select 1 from applications where at >= ?', (started,))
+
+
+def _usage_limit(raw):
+    """The plan's usage limit stopped the run (Claude Pro/Max, ChatGPT Plus): '' or what to tell the user, with the reset
+    time when the agent said it. These runs used to end in seconds as "stopped early, exit code 1"."""
+    m = USAGE_LIMIT.search(raw or '')
+    if not m:
+        return ''
+    when = re.search(r'resets?\s+(?:at\s+|in\s+|on\s+)?([^\n.|]{2,40})', raw[m.start():m.start() + 400], re.I)
+    return ('It picks up again once your plan resets' + (f': {when.group(1).strip()}' if when else '') +
+            '. Press Start then. Nothing was lost.')
 
 
 def _kill(proc):
@@ -1899,6 +2005,19 @@ def _kill(proc):
             os.killpg(os.getpgid(proc.pid), signal.SIGTERM)   # the agent, its browser tools and their Chrome
         except (ProcessLookupError, PermissionError, OSError):
             proc.terminate()
+
+
+def _log_tail(path, n):
+    """The last n characters of a log without reading all of it (the Autopilot log grows to 2 MB and was read whole every
+    two seconds while a run went on)."""
+    try:
+        with open(path, 'rb') as f:
+            f.seek(0, 2)
+            size = f.tell()
+            f.seek(max(0, size - n * 4))
+            return f.read().decode('utf-8', errors='replace')[-n:]
+    except OSError:
+        return ''
 
 
 def _last_activity(since):
@@ -1941,9 +2060,22 @@ def _watch_run_body(proc, agent, logf, n, model, prompt=None, restarts=0, run_id
     # skip that application and carry on with the rest instead of holding up the whole queue
     minutes = float(store.profile()['apply'].get('stuck_minutes') or 20)
     started, stuck = time.time(), False
+    from . import twin
+
+    def browser_now():
+        try:
+            return tuple(sorted((p.get('url') or '', p.get('title') or '') for p in twin.pages()))
+        except Exception:
+            return None
+    seen, moved = browser_now(), started
     while proc.poll() is None:
         time.sleep(min(15, minutes * 15))
-        if proc.poll() is None and time.time() - _last_activity(started) > minutes * 60:
+        # the browser moving (a new page, a new title) is progress too: a long Workday form filled only with browser
+        # tools on a slow laptop used to be killed as "stuck" after 20 minutes
+        sig = browser_now()
+        if sig and sig != seen:
+            seen, moved = sig, time.time()
+        if proc.poll() is None and time.time() - max(_last_activity(started), moved) > minutes * 60:
             stuck = True
             _kill(proc)
             try:
@@ -1965,21 +2097,24 @@ def _watch_run_body(proc, agent, logf, n, model, prompt=None, restarts=0, run_id
         if left > 0 and prompt is None and restarts < 5:
             try:
                 start_run(agent, left, model=model, restarts=restarts + 1)
-            except Exception:
-                pass
+            except Exception as e:   # it couldn't carry on (limit, signed out, browser): say why instead of going quiet
+                notify("Your twin couldn't continue", str(e)[:300], kind='info')
         else:
             _next_followup()
         return
     # when the agent exits early because its own sign-in lapsed, tell the user how to fix it instead of failing silently
-    tail = open(logf, encoding='utf-8', errors='replace').read()[-3000:].lower() if os.path.exists(logf) else ''
+    raw_tail = _log_tail(logf, 3000)
+    tail = raw_tail.lower()
     name = 'Claude Code' if agent == 'claude' else 'Codex'
+    signed_out = _agent_signed_out(tail, started)
+    limited = _usage_limit(raw_tail)
     if agent == 'codex' and 'model_not_found' in tail and restarts < 8 and agents.reject_model(tail):
         # that model isn't on this plan: continue on the next one the CLI lists (remembered for every later run)
         fb = (agents.codex_model_args() or [None, None])[1]
         if fb:
             return start_run(agent, n, model=fb, prompt=prompt, restarts=restarts + 1)
     if (proc.returncode == 0 and prompt is None and not _run.get('stopped') and restarts < 5 and not browser_down()
-            and not any(e in tail for e in AUTH_ERRORS)):
+            and not signed_out and not limited):
         # the agent wrapped up before doing them all (Codex ends a run on its first progress message): carry on with the rest,
         # as long as this leg got something done and there is work and room left today
         done = len(store.rows('select 1 from applications where at >= ?', (started,)))
@@ -1989,9 +2124,25 @@ def _watch_run_body(proc, agent, logf, n, model, prompt=None, restarts=0, run_id
             release_claims(since=started, who=run_id)
             try:
                 return start_run(agent, left, model=model, restarts=restarts + 1)
-            except Exception:
-                pass
-    if any(e in tail for e in AUTH_ERRORS):
+            except Exception as e:
+                notify("Your twin couldn't continue", str(e)[:300], kind='info')
+    if limited and not _run.get('stopped'):
+        notify(f"{name} hit your plan's usage limit", limited, kind='info')
+    elif agent == 'claude' and agents.SHELL_ERROR.search(raw_tail) and not _run.get('stopped'):
+        # an old Claude Code that won't run on Windows without Git: update it (current ones use Windows PowerShell) and
+        # carry on, once, instead of asking a student to install developer tools
+        if not store.load('claude_shell_update.json', {}).get('done') and agents.update_claude():
+            store.save('claude_shell_update.json', {"done": True, "at": time.time()})
+            release_claims(since=started, who=run_id)
+            try:
+                return start_run(agent, n, model=model, prompt=prompt, restarts=restarts + 1)
+            except Exception as e:
+                notify("Your twin couldn't continue", str(e)[:300], kind='info')
+        else:
+            notify('Claude Code needs an update', 'This version of Claude Code needs Git for Windows to run, and updating it '
+                   "didn't work. Install Git for Windows (" + agents.SHELL_FIX + '), or switch to Codex on the Autopilot page.',
+                   kind='error')
+    elif signed_out:
         fix = 'press Sign in on the Autopilot page'
         notify(f'Sign in to {name}', f'Your {name} login expired: {fix}, then press Launch again.', kind='signin')
     elif proc.returncode and not _run.get('stopped'):
@@ -2001,8 +2152,7 @@ def _watch_run_body(proc, agent, logf, n, model, prompt=None, restarts=0, run_id
           and not store.rows('select 1 from claims where at >= ?', (started,))):
         # it ended without touching a single job (a browser tool that never connected, a refused tool): the page just went
         # back to Ready and nobody knew why. Say what it said last.
-        raw = open(logf, encoding='utf-8', errors='replace').read()[-3000:] if os.path.exists(logf) else ''
-        last = next((l.strip() for l in reversed(raw.splitlines()) if l.strip() and not l.startswith('$ ')), '')
+        last = next((l.strip() for l in reversed(raw_tail.splitlines()) if l.strip() and not l.startswith('$ ')), '')
         notify(f'{name} stopped without applying', (last[:240] or 'It ended before starting a job.') +
                ' The full log is under Autopilot log.', kind='error')
     release_claims(since=started, who=run_id)
@@ -2034,7 +2184,7 @@ def run_status():
     p = _run['proc']
     log = ''
     if _run['log'] and os.path.exists(_run['log']):
-        log = open(_run['log'], encoding='utf-8', errors='replace').read()[-6000:]
+        log = _log_tail(_run['log'], 6000)
     now = None
     a = store.load('activity.json', {}) or {}
     if p and p.poll() is None and a.get('at', 0) >= _run.get('started', 0):
@@ -2054,9 +2204,12 @@ _app_seen = [0.0, 0.0]   # last time the app (open in a browser tab) checked its
 def notify(title, message='', url='', job_id='', kind='needs_you'):
     """Tell the user something needs them (a code, a sign-in, a CAPTCHA, a question). In-app inbox, plus a notification:
     the open app shows its own (click it to answer); if the app isn't open, a system notification says where to go."""
+    _todo_cache['v'] = None   # the next poll shows it at once
     # one ping per site and blocker: five NVIDIA jobs waiting on one Workday sign-in are one thing to do, not five alerts
     cat = blockers.classify(f'{title}. {message}')
     if cat == 'browser':   # the agent's own tooling, not something on a site: one plain card with the fix, never a pile of raw errors
+        # the card gets the fix in plain words (picked from what actually went wrong); the raw error goes to the log
+        print(f'Browser error from the agent: {title}. {message}'[:500], flush=True)
         title, message, url, job_id = "Your twin's browser didn't start", browser_fix(f'{title}. {message}'), '', ''
         if store.rows("select id from inbox where resolved is null and title=?", (title,)):
             return {"ok": True, "batched": True, "note": "The user already has a browser item. Stop the run now."}
@@ -2091,12 +2244,19 @@ def tidy_inbox():
 
 def browser_fix(err=''):
     """What the user should do when the agent's browser didn't start, in plain words."""
-    import shutil
     from . import install
-    if not shutil.which('npx'):
-        return "It needs Node.js. Install it from nodejs.org, then press Start again."
+    if not agents.exe('npx'):
+        return ("Its browser tools aren't downloaded yet (once, about 40 MB). Check your internet connection and press Start again."
+                if os.name == 'nt' else "It needs Node.js. Install it from nodejs.org, then press Start again.")
     if re.search(r'already in use|profile', err, re.I):
         return "Another Chrome was using your twin's profile. Restart ApplyTwin and press Start again; your sign-ins are kept."
+    if re.search(r'timed? ?out|timeout', err, re.I):
+        return ("Its browser tool took too long to start (the first start downloads it, which is slow on some connections). "
+                "Press Start again: it's quicker the second time.")
+    if re.search(r'ECONNREFUSED|connect(ion)? refused|9343', err, re.I):
+        return "Your twin's Chrome window wasn't open. Press Start again; ApplyTwin opens it first."
+    if re.search(r"chrome.{0,40}not (found|installed)|distribution 'chrome'", err, re.I):
+        return "It needs Google Chrome. Install it from google.com/chrome, then press Start again."
     if not any(install.has_browser(a) for a in agents.NAMES):
         return "It wasn't set up yet. Restart ApplyTwin (it sets it up on start), then press Start again."
     return "Press Start again. If it happens again, restart ApplyTwin; your jobs stay in the queue."
@@ -2105,17 +2265,21 @@ def browser_fix(err=''):
 _todo_cache = {"at": 0.0, "v": None}
 
 
-def inbox_poll():
+def inbox_poll(watching=True):
     """What the bell and Needs you show, polled every few seconds by every open window: the grouped list plus just enough
-    of each new message for a desktop notification (it used to resend every message and every waiting job, 90 KB a poll)."""
-    if time.time() - _app_seen[1] > 4:   # the agent (its own process) checks this before pausing for your review
-        try:
-            store.save('app_seen.json', {"at": time.time()})
-            _app_seen[1] = time.time()
-        except OSError:
-            pass
-    _app_seen[0] = time.time()
-    if time.time() - _todo_cache['at'] > 3 or _todo_cache['v'] is None:   # two windows polling at once share one build
+    of each new message for a desktop notification (it used to resend every message and every waiting job, 90 KB a poll).
+    watching=False: a tab in the background asking. It doesn't count as someone looking, so a forgotten tab no longer makes
+    every application in a run pause for a review nobody sees, and desktop notifications still go out."""
+    if watching:
+        if time.time() - _app_seen[1] > 4:   # the agent (its own process) checks this before pausing for your review
+            try:
+                store.save('app_seen.json', {"at": time.time()})
+                _app_seen[1] = time.time()
+            except OSError:
+                pass
+        _app_seen[0] = time.time()
+    # one build shared for 15 s (it takes a few hundred ms with a big history); anything new clears it at once
+    if time.time() - _todo_cache['at'] > 15 or _todo_cache['v'] is None:
         _todo_cache.update(at=time.time(), v=todo())
     t = _todo_cache['v']
     items = [{"id": i['id'], "title": i['title'], "message": (i.get('message') or '')[:200]} for i in inbox()[:50]]
@@ -2143,7 +2307,10 @@ def todo():
     entries = []
     for i in inbox():
         j = job(i.get('job_id'))
+        # ApplyTwin's own notices about a run (stopped, usage limit, couldn't continue) always show: classified by their
+        # words ("timed out", "no progress") they read as a transient page error and were hidden
         cat = 'question' if i.get('kind') == 'question' else 'browser' if i['title'] == "Your twin's browser didn't start" \
+            else 'other' if i.get('kind') in ('info', 'error') and not i.get('job_id') \
             else blockers.classify(f"{i['title']}. {i.get('message') or ''}")
         if cat == 'browser' and i['at'] < (_run.get('started') or 0):   # a run started since, so its browser worked
             store.execute('update inbox set resolved=? where id=?', (time.time(), i['id']))
@@ -2305,13 +2472,30 @@ HISTORY_COLS = {   # column names used by Simplify, Huntr, Teal, Notion, Google 
 }
 
 
-def import_history(csv_path=None, text=None):
+def import_history(csv_path=None, text=None, data=None):
     """Mark jobs you already applied to elsewhere so your twin never applies twice. Reads a CSV export from any tracker
-    (Simplify, Huntr, Teal, Notion, a Google Sheet, or company,title,url,status columns); matches by the posting's job id
-    in the URL, then by company + role."""
+    (Simplify, Huntr, Teal, Notion, a Google Sheet, Excel, or company,title,url,status columns); matches by the posting's
+    job id in the URL, then by company + role. Excel on Windows saves CSVs in the "ANSI" code page (or UTF-16), and in much
+    of Europe with ';' between columns: both are read as-is."""
+    import base64
     import csv
     import io
-    rows = list(csv.reader(io.StringIO(text) if text is not None else open(csv_path, newline='', encoding='utf-8-sig', errors='replace')))
+    from .importer import decode_text
+    if text is None:
+        raw = base64.b64decode(data) if data else open(csv_path, 'rb').read()
+        text = decode_text(raw)
+        if text is None:
+            raise RuntimeError("That file isn't a CSV ApplyTwin can read. In your tracker or spreadsheet, export or "
+                               "'Save as' CSV, then import that file.")
+    text = (text or '').lstrip('﻿')
+    dialect = csv.excel
+    try:
+        d = csv.Sniffer().sniff(text[:8192], delimiters=',;\t')
+        if len(next(csv.reader(io.StringIO(text[:8192]), d), [])) >= 2:   # only a separator that really splits the header
+            dialect = d
+    except csv.Error:
+        pass
+    rows = list(csv.reader(io.StringIO(text, newline=''), dialect))
     if not rows:
         return {"matched": 0, "known_applications": 0}
     head = [h.strip().lower() for h in rows[0]]

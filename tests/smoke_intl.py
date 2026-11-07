@@ -2,8 +2,8 @@
 python3 tests/smoke_intl.py"""
 import json as _json
 import os as _os
-os.environ.setdefault('APPLYTWIN_NO_TWIN', '1')   # never open or reach the real twin browser
-os.environ.setdefault('APPLYTWIN_SCAN_INLINE', '1')   # scans stay in-process so tests can stand in for them
+_os.environ.setdefault('APPLYTWIN_NO_TWIN', '1')   # never open or reach the real twin browser
+_os.environ.setdefault('APPLYTWIN_SCAN_INLINE', '1')   # scans stay in-process so tests can stand in for them
 import re as _re
 import sys as _sys
 import tempfile as _tf
@@ -15,7 +15,7 @@ if 'res' not in globals():   # standalone: a throwaway home and the same helpers
     ROOT = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
     _sys.path.insert(0, ROOT)
     from applytwin import api, render, store  # noqa: F401
-    store.save('resume.json', _json.load(open(_os.path.join(ROOT, 'examples', 'resume.example.json'))))
+    store.save('resume.json', _json.load(open(_os.path.join(ROOT, 'examples', 'resume.example.json'), encoding='utf-8')))
     res = []
     ok = lambda c, m: print(('PASS ' if c else 'FAIL ') + m) or c
     _standalone = True

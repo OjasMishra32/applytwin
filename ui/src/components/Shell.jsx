@@ -69,7 +69,8 @@ function Inbox() {
     let t
     const f = async () => {
       try {
-        const r = await fetch('/api/inbox').then(r => r.json()); setD(r)
+        // a background tab says so: it doesn't count as you watching (which made every job in a run wait for a review)
+        const r = await fetch('/api/inbox' + (document.hidden ? '?bg=1' : '')).then(r => r.json()); setD(r)
         // anything new pops up as an ApplyTwin notification; clicking it opens the place to answer it
         let seen = [], first = true
         try { const raw = localStorage.getItem('at:notified'); first = raw === null; seen = JSON.parse(raw || '[]') } catch {}
@@ -82,9 +83,11 @@ function Inbox() {
         }
         try { localStorage.setItem('at:notified', JSON.stringify([...seen, ...fresh.map(i => i.id)].slice(-300))) } catch {}
       } catch {}
-      t = setTimeout(f, 12000)
+      t = setTimeout(f, document.hidden ? 60000 : 12000)
     }
-    f(); return () => clearTimeout(t)
+    const back = () => { if (!document.hidden) { clearTimeout(t); f() } }   // catch up the moment you come back
+    document.addEventListener('visibilitychange', back)
+    f(); return () => { clearTimeout(t); document.removeEventListener('visibilitychange', back) }
   }, [])
   const groups = d.groups || []
   const n = d.count ?? groups.length

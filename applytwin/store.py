@@ -84,8 +84,15 @@ def load(name, default=None):
     if not os.path.exists(p):
         return copy.deepcopy(default)
     try:
-        with open(p, encoding='utf-8-sig') as f:   # -sig: Notepad / PowerShell 5 add a byte-order mark
-            data = json.load(f)
+        for i in range(20):
+            try:
+                with open(p, encoding='utf-8-sig') as f:   # -sig: Notepad / PowerShell 5 add a byte-order mark
+                    data = json.load(f)
+                break
+            except PermissionError:   # Windows: another process is swapping this file in right now; it's back in ms
+                if i == 19:
+                    raise
+                time.sleep(0.05)
     except UnicodeDecodeError:   # written by an older version in the Windows code page; read it once, save as UTF-8
         with open(p, encoding='cp1252', errors='replace') as f:
             data = json.load(f)
@@ -99,16 +106,16 @@ def load(name, default=None):
     return _merge(default, data) if isinstance(default, dict) else data
 
 
-def replace(src, dst, tries=6):
-    """os.replace that waits out Windows' share lock: another process (the app, the agent's MCP server) reading the
-    target at that instant makes the replace fail with PermissionError for a few milliseconds."""
+def replace(src, dst, tries=15):
+    """os.replace that waits out Windows' share lock: another process (the app, the agent's MCP server, antivirus) reading
+    the target at that instant makes the replace fail with PermissionError for a moment. Backs off up to about 2.5 s."""
     for i in range(tries):
         try:
             return os.replace(src, dst)
         except PermissionError:
             if i == tries - 1:
                 raise
-            time.sleep(0.05)
+            time.sleep(min(0.02 * (i + 1), 0.3))
 
 
 def kill_tree(p):
@@ -121,6 +128,25 @@ def kill_tree(p):
         subprocess.run(['taskkill', '/F', '/T', '/PID', str(p.pid)], capture_output=True, **NOWIN)
     else:
         p.kill()
+
+
+def run_capture(cmd, timeout=20, input=None, env=None, cwd=None):
+    """subprocess.run with captured UTF-8 output and a timeout that really works on Windows. There, `claude`
+    and `codex` are npm .cmd wrappers: subprocess.run's timeout kills only cmd.exe, then waits for the real program (still
+    holding the output pipes) to exit, which can be never. This stops the whole tree. Raises subprocess.TimeoutExpired."""
+    import subprocess
+    p = subprocess.Popen(cmd, stdin=subprocess.PIPE if input is not None else subprocess.DEVNULL, stdout=subprocess.PIPE,
+                         stderr=subprocess.PIPE, text=True, encoding='utf-8', errors='replace', env=env, cwd=cwd, **NOWIN)
+    try:
+        out, err = p.communicate(input, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        kill_tree(p)
+        try:
+            p.communicate(timeout=5)
+        except Exception:
+            pass
+        raise
+    return subprocess.CompletedProcess(cmd, p.returncode, out or '', err or '')
 
 
 def _has_content(v):
@@ -520,12 +546,20 @@ def applied_count_today():
 CYCLE_SECS = 270 * 86400   # one recruiting cycle (~9 months): last season's applications don't use up this season's cap
 
 
+READY_HOLD_SECS = 14 * 86400   # a filled form nobody pressed Submit on stops holding its company's slot after two weeks
+COUNTED_CAP = ("(status='Applied' or (status='Needs User' and lower(coalesce(notes,'')) like '%ready to submit%' and at>? "
+               "and not exists (select 1 from applications later where later.job_id=applications.job_id and later.at>applications.at "
+               "and later.status in ('Skipped','Failed'))))")
+
+
 def company_counts():
-    """company key -> applications that count toward its cap in the current recruiting cycle."""
+    """company key -> applications that count toward its cap in the current recruiting cycle. Submitted ones count for the
+    whole cycle; a filled form still waiting for the user's Submit only for two weeks (with auto-submit off, the default,
+    forms left unsubmitted used to use up every big company's cap for nine months and the queue ran dry)."""
     from .match import company_key
     out = {}
-    for r in rows(f"select company, count(distinct job_id) n from applications where {COUNTED} and at>? group by company",
-                  (time.time() - CYCLE_SECS,)):
+    for r in rows(f"select company, count(distinct job_id) n from applications where {COUNTED_CAP} and at>? group by company",
+                  (time.time() - READY_HOLD_SECS, time.time() - CYCLE_SECS)):
         k = company_key(r['company'] or '')
         out[k] = out.get(k, 0) + r['n']
     return out

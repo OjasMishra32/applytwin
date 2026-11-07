@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api } from '../lib/api'
 
 /* Every question applications ask, answered once and used on every form. Used by onboarding and Settings.
@@ -6,7 +6,13 @@ import { api } from '../lib/api'
 
 export function useQuestions() {
   const [qs, setQs] = useState(null)
-  useEffect(() => { api('/api/questions').then(d => setQs(d.questions)) }, [])
+  useEffect(() => {   // a failed load (the app restarting after an update) tries again instead of leaving blank screens
+    let live = true
+    const load = (n = 0) => api('/api/questions').then(d => live && setQs(d.questions))
+      .catch(() => { if (live) n < 5 ? setTimeout(() => load(n + 1), 2000) : setQs([]) })
+    load()
+    return () => { live = false }
+  }, [])
   return qs
 }
 
@@ -26,6 +32,9 @@ function implied(p, key) {
 }
 
 export function ProfileQuestions({ qs, p, setP, groups, showMissing, filled = [], large }) {
+  // "filled in for you" belongs to the value the resume gave: once you change it, it's yours and the label goes
+  const first = useRef({})
+  const firstSeen = (k, v) => (k in first.current ? first.current[k] : (first.current[k] = v))
   if (!qs) return <div className="skel h-64" />
   const names = groups || [...new Set(qs.map(q => q.group))]
   return (
@@ -47,7 +56,7 @@ export function ProfileQuestions({ qs, p, setP, groups, showMissing, filled = []
                   <div className={'flex min-w-0 flex-1 flex-wrap items-center gap-x-2 text-white ' + (large ? 'text-[15px]' : 'text-[14.5px]')}>
                     <span>{q.label}</span>{q.optional && <span className="text-[12px] text-faint">optional</span>}
                     {showMissing && blank && !q.optional && <span className="text-[12px] text-warn">Needed</span>}
-                    {filled.includes(q.key) && !blank && <span className="text-[12px] text-faint">filled in for you</span>}
+                    {filled.includes(q.key) && !blank && v === firstSeen(q.key, v) && <span className="text-[12px] text-faint">filled in for you</span>}
                   </div>
                   <div className="w-full shrink-0 sm:w-[46%]">
                     {q.kind === 'yesno' ? <YesNo value={v} onChange={x => setP(setv(p, q.key, x))} />
@@ -55,7 +64,7 @@ export function ProfileQuestions({ qs, p, setP, groups, showMissing, filled = []
                         <select value={v || ''} onChange={e => setP(implied(setv(p, q.key, e.target.value), q.key))}
                           className={'h-9 w-full rounded-[10px] bg-white/[.06] px-3 text-[14px] outline-none focus:ring-2 focus:ring-signal ' + (v ? 'text-white' : 'text-faint')}>
                           <option value="" disabled>Choose…</option>
-                          {(v && !q.options.includes(v) ? [v, ...q.options] : q.options).map(o => <option key={o} value={o} className="text-black">{o}</option>)}
+                          {(v && !q.options.includes(v) ? [v, ...q.options] : q.options).map(o => <option key={o} value={o}>{o}</option>)}
                         </select>)
                       : <input value={v || ''} placeholder={q.hint || ''} onChange={e => setP(setv(p, q.key, e.target.value))}
                           className="h-9 w-full rounded-[10px] bg-white/[.06] px-3 text-[14px] text-white outline-none placeholder:text-faint focus:ring-2 focus:ring-signal" />}

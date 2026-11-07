@@ -11,8 +11,9 @@ value that *looks* filled but never registered with the page's framework.
    ("graduating Dec 2027 - Aug 2028", "Class of 2028", "graduate by May 2028") are compared with the user's
    `grad_month`/`grad_year`; outside it = Skipped with notes like "graduation window Dec 2027 - Aug 2028; user
    graduates May 2029". `already_applied` not empty = never submit again (log Skipped "duplicate: ...").
-3. Tailor: `applytwin_tailor_prompt` -> write the plan -> `applytwin_tailor_apply(job_id, plan)`. Use the returned PDF.
-   If any rewrites were rejected by the fact guard, that's fine; the original bullet was used.
+3. Tailor: `applytwin_tailor_apply(job_id)` with NO plan (a dedicated writer builds it). Write your own plan
+   (`applytwin_tailor_prompt` -> plan -> `applytwin_tailor_apply(job_id, plan)`) only when the user asked for a
+   specific change. Use the returned PDF.
 4. `applytwin_playbook(<ats>)` for this ATS's specifics.
 
 ## Filling
@@ -37,14 +38,15 @@ value that *looks* filled but never registered with the page's framework.
 - **AI interview / AI screening consent** (HireVue, "AI-assisted interview"): Yes, unless the user's profile says no.
 - **Every question:** `applytwin_answer_questions([{question, options}], job_id)`; `action: "knockout"` means the form's own
   options rule the user out (log Skipped with `skip_reason`). Answers under the confidence threshold
-  come back null: ask the user, then `applytwin_save_answer` so you never ask again.
+  come back null: in a chat, ask the user, then `applytwin_save_answer` so you never ask again. In Autopilot
+  (unattended) never ask: log Needs User `required question: <exact text>` and go to the next job.
 - **Truthful only.** Never invent experience, skills, GPA, dates or availability. If a question asks for
   something the vault doesn't have (date of birth, a recommender's or referrer's name, an emergency contact, an
   SSN), never guess and never reuse a different answer: leave it blank if optional; if required, `applytwin_notify`
   and log Needs User with the exact question.
 - **Optional essays** ("Why us?", "Anything else?"): write 2-4 specific sentences from the vault and the
   posting, plain language, no em dashes, no clichés. Long required essays (>150 words): ask the user first
-  unless they said to draft them.
+  unless they said to draft them (in Autopilot: log Needs User `required question: <essay prompt>` instead).
 
 ## When the user is needed
 - **Emailed codes:** if `profile.apply.email_codes` is `agent`, read the newest code from that company in the user's email

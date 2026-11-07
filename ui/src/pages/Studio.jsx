@@ -64,7 +64,7 @@ export default function Studio({ arg }) {
     if (t.current) { clearTimeout(t.current); api('/api/vault', vRef.current).catch(() => {}) }
   }, [])
   const vRef = useRef(v); vRef.current = v
-  useEffect(() => { api('/api/ats').then(setRep) }, [])
+  useEffect(() => { api('/api/ats').then(setRep).catch(() => setRep({ score: null, lint: [] })) }, [])   // not "Checking…" forever
   const set = (path, val) => { const nv = structuredClone(v); let o = nv; for (const k of path.slice(0, -1)) o = o[k] ??= {}; o[path.at(-1)] = val; save(nv) }
   const pick = async id => {
     setTpl(id)
@@ -273,6 +273,10 @@ function Coverflow({ templates, tpl, pick }) {
     window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k)
   }, [templates.length])
   const cur = templates[i] || {}
+  // only the templates you're looking at (and their neighbours) load a preview: all nine at once took most of a second
+  // on a slow laptop and rendered every resume in the background; once loaded, a preview stays
+  const [seen, setSeen] = useState(() => new Set([idx - 1, idx, idx + 1]))
+  useEffect(() => { setSeen(s => s.has(i - 1) && s.has(i) && s.has(i + 1) ? s : new Set([...s, i - 1, i, i + 1])) }, [i])
   return (
     <div>
       <div className="relative isolate h-[560px] select-none overflow-x-clip" style={{ perspective: 1600 }}
@@ -286,7 +290,7 @@ function Coverflow({ templates, tpl, pick }) {
                 opacity: ad > 2 ? 0 : d === 0 ? 1 : 0.55, scale: d === 0 ? 1 : 0.9 }}
               transition={{ type: 'spring', stiffness: 260, damping: 34 }}>
               <div className={`overflow-hidden rounded-[8px] ${tpl === x.id ? 'ring-2 ring-signal' : ''}`} style={{ boxShadow: '0 20px 50px rgb(0 0 0 / .45)' }}>
-                <Paper src={`/preview?template=${x.id}`} />
+                {seen.has(j) ? <Paper src={`/preview?template=${x.id}`} /> : <div className="aspect-[8.5/11] w-full bg-white" />}
               </div>
               <div className="mt-4 text-center opacity-0 transition-opacity" style={{ opacity: d === 0 ? 1 : 0 }} />
             </motion.button>)

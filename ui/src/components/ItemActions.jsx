@@ -63,9 +63,11 @@ export function ItemActions({ item, onDone, compact }) {
         <button disabled={!!busy} onClick={() => said('I submitted it')} className={secondary}>I submitted it</button>}
       {job && kind !== 'other' && <button disabled={!!busy} onClick={skip} className={secondary}>{busy === 'skip' ? 'Skipping…' : 'Skip this job'}</button>}
       {(typeof item.id === 'number' || job) && <button onClick={async () => {
-        if (typeof item.id === 'number') await api(`/api/inbox/${item.id}/resolve`, {})
-        else await api(`/api/jobs/${job}/skip`, {})   // a job still waiting on you: dismissing it means don't apply
-        onDone?.()
+        try {
+          if (typeof item.id === 'number') await api(`/api/inbox/${item.id}/resolve`, {})
+          else await api(`/api/jobs/${job}/skip`, {})   // a job still waiting on you: dismissing it means don't apply
+          onDone?.()
+        } catch (e) { toast.error("Couldn't dismiss it", { description: e.message }) }
       }} className="h-8 px-2 text-[12.5px] text-muted hover:text-white">Dismiss</button>}
     </div>
     {job && <Talk job={job} onDone={onDone} />}
@@ -130,7 +132,8 @@ function Talk({ job, onDone }) {
 
 /* A reply that names a resume file shows a link to open it, never a raw path cut off at the edge of the bubble. */
 function Linked({ text }) {
-  const parts = (text || '').split(/(\S*\.applytwin[\\/]resumes[\\/]\S+?\.pdf)/)
+  // a user folder can have a space in it ("C:\Users\John Smith\..." / "/Users/John Smith/..."): match from the drive or home
+  const parts = (text || '').split(/((?:[A-Za-z]:\\[^\n"'<>|?*]*?\.applytwin\\resumes\\[^\n"'<>|?*]+?\.pdf)|(?:(?:~|\/(?:Users|home)\/)[^\n"'<>|?*\\]*?\.applytwin\/resumes\/[^\n"'<>|?*\\]+?\.pdf)|(?:\S*\.applytwin[\\/]resumes[\\/]\S+?\.pdf))/)
   return parts.map((p, i) => i % 2
     ? <a key={i} href={`/file?path=${encodeURIComponent(p)}`} target="_blank" rel="noreferrer" className="font-medium underline">Open the resume</a>
     : <span key={i}>{p}</span>)
