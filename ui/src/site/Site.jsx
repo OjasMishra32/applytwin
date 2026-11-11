@@ -115,7 +115,7 @@ export default function Site() {
               Paste this into {win ? 'PowerShell' : 'Terminal'}. It is the only thing you install, and it puts the whole app on your computer.
             </Reveal>
             <Reveal delay={0.1} className="mx-auto mt-10 max-w-[760px] text-left"><InstallBox win={win} setWin={setWin} /></Reveal>
-            <p className="mt-4 text-[14px] faint">Needs Python 3.9+, Node.js, and Claude Code or Codex. The installer checks for you.</p>
+            <p className="mt-4 text-[14px] faint">Nothing to install first. It gets Python and Node.js itself if your computer has none.</p>
           </div>
 
           <Reveal delay={0.05} className="mx-auto mt-20 max-w-[1040px] sm:mt-24">
@@ -174,7 +174,7 @@ export default function Site() {
 
 /* The five things that happen between pasting the line and your first application. */
 const AFTER = [
-  ['It installs', 'It downloads ApplyTwin and checks for Python, Node.js and your agent. Nothing to configure.'],
+  ['It installs', 'It downloads ApplyTwin, plus Python and Node.js if your computer has none. Nothing to configure.'],
   ['The app opens', 'Your browser goes to localhost:4747. That is ApplyTwin, running on your own computer.'],
   ['Sign in with Google', 'Your setup and answers are saved to your account, so a new laptop picks up where you left off.'],
   ['Add your resume', 'Drop in the one you have. You answer the usual application questions once.'],
