@@ -6,8 +6,47 @@ set -euo pipefail
 
 BASE="${APPLYTWIN_URL:-https://apply.twinly.tech}"
 REPO="OjasMishra32/applytwin"   # the ApplyTwin repo
+# Nothing to install by hand (like the Windows installer): a computer without a usable Python 3.9+ or Node.js gets
+# ApplyTwin's own copies in ~/.applytwin-app-runtime. No admin, no Homebrew, no Xcode tools.
+RT="${APPLYTWIN_RUNTIME:-$HOME/.applytwin-app-runtime}"
+_os="$(uname)"; _arch="$(uname -m)"
+case "$_arch" in arm64|aarch64) _pa=aarch64; _na=arm64 ;; *) _pa=x86_64; _na=x64 ;; esac
+case "$_os" in
+  Darwin) _pyt="$_pa-apple-darwin"; _nt="darwin-$_na" ;;
+  *)      _pyt="$_pa-unknown-linux-gnu"; _nt="linux-$_na" ;;
+esac
+_PY_URL="https://github.com/astral-sh/python-build-standalone/releases/download/20261026/cpython-3.12.16%2B20261026-$_pyt-install_only.tar.gz"
+_NODE_V=v26.13.0
+_NODE_URL="https://nodejs.org/dist/$_NODE_V/node-$_NODE_V-$_nt.tar.gz"
+_fetch() {   # url dest-dir: unpack beside the target, then rename, so a cut-off download never looks installed
+  mkdir -p "$RT"; local t; t="$(mktemp -d "$RT/.dl-XXXXXX")"
+  curl -fsSL --retry 3 "$1" -o "$t/a.tar.gz" && mkdir "$t/x" && tar -xzf "$t/a.tar.gz" -C "$t/x" \
+    && rm -rf "$2" && mv "$(find "$t/x" -mindepth 1 -maxdepth 1 -type d | head -1)" "$2"
+  local r=$?; rm -rf "$t"; return $r
+}
+_good_py() {   # a real Python 3.9+ with ssl; on a Mac without the Xcode tools /usr/bin/python3 is only a stub that opens an install dialog
+  [ -x "$1" ] || return 1
+  if [ "$_os" = Darwin ] && [ "$1" = /usr/bin/python3 ] && ! xcode-select -p >/dev/null 2>&1; then return 1; fi
+  "$1" -c 'import sys, ssl; sys.exit(sys.version_info < (3, 9))' >/dev/null 2>&1
+}
+PY=""
+for c in "$(command -v python3 2>/dev/null || true)" "$RT/python/bin/python3"; do
+  [ -n "$c" ] && _good_py "$c" && { PY="$c"; break; }
+done
+if [ -z "$PY" ]; then
+  printf '\033[36m>\033[0m Getting Python ready (a one-time download, about 40 MB)...\n'
+  _fetch "$_PY_URL" "$RT/python" && _good_py "$RT/python/bin/python3" && PY="$RT/python/bin/python3" \
+    || { printf '\033[31m✗\033[0m Could not download Python. Check your internet connection and run this again.\n'; exit 1; }
+fi
+case "$PY" in "$RT"/*) export PATH="$RT/python/bin:$PATH" ;; esac
+if ! command -v npx >/dev/null 2>&1; then
+  if [ -x "$RT/node/bin/npx" ] || { printf '\033[36m>\033[0m Getting Node.js ready (a one-time download, about 50 MB)...\n'; _fetch "$_NODE_URL" "$RT/node"; }; then
+    export PATH="$PATH:$RT/node/bin"   # the computer's own Node.js wins if it gets one later
+  fi
+fi
+
 # newest commit on main that passed CI (falls back to main if GitHub's API is unreachable)
-SHA="$(python3 - "$REPO" <<'PY' 2>/dev/null || true
+SHA="$("$PY" - "$REPO" <<'PY' 2>/dev/null || true
 import json, sys, urllib.request
 repo = sys.argv[1]
 get = lambda u: json.load(urllib.request.urlopen(urllib.request.Request(u, headers={"User-Agent": "ApplyTwin-installer"}), timeout=10))
@@ -27,16 +66,12 @@ warn() { printf '\033[33m!\033[0m %s\n' "$*"; }
 die() { printf '\033[31m✗\033[0m %s\n' "$*"; exit 1; }
 
 b "Installing ApplyTwin"
-command -v python3 >/dev/null || die "ApplyTwin needs Python 3.9+. Get it at https://www.python.org/downloads/ and run this again."
-python3 -c 'import sys; sys.exit(sys.version_info < (3, 9))' || die "ApplyTwin needs Python 3.9 or newer (you have $(python3 -V))."
-ok "$(python3 -V)"
-command -v npx >/dev/null && ok "Node.js $(node -v 2>/dev/null)" || warn "Node.js not found. Your twin needs it to drive a browser: https://nodejs.org"
+ok "$("$PY" -V)"
+command -v npx >/dev/null && ok "Node.js $(node -v 2>/dev/null)" || warn "Node.js couldn't be set up. Your twin needs it to drive a browser: https://nodejs.org"
 have=0
 command -v claude >/dev/null && { ok "Claude Code found"; have=1; }
 command -v codex >/dev/null && { ok "Codex found"; have=1; }
-[ "$have" = 1 ] || warn "Neither Claude Code nor Codex is installed. Install one (any paid plan works, no API key):
-    npm install -g @anthropic-ai/claude-code     # then run: claude   and type /login
-    npm install -g @openai/codex                 # then run: codex login"
+[ "$have" = 1 ] || warn "Neither Claude Code nor Codex is installed yet. In the app, press Install and sign in (any paid Claude or ChatGPT plan works, no API key)."
 
 # unpack next to the install folder (same disk) so the final move is an instant rename, never a copy that can fail halfway
 mkdir -p "$(dirname "$DIR")"
@@ -52,9 +87,16 @@ if mv "$top" "$DIR"; then rm -rf "$DIR.old"; else [ -d "$DIR.old" ] && mv "$DIR.
 [ -n "$SHA" ] && echo "$SHA" > "$DIR/INSTALLED"   # lets the app update itself from here on
 chmod +x "$DIR/bin/applytwin"
 ok "ApplyTwin $(cat "$DIR/VERSION" 2>/dev/null || echo '') in $DIR"
-python3 -m pip install --quiet --user pypdf >/dev/null 2>&1 || true   # optional: lets the ATS check read PDFs
+"$PY" -m pip install --quiet --user pypdf >/dev/null 2>&1 || true   # optional: lets the ATS check read PDFs
 
-mkdir -p "$HOME/.local/bin" && ln -sf "$DIR/bin/applytwin" "$HOME/.local/bin/applytwin"
+mkdir -p "$HOME/.local/bin"
+case "$PY" in
+  "$RT"/*) # ApplyTwin's own Python: a small launcher, since the script's own `python3` line would find the Mac's stub
+     rm -f "$HOME/.local/bin/applytwin"
+     printf '#!/bin/sh\nexport PATH="$PATH:%s"\nexec "%s" "%s" "$@"\n' "$RT/node/bin" "$PY" "$DIR/bin/applytwin" > "$HOME/.local/bin/applytwin"
+     chmod +x "$HOME/.local/bin/applytwin" ;;
+  *) ln -sf "$DIR/bin/applytwin" "$HOME/.local/bin/applytwin" ;;
+esac
 case ":$PATH:" in
   *":$HOME/.local/bin:"*) ;;
   *) # make the `applytwin` command work in every new terminal
@@ -68,15 +110,14 @@ case ":$PATH:" in
 esac
 
 echo; b "Connecting your agents"
-python3 "$DIR/bin/applytwin" install-agents || warn "Could not connect an agent yet. Run 'applytwin install-agents' after installing Claude Code or Codex."
+"$PY" "$DIR/bin/applytwin" install-agents || warn "Could not connect an agent yet. Run 'applytwin install-agents' after installing Claude Code or Codex."
 echo; b "Checking your setup"
-python3 "$DIR/bin/applytwin" doctor || true
+"$PY" "$DIR/bin/applytwin" doctor || true
 echo
 printf '\033[33m★\033[0m Free for every student. If it helps you, star it: https://github.com/OjasMishra32/applytwin\n\n'
 [ -n "${APPLYTWIN_NO_APP:-}" ] && exit 0
 
 # Run like a normal app: start quietly at login (so localhost:4747 always works and daily scans happen) and add an icon.
-PY="$(command -v python3)"
 mkdir -p "$HOME/.applytwin"
 case "$(uname)" in
   Darwin)

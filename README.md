@@ -18,7 +18,7 @@ Windows, paste this into PowerShell:
 irm https://apply.twinly.tech/install.ps1 | iex
 ```
 
-Before you run it you need Python 3.9 or newer, Node.js, and Claude Code or Codex. The installer checks for each one and tells you what is missing.
+You don't need anything installed first. If your computer has no Python or Node.js, the installer downloads its own copies into `~/.applytwin-app-runtime` (no admin rights needed). Claude Code or Codex can be installed and signed in from inside the app with one button.
 
 ### What happens after you paste it
 
@@ -110,14 +110,8 @@ Any paid plan works. After signing in, run `applytwin install-agents` so ApplyTw
 **Windows says "running scripts is disabled on this system".**
 That is PowerShell's script policy blocking npm's commands. Type `claude.cmd`, `codex.cmd` or `npm.cmd` instead of `claude`, `codex` or `npm`, or run them from Command Prompt. If you'd rather change the policy for your own user account, run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.
 
-**Python is missing, or too old.**
-ApplyTwin needs Python 3.9 or newer. On Mac or Linux, get it from https://www.python.org/downloads/. On Windows:
-
-```powershell
-winget install Python.Python.3.12
-```
-
-Then close the window, open a new one and paste the install line again.
+**The installer couldn't download Python or Node.js.**
+It fetches them itself the first time, so it needs internet access to github.com and nodejs.org. Check your connection (school networks sometimes block downloads) and paste the install line again. If you'd rather use your own, install Python 3.9+ from https://www.python.org/downloads/ and Node.js from https://nodejs.org, and the installer will use those instead.
 
 **Node.js is missing.**
 Your twin needs Node.js to drive a browser. Get the LTS version from https://nodejs.org (on Windows, `winget install OpenJS.NodeJS.LTS`).
